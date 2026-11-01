@@ -1547,12 +1547,15 @@ class _CustomerStudioState extends State<CustomerStudio> {
                       experience: exp,
                       disabled: picking || exp.busy,
                       onSelect: (item) => action(() async {
-                        await prepareCustomerStudio(
+                        final selectedModelId = exp.demoModelId;
+                        final ready = await prepareCustomerStudio(
                           context,
                           exp,
                           product: exp.storeMode ? item : null,
                           demoProduct: exp.storeMode ? null : item,
+                          demoModelId: selectedModelId,
                         );
+                        if (ready && exp.canGenerate) await exp.generate();
                       }),
                     ),
                     TextButton(
@@ -1601,35 +1604,31 @@ class _CustomerStudioState extends State<CustomerStudio> {
                       ),
                       const SizedBox(height: 12),
                     ],
-                    if (!exp.storeMode) ...[
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: picking || exp.busy
-                                ? null
-                                : () => action(exp.chooseAvatar),
-                            icon: const Icon(
-                              Icons.person_outline_rounded,
-                              size: 18,
-                            ),
-                            label: const CustomerText('My Avatar'),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: picking || exp.busy
+                              ? null
+                              : () => action(exp.chooseAvatar),
+                          icon: const Icon(
+                            Icons.person_outline_rounded,
+                            size: 18,
                           ),
-                          OutlinedButton.icon(
-                            onPressed: picking || exp.busy
-                                ? null
-                                : pickDemoModel,
-                            icon: const Icon(
-                              Icons.people_outline_rounded,
-                              size: 18,
-                            ),
-                            label: const CustomerText('Model'),
+                          label: const CustomerText('My Avatar'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: picking || exp.busy ? null : pickDemoModel,
+                          icon: const Icon(
+                            Icons.people_outline_rounded,
+                            size: 18,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+                          label: const CustomerText('Model'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     if (exp.avatarError != null) ...[
                       CustomerNotice(exp.avatarError!, error: true),
                       const SizedBox(height: 12),
@@ -2533,6 +2532,22 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                                   ),
                                 ],
                               ),
+                              if (look.payer == 'STORE' &&
+                                  look.priceAmountCents != null &&
+                                  look.priceCurrency != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 10),
+                                  child: Text(
+                                    _lookPriceLabel(look) ?? '',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: CustomerColors.orange,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                ),
                               const SizedBox(height: 14),
                               SizedBox(
                                 width: double.infinity,
@@ -2701,26 +2716,25 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              for (final photo in [
+              for (final entry in [
                 widget.look.person,
                 widget.look.outfit,
-              ].whereType<CustomerPhoto>())
+              ].whereType<CustomerPhoto>().indexed) ...[
+                if (entry.$1 > 0) const SizedBox(width: 8),
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: SizedBox(
-                      height: 170,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: CustomerAssetImage(
-                          experience: widget.experience,
-                          photo: photo,
-                          fit: BoxFit.contain,
-                        ),
+                  child: AspectRatio(
+                    aspectRatio: .75,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: CustomerAssetImage(
+                        experience: widget.experience,
+                        photo: entry.$2,
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
                 ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -2786,6 +2800,24 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
 String _date(BuildContext context, DateTime value) =>
     CustomerCopy.of(context).date(value);
 
+String? _storePriceLabel(int? amountCents, String? currency) {
+  if (amountCents == null || currency == null || currency.trim().isEmpty) {
+    return null;
+  }
+  return intl.NumberFormat.simpleCurrency(
+    name: currency.toUpperCase(),
+  ).format(amountCents / 100);
+}
+
+String? _lookPriceLabel(CustomerLook look) {
+  final price = _storePriceLabel(look.priceAmountCents, look.priceCurrency);
+  if (price == null) return null;
+  return look.priceMaximumAmountCents != null &&
+          look.priceMaximumAmountCents! > (look.priceAmountCents ?? 0)
+      ? 'From $price'
+      : price;
+}
+
 class CustomerStoreCatalog extends StatelessWidget {
   final CustomerExperience experience;
   final void Function(Json) onTryOn;
@@ -2829,17 +2861,25 @@ class CustomerStoreCatalog extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            store['name'] as String,
-            style: Theme.of(context).textTheme.headlineLarge,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  store['name'] as String,
+                  style: Theme.of(context).textTheme.headlineLarge,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: onLeave,
+                icon: const Icon(Icons.logout_rounded, size: 18),
+                label: const CustomerText('Exit Store'),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           CustomerNotice(
             'The Store pays · Up to ${experience.storeVisit!['dailyCustomerLimit']} Try-Ons per day. Your personal credits will not be used.',
-          ),
-          TextButton(
-            onPressed: onLeave,
-            child: const CustomerText('Leave Store session'),
           ),
           const SizedBox(height: 16),
           if (experience.generating || experience.hasUncertainRequest)
@@ -2911,9 +2951,35 @@ class CustomerStoreCatalog extends StatelessWidget {
                     const SizedBox(height: 12),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        product['name'] as String,
-                        style: Theme.of(context).textTheme.titleLarge,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            product['name'] as String,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          if (_storePriceLabel(
+                                ((product['minimumPriceAmountCents'] ??
+                                            product['priceAmountCents'])
+                                        as num?)
+                                    ?.toInt(),
+                                product['priceCurrency'] as String?,
+                              )
+                              case final String price)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                product['hasVariablePrices'] == true
+                                    ? 'From $price'
+                                    : price,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
+                                      color: CustomerColors.orange,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -2992,8 +3058,11 @@ class _CustomerStoreScannerState extends State<CustomerStoreScanner>
     final raw = value.trim();
     final uri = Uri.tryParse(raw);
     if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(raw) &&
+        !RegExp(r'^[A-Za-z0-9]{8}$').hasMatch(raw) &&
         !(uri?.scheme == 'selfx' && uri?.host == 'store')) {
-      setState(() => error = 'Use a SelfX Store QR code.');
+      setState(
+        () => error = tr(context, 'Use a SelfX Store QR code.'),
+      );
       return;
     }
     returned = true;
@@ -3083,8 +3152,13 @@ class _CustomerStoreScannerState extends State<CustomerStoreScanner>
         TextField(
           controller: text,
           textDirection: TextDirection.ltr,
+          textCapitalization: TextCapitalization.characters,
           autocorrect: false,
           enableSuggestions: false,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+            LengthLimitingTextInputFormatter(8),
+          ],
           decoration: InputDecoration(
             labelText: tr(context, 'Or paste the SelfX Store code'),
           ),

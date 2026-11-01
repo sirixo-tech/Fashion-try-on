@@ -193,12 +193,15 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
   });
 
   Future<void> trySuggested(Json item) => run(() async {
-    await prepareCustomerStudio(
+    final selectedModelId = exp.storeMode ? null : exp.demoModelId;
+    final ready = await prepareCustomerStudio(
       context,
       exp,
       product: exp.storeMode ? item : null,
       demoProduct: exp.storeMode ? null : item,
+      demoModelId: selectedModelId,
     );
+    if (ready && exp.canGenerate) await exp.generate();
   });
 
   @override

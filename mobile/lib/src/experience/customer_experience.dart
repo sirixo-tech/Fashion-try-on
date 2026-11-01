@@ -18,6 +18,9 @@ class CustomerPhoto {
 
 class CustomerLook {
   final String id, runId, name, payer;
+  final int? priceAmountCents;
+  final int? priceMaximumAmountCents;
+  final String? priceCurrency;
   final bool nameIsDefault;
   final DateTime expiresAt;
   final CustomerPhoto result;
@@ -28,6 +31,10 @@ class CustomerLook {
       name = data['name'] as String? ?? 'Your look',
       nameIsDefault = data['nameIsDefault'] == true || data['name'] == null,
       payer = data['payer'] as String,
+      priceAmountCents = (data['priceAmountCents'] as num?)?.toInt(),
+      priceMaximumAmountCents = (data['priceMaximumAmountCents'] as num?)
+          ?.toInt(),
+      priceCurrency = data['priceCurrency'] as String?,
       expiresAt = DateTime.parse(data['expiresAt'] as String),
       result = CustomerPhoto.fromJson(data['result'] as Json),
       person = data['person'] is Json
@@ -380,11 +387,7 @@ class CustomerExperience extends ChangeNotifier {
   }
 
   Future<void> chooseDemoModel(String id) async {
-    if (session == null ||
-        busy ||
-        generating ||
-        hasUncertainRequest ||
-        storeMode) {
+    if (session == null || busy || generating || hasUncertainRequest) {
       return;
     }
     final epoch = _epoch, sessionId = session!['id'];
@@ -475,11 +478,7 @@ class CustomerExperience extends ChangeNotifier {
   }
 
   Future<void> chooseAvatar() async {
-    if (session == null ||
-        busy ||
-        generating ||
-        hasUncertainRequest ||
-        storeMode) {
+    if (session == null || busy || generating || hasUncertainRequest) {
       return;
     }
     final epoch = _epoch, sessionId = session!['id'];
@@ -700,7 +699,6 @@ class CustomerExperience extends ChangeNotifier {
     savedLoading = productsLoading = busy = false;
     storeVisit = data;
     demoProduct = null;
-    demoModelId = null;
     demoLoading = false;
     session = run = product = null;
     _requestId = null;
@@ -756,7 +754,6 @@ class CustomerExperience extends ChangeNotifier {
     savedLoading = productsLoading = busy = false;
     storeVisit = session = run = product = null;
     demoProduct = null;
-    demoModelId = null;
     demoLoading = false;
     _requestId = null;
     person = outfit = null;

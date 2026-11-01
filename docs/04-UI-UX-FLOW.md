@@ -1,24 +1,40 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-34 — My Looks navigation label (2026-11-02)
+
+Label the Saved bottom-navigation destination **My Looks**. Keep its existing
+Looks and Wardrobe sections and behavior unchanged.
+
+### CUSTOMER-MOBILE-33 — Clean login header and inline phone OTP (2026-11-02)
+
+Remove editorial photography from the login brand header. In Mobile (OTP),
+retain the phone field and reveal the six-digit code field directly beneath it
+after Firebase sends the SMS, without navigating to a separate login screen.
+Keep SMS consent before the request, add comfortable spacing before Terms and
+Privacy, and place a larger consent-required error immediately above that
+checkbox when an action is blocked. Preserve the existing Firebase proof,
+cooldown, attempt limits, phone-link flow and translations.
+
 ### CUSTOMER-MOBILE-32 — Flush image cards and full-width tabs (2026-11-01)
 
 Remove avoidable top/bottom letterbox space from product and saved-look image
-cards while keeping full Try-On results uncropped. Let Home category filters
-and Saved Looks/Wardrobe tabs fill their row evenly with consistent touch
-targets; do not leave the labels as compact intrinsic-width chips.
+cards while keeping full Try-On results uncropped. On a saved look's starting
+point row, the person and garment images fill their portrait cards edge to edge,
+with no inset side gutters. Let Home category filters and Saved Looks/Wardrobe
+tabs fill their row evenly with consistent touch targets; do not leave the
+labels as compact intrinsic-width chips.
 
 ### CUSTOMER-MOBILE-31 — Separate email and mobile sign-in (2026-11-01)
 
 Sign-in uses two icon-labeled methods: Email and Mobile (OTP). Email displays
 an email-only field, password and Forgot password. Mobile (OTP) displays the
-country selector and phone-only field; after Send code, retain the consented
-Firebase flow and show the OTP entry on that flow's code screen. Never show the
-email/phone switch or password under Mobile, and never show the country picker
-under Email. Keep Google/Apple capability controls, linked Terms/Privacy notice,
-signup flow, rate limits and backend behavior. Use one clear bundled fashion
-photo in the top hero, with the existing logo, language control and text kept
-legible over it; remove the collage from this screen. Translate the method
-labels in all 20 catalogs and preserve RTL, keyboard and narrow-screen behavior.
+country selector and phone-only field; after Send code, reveal OTP entry on the
+same screen. Never show the email/phone switch or password under Mobile, and
+never show the country picker under Email. Keep Google/Apple capability
+controls, linked Terms/Privacy notice, signup flow, rate limits and backend
+behavior. Keep the SelfX logo and language control on a clear, photo-free header.
+Translate the method labels in all 20 catalogs and preserve RTL, keyboard and
+narrow-screen behavior.
 
 ### CUSTOMER-MOBILE-30 — My Looks card actions and styling (2026-11-01)
 
@@ -139,7 +155,7 @@ Platform Mobile Plans shows the shared INR credit price. The mobile Plans & cred
 
 Platform navigation has a separate Mobile Plans item beside Plans. Platform pricing viewers can see it and pricing managers can create or edit mobile plans. Active plans appear in the customer Plans & credits screen with price, billing period and credit amounts. Checkout is available after production PhonePe configuration is enabled. The personal free trial and Store QR sponsorship remain unchanged.
 
-Store administrators manage mobile Try-On QR codes from Integrations > Store QR. The page uses the active Store context; viewing requires `integrations.view`, while creating and revoking codes requires `integrations.manage`. Only the current QR is listed. Creating a replacement revokes the prior code and opens the new QR in a centered dialog with Share and Download actions. Store overview remains focused on Store status and usage.
+Store administrators manage mobile Try-On QR codes from Integrations > Store QR. The page uses the active Store context; viewing requires `integrations.view`, while creating and revoking codes requires `integrations.manage`. Only the current QR is listed. The page displays a large reopenable QR and its copyable 8-character alphanumeric code. QR scanning and code entry start the same Store visit. Replacing a QR revokes both old credentials and opens the replacement in a dialog with Share and Download actions. Store overview remains focused on Store status and usage.
 
 ### CUSTOMER-MOBILE-20 — Product Try-On, progress and garment saves (2026-10-29)
 
@@ -153,7 +169,7 @@ Keep the entire approved welcome logo readable with a soft light wash that fades
 
 ### CUSTOMER-MOBILE-19 — Result suggestions and Try-On progress (2026-10-28)
 
-Show up to four relevant garments from the current personal demo or Store-visit catalog only beneath a completed Try-On result. Exclude the garment just used, prefer the selected category and complementary garment types where metadata allows, and open a new consented Try-On with the tapped garment selected. Suggestions do not generate a look or consume another credit until the customer submits it. Replace the Try-On tab's blank spinner state with a lightweight animation of the selected person and garment photos, real queued/processing copy, and a reduced-motion alternative; do not show a fabricated completion percentage.
+Show all relevant garments from the current personal demo or Store-visit catalog in a horizontally swipeable carousel beneath a completed Try-On result. Exclude the garment just used, prefer the selected category and complementary garment types where metadata allows. Tapping a suggestion starts a new consented Try-On immediately with that garment and the current demo model selected; saved-avatar defaults continue through the existing session flow. Do not route the customer back through model selection. Replace the Try-On tab's blank spinner state with a lightweight animation of the selected person and garment photos, real queued/processing copy, and a reduced-motion alternative; do not show a fabricated completion percentage.
 
 ### CUSTOMER-MOBILE-18 — Product detail, grid and My Looks (2026-10-28)
 
@@ -169,7 +185,7 @@ Use a dark blue information-screen backdrop and larger Try-On/model image cards 
 
 ### CUSTOMER-MOBILE-15 — Demo Explore and detail (2026-10-28)
 
-Home has a SelfX Demo outfit grid with search and full-width evenly spaced All/Women/Men filters. Each edge-to-edge product image fills its image-card area and opens a sample product detail view with a large garment preview and My Avatar / demo model selection. The fitting room displays the selected person and garment, with one-off replacement actions. Demo products have no price or purchase control. Store QR mode retains the Store catalog. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
+Home has a SelfX Demo outfit grid with search and full-width evenly spaced All/Women/Men filters. Each edge-to-edge product image fills its image-card area and opens a sample product detail view with a large garment preview and My Avatar / demo model selection. The fitting room displays the selected person and garment, with one-off replacement actions. Demo products have no price or purchase control. Store QR mode retains the Store catalog, shows available product prices and provides an Exit Store action. Store-sponsored saved looks retain a snapshot of the product's available price and currency. Customer model/avatar behavior stays the same in Store mode. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
 
 ### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
 

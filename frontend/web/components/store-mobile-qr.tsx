@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toDataURL } from "qrcode";
 import {
   DownloadIcon,
+  CopyIcon,
   QrCodeIcon,
   Share2Icon,
   XIcon,
@@ -32,6 +33,8 @@ interface StoreQr {
   expiresAt: string;
   revokedAt: string | null;
   createdAt: string;
+  code?: string;
+  payload?: string;
 }
 
 export function StoreMobileQr({
@@ -46,7 +49,11 @@ export function StoreMobileQr({
   const [current, setCurrent] = useState<StoreQr | null>(null);
   const [label, setLabel] = useState("In-store Try-On");
   const [limit, setLimit] = useState("5");
-  const [qr, setQr] = useState<{ id: string; image: string } | null>(null);
+  const [qr, setQr] = useState<{
+    id: string;
+    image: string;
+    code?: string;
+  } | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +65,17 @@ export function StoreMobileQr({
 
   const load = useCallback(async () => {
     const data = await selfxApi<{ data: StoreQr[] }>(path, { accessToken });
-    if (active.current === key) setCurrent(data.data[0] ?? null);
+    const row = data.data[0] ?? null;
+    if (active.current !== key) return;
+    setCurrent(row);
+    if (row?.payload) {
+      const image = await toDataURL(row.payload, {
+        width: 800,
+        margin: 3,
+        errorCorrectionLevel: "M",
+      });
+      if (active.current === key) setQr({ id: row.id, image, code: row.code });
+    }
   }, [path, accessToken, key]);
 
   useEffect(() => {
@@ -110,10 +127,7 @@ export function StoreMobileQr({
       const file = new File([blob], `SelfX-Store-QR-${qr.id}.png`, {
         type: "image/png",
       });
-      if (
-        !navigator.share ||
-        !navigator.canShare?.({ files: [file] })
-      ) {
+      if (!navigator.share || !navigator.canShare?.({ files: [file] })) {
         setNotice(
           "Sharing QR images is not available in this browser. Download the QR to share it.",
         );
@@ -168,13 +182,18 @@ export function StoreMobileQr({
                 <Badge variant="outline">Active</Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                {current.dailyCustomerLimit} Try-Ons per customer / day · Expires{" "}
-                <RegionalDateTime value={current.expiresAt} />
+                {current.dailyCustomerLimit} Try-Ons per customer / day ·
+                Expires <RegionalDateTime value={current.expiresAt} />
               </p>
-              <p className="text-xs text-muted-foreground">
-                The QR is shown once when created. Replace it to generate and
-                share a fresh code.
-              </p>
+              {current.code ? (
+                <p className="font-mono text-sm font-semibold tracking-[0.2em]">
+                  Store code: {current.code}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Replace this older QR to generate an 8-character Store code.
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               {qr?.id === current.id ? (
@@ -233,12 +252,13 @@ export function StoreMobileQr({
                   },
                 );
                 const image = await toDataURL(result.payload, {
-                  width: 640,
+                  width: 800,
                   margin: 3,
                   errorCorrectionLevel: "M",
                 });
                 if (active.current !== key) return;
-                setQr({ id: result.id, image });
+                setQr({ id: result.id, image, code: result.code });
+                setCurrent(result);
                 setDialogOpen(true);
                 await load();
               });
@@ -276,11 +296,8 @@ export function StoreMobileQr({
           </form>
         ) : null}
 
-        <Dialog
-          open={dialogOpen && Boolean(qr)}
-          onOpenChange={setDialogOpen}
-        >
-          <DialogContent className="sm:max-w-md">
+        <Dialog open={dialogOpen && Boolean(qr)} onOpenChange={setDialogOpen}>
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Store QR ready</DialogTitle>
               <DialogDescription>
@@ -290,15 +307,41 @@ export function StoreMobileQr({
             </DialogHeader>
             {qr ? (
               <div className="space-y-5 text-center">
-                {/* Locally generated QR image; only its hashed token is stored. */}
+                {/* Generated locally from the Store's active access code. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={qr.image}
-                  width={288}
-                  height={288}
+                  width={400}
+                  height={400}
                   alt="SelfX Store Try-On QR code"
-                  className="mx-auto size-72 max-w-full rounded-lg border bg-white p-3"
+                  className="mx-auto size-[min(82vw,25rem)] max-w-full rounded-xl border bg-white p-4"
                 />
+                {qr.code ? (
+                  <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
+                    <p className="text-sm text-muted-foreground">
+                      Enter this 8-character code in the SelfX app
+                    </p>
+                    <div className="flex items-center justify-center gap-3">
+                      <code className="text-2xl font-bold tracking-[0.25em]">
+                        {qr.code}
+                      </code>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          void navigator.clipboard
+                            .writeText(qr.code!)
+                            .then(() => setNotice("Store code copied."))
+                            .catch(() =>
+                              setError("Store code could not be copied."),
+                            )
+                        }
+                      >
+                        <CopyIcon size={16} /> Copy code
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-2 gap-3">
                   <a
                     href={qr.image}

@@ -31,6 +31,15 @@ concise note; omit the duplicate “Private. Saved for you.” heading. Fit the
 normal portrait screen without scrolling, while preserving scroll fallback for
 constrained heights and larger text.
 
+### Reference layout update (2026-11-02)
+
+Use the approved reference composition: a circular Back control and centered
+SelfX logo share the top row, followed by a strong heading and subtitle. Give
+the side-by-side selfie/full-body photo cards more space, then show the photo
+tip strip, one saved-photo/default/retention note, centered Edit interests and
+a prominent full-width Save changes action. Scale the logo down on narrow
+screens; preserve scroll fallback for constrained heights and larger text.
+
 ## Retention exception approved by the user
 
 Saved avatar SELFIE and FULL_BODY originals have no automatic expiry. They

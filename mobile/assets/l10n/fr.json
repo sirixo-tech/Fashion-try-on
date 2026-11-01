@@ -639,5 +639,9 @@
   "Sort products": "Trier les articles",
   "Recommended": "Recommandé",
   "Name (A-Z)": "Nom (A-Z)",
-  "Name (Z-A)": "Nom (Z-A)"
+  "Name (Z-A)": "Nom (Z-A)",
+  "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "Pour obtenir de l’aide plus rapidement, indiquez ce que vous faisiez, ce à quoi vous vous attendiez et ce qui s’est passé. Ajoutez les étapes pour reproduire le problème si possible. La version de l’application est ajoutée automatiquement si vous choisissez l’assistance par e-mail.",
+  "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "Version de l’application : {p0}\n\nQue cherchiez-vous à faire ?\n\nQue s’est-il passé ?\n\nÉtapes pour reproduire le problème (si possible) :\n\n",
+  "Store-sponsored Try-On": "Essai sponsorisé par le magasin",
+  "My Looks": "Mes looks"
 }

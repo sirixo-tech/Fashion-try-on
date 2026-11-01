@@ -639,5 +639,9 @@
   "Sort products": "مصنوعات ترتیب دیں",
   "Recommended": "تجویز کردہ",
   "Name (A-Z)": "نام (A-Z)",
-  "Name (Z-A)": "نام (Z-A)"
+  "Name (Z-A)": "نام (Z-A)",
+  "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "جلد مدد کے لیے بتائیں کہ آپ کیا کر رہے تھے، آپ کو کیا توقع تھی اور حقیقت میں کیا ہوا۔ ممکن ہو تو مسئلے کو دوبارہ پیدا کرنے کے مراحل بھی شامل کریں۔ ای میل سپورٹ منتخب کرنے پر ایپ کا ورژن خود بخود شامل ہو جائے گا۔",
+  "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "ایپ کا ورژن: {p0}\n\nآپ کیا کرنے کی کوشش کر رہے تھے؟\n\nکیا ہوا؟\n\nمسئلے کو دوبارہ پیدا کرنے کے مراحل (اگر ممکن ہو):\n\n",
+  "Store-sponsored Try-On": "اسٹور کی معاونت سے ٹرائی آن",
+  "My Looks": "میرے لُکس"
 }

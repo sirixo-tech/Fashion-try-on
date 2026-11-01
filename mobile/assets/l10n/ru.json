@@ -639,5 +639,9 @@
   "Sort products": "Сортировать товары",
   "Recommended": "Рекомендуемые",
   "Name (A-Z)": "Название (А-Я)",
-  "Name (Z-A)": "Название (Я-А)"
+  "Name (Z-A)": "Название (Я-А)",
+  "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "Чтобы мы быстрее помогли, расскажите, что вы делали, чего ожидали и что произошло. По возможности укажите шаги для повторения проблемы. Версия приложения добавляется автоматически при выборе поддержки по электронной почте.",
+  "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "Версия приложения: {p0}\n\nЧто вы пытались сделать?\n\nЧто произошло?\n\nШаги для повторения проблемы (если возможно):\n\n",
+  "Store-sponsored Try-On": "Примерка при поддержке магазина",
+  "My Looks": "Мои образы"
 }

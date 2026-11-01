@@ -4,7 +4,7 @@ Approved follow-up: reuse SelfX's existing contact and website, make customer se
 
 ## What works
 
-- **Me → Contact us:** opens the user's email composer with app version and a blank issue description. It never sends automatically. The support address can also be copied.
+- **Me → Contact us:** explains which details help support investigate, then opens the user's email composer with app version and prompts for the attempted action, observed result and reproduction steps. It never sends automatically. The support address can also be copied.
 - **Terms / Privacy:** actual HTTPS pages, accessible before sign-in. Current default support is `sirixollc@gmail.com`; website is `https://selfxweb-production.up.railway.app`. `/terms` is new source; `/privacy` includes original-photo seven-day and mobile-result 30-day retention. Policy version is `2026-10-26`. Review these product policy texts before production publication; local source does not publish a site.
 - **Me → Notifications:** a private, paginated look-ready inbox, read status and owned-result viewing. Events expire with their result and are removed on photo/account erasure. An individually deleted or Store-purged result may leave an inbox entry until expiry; opening it reports unavailable.
 - **Phone alerts:** prepared but disabled without both server and native Firebase configuration. Missing Firebase does not prevent sign-in, Try-On or inbox use. Security email delivery remains independent of the optional phone preference.

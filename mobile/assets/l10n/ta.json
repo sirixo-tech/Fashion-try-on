@@ -639,5 +639,9 @@
   "Sort products": "தயாரிப்புகளை வரிசைப்படுத்து",
   "Recommended": "பரிந்துரைக்கப்பட்டது",
   "Name (A-Z)": "பெயர் (A-Z)",
-  "Name (Z-A)": "பெயர் (Z-A)"
+  "Name (Z-A)": "பெயர் (Z-A)",
+  "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "விரைவாக உதவ, நீங்கள் என்ன செய்துகொண்டிருந்தீர்கள், என்ன எதிர்பார்த்தீர்கள், என்ன நடந்தது என்பதைச் சொல்லுங்கள். முடிந்தால் சிக்கலை மீண்டும் உருவாக்கும் படிகளையும் சேர்க்கவும். மின்னஞ்சல் ஆதரவைத் தேர்ந்தெடுக்கும்போது செயலியின் பதிப்பு தானாகச் சேர்க்கப்படும்.",
+  "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "செயலி பதிப்பு: {p0}\n\nநீங்கள் என்ன செய்ய முயன்றீர்கள்?\n\nஎன்ன நடந்தது?\n\nசிக்கலை மீண்டும் உருவாக்கும் படிகள் (முடிந்தால்):\n\n",
+  "Store-sponsored Try-On": "கடை ஆதரவுடன் Try-On",
+  "My Looks": "எனது தோற்றங்கள்"
 }

@@ -26,16 +26,37 @@ class _CustomerAboutScreenState extends State<CustomerAboutScreen> {
             alignment: AlignmentDirectional.centerStart,
             child: CustomerBrand(),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
           CustomerText(
-            'A little more possibility',
+            'Meet your personal fitting room. Explore how an outfit could look on you.',
             style: Theme.of(context).textTheme.headlineMedium,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           const CustomerText(
-            'SelfX brings personal and Store-sponsored Try-On together in one place. Customer app.',
+            'Choose photos you own or have permission to use. Virtual Try-On is a visual preview; fit and detail can vary.',
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
+          _AboutInfoCard(
+            icon: Icons.checkroom_outlined,
+            title: 'Personal',
+            description:
+                'Personal free trial credits. Store-sponsored usage is separate.',
+          ),
+          const SizedBox(height: 12),
+          _AboutInfoCard(
+            icon: Icons.storefront_outlined,
+            title: 'Store-sponsored Try-On',
+            description:
+                'Scan a participating Store’s SelfX QR. Its products and sponsorship will appear before you try on.',
+          ),
+          const SizedBox(height: 12),
+          _AboutInfoCard(
+            icon: Icons.bookmark_border_rounded,
+            title: 'Saved',
+            description:
+                'Find your tried-on outfits and results in Saved. Mobile results stay for 30 days; download your favourites before they expire.',
+          ),
+          const SizedBox(height: 24),
           FutureBuilder<CustomerInstalledApp>(
             future: info,
             builder: (context, snapshot) => Column(
@@ -70,6 +91,50 @@ class _CustomerAboutScreenState extends State<CustomerAboutScreen> {
                         : null,
                   ),
                 ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _AboutInfoCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+
+  const _AboutInfoCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(20),
+      side: const BorderSide(color: CustomerColors.line),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: CustomerColors.orange),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CustomerText(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                CustomerText(description),
               ],
             ),
           ),

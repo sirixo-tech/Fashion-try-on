@@ -639,5 +639,9 @@
   "Sort products": "ಉತ್ಪನ್ನಗಳನ್ನು ವಿಂಗಡಿಸಿ",
   "Recommended": "ಶಿಫಾರಸು ಮಾಡಲಾಗಿದೆ",
   "Name (A-Z)": "ಹೆಸರು (A-Z)",
-  "Name (Z-A)": "ಹೆಸರು (Z-A)"
+  "Name (Z-A)": "ಹೆಸರು (Z-A)",
+  "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "ತ್ವರಿತ ಸಹಾಯಕ್ಕಾಗಿ, ನೀವು ಏನು ಮಾಡುತ್ತಿದ್ದಿರಿ, ಏನಾಗುತ್ತದೆ ಎಂದು ನಿರೀಕ್ಷಿಸಿದ್ದಿರಿ ಮತ್ತು ನಿಜವಾಗಿ ಏನಾಯಿತು ಎಂದು ತಿಳಿಸಿ. ಸಾಧ್ಯವಾದರೆ ಸಮಸ್ಯೆಯನ್ನು ಮರುಕಳಿಸುವ ಹಂತಗಳನ್ನು ಸೇರಿಸಿ. ಇಮೇಲ್ ಬೆಂಬಲ ಆಯ್ಕೆ ಮಾಡಿದಾಗ ಆ್ಯಪ್ ಆವೃತ್ತಿ ಸ್ವಯಂಚಾಲಿತವಾಗಿ ಸೇರಿಸಲಾಗುತ್ತದೆ.",
+  "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "ಆ್ಯಪ್ ಆವೃತ್ತಿ: {p0}\n\nನೀವು ಏನು ಮಾಡಲು ಪ್ರಯತ್ನಿಸುತ್ತಿದ್ದಿರಿ?\n\nಏನಾಯಿತು?\n\nಸಮಸ್ಯೆಯನ್ನು ಮರುಕಳಿಸುವ ಹಂತಗಳು (ಸಾಧ್ಯವಾದರೆ):\n\n",
+  "Store-sponsored Try-On": "ಸ್ಟೋರ್ ಪ್ರಾಯೋಜಿತ ಟ್ರೈ-ಆನ್",
+  "My Looks": "ನನ್ನ ಲುಕ್ಸ್"
 }

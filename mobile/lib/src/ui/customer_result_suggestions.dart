@@ -47,7 +47,7 @@ List<Json> suggestedResultGarments(CustomerExperience experience) {
     final bDistance = (b.$1 - currentIndex + catalog.length) % catalog.length;
     return aDistance.compareTo(bDistance);
   });
-  return indexed.take(4).map((entry) => entry.$2).toList();
+  return indexed.map((entry) => entry.$2).toList();
 }
 
 class CustomerResultSuggestions extends StatelessWidget {

@@ -99,6 +99,10 @@ export interface KioskCatalogProductForTryOn {
   garmentIntent: string;
   garmentCategory: string;
   garmentPhotoType: string;
+  priceAmountCents: number | null;
+  minimumPriceAmountCents: number | null;
+  maximumPriceAmountCents: number | null;
+  priceCurrency: string | null;
   garmentImage: KioskCatalogGarmentProductTryOnImage;
 }
 
@@ -298,6 +302,8 @@ export class CatalogService {
         p.garment_category,
         p.garment_photo_type,
         p.price_amount_cents,
+        (SELECT MIN(CASE WHEN ps.pricing_mode = 'VARIANT' THEN COALESCE(pv.price_override_amount_cents, p.price_amount_cents) ELSE p.price_amount_cents END) FROM product_variants pv JOIN product_stock_settings ps ON ps.product_id = pv.product_id AND ps.organization_id = pv.organization_id WHERE pv.product_id = p.id AND pv.organization_id = p.organization_id AND pv.active = true) AS minimum_price_cents,
+        (SELECT MAX(CASE WHEN ps.pricing_mode = 'VARIANT' THEN COALESCE(pv.price_override_amount_cents, p.price_amount_cents) ELSE p.price_amount_cents END) FROM product_variants pv JOIN product_stock_settings ps ON ps.product_id = pv.product_id AND ps.organization_id = pv.organization_id WHERE pv.product_id = p.id AND pv.organization_id = p.organization_id AND pv.active = true) AS maximum_price_cents,
         p.price_currency,
         p.image_url,
         p.image_storage_key,
@@ -328,6 +334,16 @@ export class CatalogService {
       garmentIntent: product.garment_intent,
       garmentCategory: product.garment_category,
       garmentPhotoType: product.garment_photo_type,
+      priceAmountCents: product.externally_managed
+        ? null
+        : product.price_amount_cents,
+      minimumPriceAmountCents: product.externally_managed
+        ? null
+        : (product.minimum_price_cents ?? product.price_amount_cents),
+      maximumPriceAmountCents: product.externally_managed
+        ? null
+        : (product.maximum_price_cents ?? product.price_amount_cents),
+      priceCurrency: product.price_currency,
       garmentImage: await this.resolveTryOnImage(product),
     };
   }

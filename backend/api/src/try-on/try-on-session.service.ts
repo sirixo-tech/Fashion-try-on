@@ -196,6 +196,9 @@ export class TryOnSessionService {
       personAssetId: string;
       garmentAssetId?: string | null;
       productId?: string | null;
+      priceAmountCents?: number | null;
+      priceMaximumAmountCents?: number | null;
+      priceCurrency?: string | null;
       resultAsset: TryOnAssetStorageInput;
       expiresAt?: Date;
       existingResultAssetId?: string;
@@ -262,6 +265,9 @@ export class TryOnSessionService {
           personAssetId: input.personAssetId,
           garmentAssetId: input.garmentAssetId ?? null,
           productId: input.productId ?? null,
+          priceAmountCents: input.priceAmountCents ?? null,
+          priceMaximumAmountCents: input.priceMaximumAmountCents ?? null,
+          priceCurrency: input.priceCurrency ?? null,
           resultAssetId: resultAsset.id,
           assignmentScope: session.assignmentScope,
           organizationId: session.organizationId,

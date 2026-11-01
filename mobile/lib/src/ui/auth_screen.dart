@@ -3,11 +3,11 @@ import '../l10n/customer_copy.dart';
 import 'package:flutter/material.dart';
 import '../auth/customer_api.dart';
 import '../auth/customer_controller.dart';
+import '../auth/customer_phone.dart';
 import 'customer_theme.dart';
 import 'customer_entry_theme.dart';
 import 'customer_phone_field.dart';
 import 'customer_policy_notice.dart';
-import 'customer_code_screen.dart';
 import '../l10n/customer_language_screen.dart';
 
 enum CustomerAuthView { signIn, signUp, verify, forgot, reset }
@@ -29,9 +29,13 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   final verificationEmail = TextEditingController();
   final identifierField = GlobalKey<CustomerPhoneFieldState>();
   final mobileField = GlobalKey<CustomerPhoneFieldState>();
+  final policySection = GlobalKey();
   final mobile = TextEditingController();
   Timer? resendTimer;
+  Timer? mobileCooldownTimer;
   int resendWait = 0;
+  int mobileCooldown = 0, mobileGuesses = 0;
+  CustomerPhoneChallenge? mobileChallenge;
   void startResendWait() {
     resendTimer?.cancel();
     resendWait = 60;
@@ -49,8 +53,10 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
 
   CustomerAuthView view = CustomerAuthView.signIn;
   bool obscure = true, busy = false, acceptedPolicy = false;
-  bool mobileOtp = false;
-  String? error, notice, signupProof;
+  bool mobileOtp = false, mobileCodeSent = false, smsConsent = false;
+  String? error, notice, signupProof, policyError, smsConsentError;
+  String? phoneDiagnostic;
+  String phoneStage = 'SELFX_PREFLIGHT';
   CustomerController get auth => widget.controller;
   bool get signup => view == CustomerAuthView.signUp;
   bool get credentialForm => view == CustomerAuthView.signIn || signup;
@@ -68,10 +74,20 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   void change(CustomerAuthView next) {
     FocusScope.of(context).unfocus();
     resendTimer?.cancel();
+    mobileCooldownTimer?.cancel();
+    auth.phone.cancel();
     resendWait = 0;
     setState(() {
       view = next;
       mobileOtp = false;
+      mobileCodeSent = false;
+      mobileChallenge = null;
+      mobileCooldown = 0;
+      mobileGuesses = 0;
+      smsConsent = false;
+      smsConsentError = null;
+      policyError = null;
+      phoneDiagnostic = null;
       error = null;
       notice = null;
       password.clear();
@@ -89,8 +105,19 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
 
   void setMobileOtp(bool value) {
     FocusScope.of(context).unfocus();
+    auth.phone.cancel();
+    mobileCooldownTimer?.cancel();
     setState(() {
       mobileOtp = value;
+      mobileCodeSent = false;
+      mobileChallenge = null;
+      mobileCooldown = 0;
+      mobileGuesses = 0;
+      smsConsent = false;
+      smsConsentError = null;
+      phoneDiagnostic = null;
+      policyError = null;
+      code.clear();
       error = null;
       notice = null;
       password.clear();
@@ -172,27 +199,8 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const ColoredBox(color: Color(0xFFFFF5EF)),
-          Image.asset(
-            'assets/editorial/plans-editorial-06-v3.jpg',
-            fit: BoxFit.cover,
-            alignment: Alignment.center,
-            filterQuality: FilterQuality.medium,
-            excludeFromSemantics: true,
-          ),
           const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [
-                  Color(0xFFFFF6F0),
-                  Color(0xEFFFF6F0),
-                  Color(0x22FFF6F0),
-                ],
-                stops: [0, .55, 1],
-              ),
-            ),
+            decoration: BoxDecoration(color: Color(0xFFFFF5EF)),
           ),
           PositionedDirectional(top: 8, start: 8, child: const CustomerBrand()),
           PositionedDirectional(
@@ -249,18 +257,145 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     ),
   );
 
-  Future<void> continueWithMobileOtp() async {
-    if (!ensurePolicy()) return;
-    if (!(form.currentState?.validate() ?? false)) return;
+  void startMobileCooldown([int seconds = 10]) {
+    mobileCooldownTimer?.cancel();
+    mobileCooldown = seconds.clamp(1, 86400);
+    mobileCooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        mobileCooldown--;
+        if (mobileCooldown <= 0) timer.cancel();
+      });
+    });
+  }
+
+  void mobileContactChanged() {
+    if (mobileCodeSent) {
+      auth.phone.cancel();
+      mobileCooldownTimer?.cancel();
+    }
+    setState(() {
+      if (mobileCodeSent) {
+        mobileCodeSent = false;
+        mobileChallenge = null;
+        mobileCooldown = 0;
+        mobileGuesses = 0;
+        code.clear();
+        phoneDiagnostic = null;
+      }
+      smsConsent = false;
+      smsConsentError = null;
+    });
+  }
+
+  Future<void> requestMobileCode({bool resend = false}) async {
+    if (busy || mobileCooldown > 0) return;
+    final policyAccepted = ensurePolicy();
+    final contactValid = resend || (form.currentState?.validate() ?? false);
+    if (!smsConsent && mobile.text.trim().isNotEmpty) {
+      setState(
+        () => smsConsentError = 'Accept phone verification to continue.',
+      );
+    }
+    if (!policyAccepted || !contactValid || !smsConsent) return;
     final phone = mobileField.currentState?.canonical;
     if (phone == null) return;
     FocusScope.of(context).unfocus();
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CustomerCodeScreen(auth: auth, initialContact: phone),
-      ),
-    );
+    await runMobilePhone(() async {
+      phoneStage = 'SELFX_PREFLIGHT';
+      if (!auth.capabilities.phone) {
+        await auth.refreshCapabilities();
+      }
+      if (!auth.capabilities.phone || !await auth.phone.configured()) {
+        throw const CustomerApiException(
+          'CUSTOMER_PHONE_UNAVAILABLE',
+          'Phone sign-in is not configured yet.',
+        );
+      }
+      final result = await auth.api.request(
+        '/auth/phone/request',
+        body: {'phoneNumber': phone},
+      );
+      if (!mounted) return;
+      startMobileCooldown(
+        (result['resendAfterSeconds'] as num?)?.toInt() ?? 10,
+      );
+      phoneStage = 'FIREBASE_REQUEST';
+      final challenge = await auth.phone.send(
+        phone,
+        result['projectId'] as String,
+      );
+      if (!mounted) return;
+      if (challenge.idToken != null) {
+        phoneStage = 'SELFX_LOGIN';
+        await auth.finishPhone(challenge.idToken!, link: false);
+        auth.phone.cancel();
+        return;
+      }
+      setState(() {
+        mobileChallenge = challenge;
+        mobileCodeSent = true;
+        mobileGuesses = 0;
+        code.clear();
+      });
+    });
+  }
+
+  Future<void> verifyMobileCode() async {
+    if (busy || mobileGuesses >= 5 || !ensurePolicy()) return;
+    if (!(form.currentState?.validate() ?? false)) return;
+    await runMobilePhone(() async {
+      mobileGuesses++;
+      phoneStage = 'FIREBASE_VERIFY';
+      final token = await auth.phone.verify(mobileChallenge!, code.text.trim());
+      phoneStage = 'SELFX_LOGIN';
+      await auth.finishPhone(token, link: false);
+      auth.phone.cancel();
+    });
+  }
+
+  Future<void> runMobilePhone(Future<void> Function() action) async {
+    if (busy) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      busy = true;
+      error = null;
+      notice = null;
+      phoneDiagnostic = null;
+    });
+    try {
+      await action();
+    } on CustomerApiException catch (caught) {
+      if (mounted) {
+        setState(() {
+          error = caught.status == 429
+              ? 'Too many attempts. Please try again later.'
+              : caught.message;
+          final safeCode =
+              RegExp(r'^[A-Za-z0-9_-]{1,80}$').hasMatch(caught.code)
+              ? caught.code
+              : 'REQUEST_FAILED';
+          phoneDiagnostic = caught is CustomerPhoneException
+              ? '${caught.stage} / ${caught.diagnosticCode}'
+              : '$phoneStage / $safeCode';
+          if (caught.status == 429) {
+            startMobileCooldown(caught.retryAfterSeconds ?? 10);
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          error = 'We couldn’t complete that. Please try again.';
+          phoneDiagnostic = '$phoneStage / REQUEST_FAILED';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
 
   Future<void> run(Future<void> Function() action) async {
@@ -387,15 +522,63 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   }
 
   bool ensurePolicy() {
-    if (acceptedPolicy) return true;
-    setState(
-      () => error = tr(
+    if (acceptedPolicy) {
+      if (policyError != null) setState(() => policyError = null);
+      return true;
+    }
+    setState(() {
+      policyError = tr(
         context,
         'Please read and accept the Terms and Privacy Policy.',
-      ),
-    );
+      );
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = policySection.currentContext;
+      if (mounted && target != null) {
+        Scrollable.ensureVisible(
+          target,
+          alignment: .72,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
     return false;
   }
+
+  Widget _inlineAuthError(String message) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFECE8),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 1),
+          child: Icon(
+            Icons.error_outline_rounded,
+            size: 19,
+            color: Color(0xFF9A3025),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: CustomerText(
+            message,
+            style: const TextStyle(
+              color: Color(0xFF9A3025),
+              fontSize: 15,
+              height: 1.3,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   String? validateEmail(String? value) =>
       value == null ||
@@ -423,6 +606,8 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     code.dispose();
     verificationEmail.dispose();
     resendTimer?.cancel();
+    mobileCooldownTimer?.cancel();
+    auth.phone.cancel();
     super.dispose();
   }
 
@@ -448,7 +633,14 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
         'Enter your email code and choose a new password.',
     };
     final button = switch (view) {
-      CustomerAuthView.signIn => mobileOtp ? 'Send code' : 'Sign in',
+      CustomerAuthView.signIn =>
+        mobileOtp
+            ? mobileCodeSent
+                  ? 'Verify code'
+                  : mobileCooldown > 0
+                  ? 'Resend in ${mobileCooldown}s'
+                  : 'Send code'
+            : 'Sign in',
       CustomerAuthView.signUp => 'Create account',
       CustomerAuthView.verify => 'Verify email',
       CustomerAuthView.forgot => 'Send reset code',
@@ -670,6 +862,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                 allowEmail: false,
                                 compact: compact,
                                 enabled: !busy,
+                                onChanged: mobileContactChanged,
                               )
                             else
                               TextFormField(
@@ -688,6 +881,100 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                 maxLength: 320,
                                 validator: validateEmail,
                               ),
+                            if (view == CustomerAuthView.signIn &&
+                                mobileOtp &&
+                                mobile.text.trim().isNotEmpty &&
+                                !mobileCodeSent) ...[
+                              const SizedBox(height: 8),
+                              if (smsConsentError != null) ...[
+                                _inlineAuthError(smsConsentError!),
+                                const SizedBox(height: 4),
+                              ],
+                              CheckboxListTile(
+                                contentPadding: EdgeInsets.zero,
+                                value: smsConsent,
+                                onChanged: busy
+                                    ? null
+                                    : (value) => setState(() {
+                                        smsConsent = value ?? false;
+                                        if (smsConsent) smsConsentError = null;
+                                      }),
+                                title: const CustomerText(
+                                  'I agree to receive a verification SMS. Google processes my number for authentication and abuse prevention. SMS charges may apply.',
+                                  style: TextStyle(fontSize: 12, height: 1.3),
+                                ),
+                              ),
+                            ],
+                            if (view == CustomerAuthView.signIn &&
+                                mobileOtp &&
+                                phoneDiagnostic != null &&
+                                !mobileCodeSent) ...[
+                              const SizedBox(height: 4),
+                              CustomerText(
+                                'Verification error: $phoneDiagnostic',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: CustomerColors.muted,
+                                ),
+                              ),
+                            ],
+                            if (view == CustomerAuthView.signIn &&
+                                mobileOtp &&
+                                mobileCodeSent) ...[
+                              SizedBox(height: compact ? 8 : 14),
+                              TextFormField(
+                                key: const ValueKey('mobile-otp-code'),
+                                controller: code,
+                                enabled: !busy && mobileGuesses < 5,
+                                textDirection: TextDirection.ltr,
+                                maxLength: 6,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: const [
+                                  CustomerCodeFormatter(),
+                                ],
+                                autofillHints: const [
+                                  AutofillHints.oneTimeCode,
+                                ],
+                                decoration: InputDecoration(
+                                  counterText: '',
+                                  labelText: tr(context, '6-digit code'),
+                                ),
+                                validator: (value) =>
+                                    value == null ||
+                                        !RegExp(
+                                          r'^\d{6}$',
+                                        ).hasMatch(value.trim())
+                                    ? tr(context, 'Enter the 6-digit code.')
+                                    : null,
+                              ),
+                              if (phoneDiagnostic != null) ...[
+                                const SizedBox(height: 4),
+                                CustomerText(
+                                  'Verification error: $phoneDiagnostic',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: CustomerColors.muted,
+                                  ),
+                                ),
+                              ],
+                              Align(
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: TextButton(
+                                  onPressed: busy || mobileCooldown > 0
+                                      ? null
+                                      : () => requestMobileCode(resend: true),
+                                  child: CustomerText(
+                                    mobileCooldown > 0
+                                        ? 'Resend in ${mobileCooldown}s'
+                                        : 'Send a new code',
+                                  ),
+                                ),
+                              ),
+                              if (mobileGuesses >= 5)
+                                const CustomerText(
+                                  'Too many attempts. Request a new code.',
+                                ),
+                            ],
                             if (view == CustomerAuthView.verify ||
                                 view == CustomerAuthView.reset) ...[
                               SizedBox(height: compact ? 6 : 14),
@@ -800,21 +1087,36 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                               ),
                             ],
                             if (credentialForm) ...[
-                              Center(
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 300,
+                              SizedBox(
+                                height: compact ? (mobileOtp ? 18 : 14) : 20,
+                              ),
+                              Column(
+                                key: policySection,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (policyError != null) ...[
+                                    _inlineAuthError(policyError!),
+                                    const SizedBox(height: 10),
+                                  ],
+                                  Center(
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 300,
+                                      ),
+                                      child: CustomerPolicyNotice(
+                                        accepted: acceptedPolicy,
+                                        onChanged: busy
+                                            ? null
+                                            : (value) => setState(() {
+                                                acceptedPolicy = value ?? false;
+                                                if (acceptedPolicy) {
+                                                  policyError = null;
+                                                }
+                                              }),
+                                      ),
+                                    ),
                                   ),
-                                  child: CustomerPolicyNotice(
-                                    accepted: acceptedPolicy,
-                                    onChanged: busy
-                                        ? null
-                                        : (value) => setState(
-                                            () =>
-                                                acceptedPolicy = value ?? false,
-                                          ),
-                                  ),
-                                ),
+                                ],
                               ),
                               SizedBox(height: compact ? 10 : 20),
                             ] else
@@ -822,11 +1124,23 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton(
-                                onPressed: busy || !auth.capabilities.enabled
+                                onPressed:
+                                    busy ||
+                                        !auth.capabilities.enabled ||
+                                        (mobileOtp &&
+                                            view == CustomerAuthView.signIn &&
+                                            !mobileCodeSent &&
+                                            mobileCooldown > 0) ||
+                                        (mobileOtp &&
+                                            view == CustomerAuthView.signIn &&
+                                            mobileCodeSent &&
+                                            mobileGuesses >= 5)
                                     ? null
                                     : mobileOtp &&
                                           view == CustomerAuthView.signIn
-                                    ? continueWithMobileOtp
+                                    ? mobileCodeSent
+                                          ? verifyMobileCode
+                                          : requestMobileCode
                                     : submit,
                                 child: busy
                                     ? const SizedBox(

@@ -58,7 +58,8 @@ class _CustomerSupportScreenState extends State<CustomerSupportScreen> {
     final subject = tr(context, 'SelfX mobile support');
     final body = tr(
       context,
-      'App version: $version\n\nPlease describe the issue:\n\n',
+      'App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n'
+          .replaceFirst('{p0}', version),
     );
     final uri = Uri(
       scheme: 'mailto',
@@ -91,6 +92,29 @@ class _CustomerSupportScreenState extends State<CustomerSupportScreen> {
           style: Theme.of(context).textTheme.headlineLarge,
         ),
         const SizedBox(height: 20),
+        Material(
+          color: CustomerColors.tint,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.lightbulb_outline,
+                  color: CustomerColors.orange,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: CustomerText(
+                    'For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         PremiumPanel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

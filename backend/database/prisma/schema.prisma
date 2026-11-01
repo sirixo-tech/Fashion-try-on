@@ -29,40 +29,40 @@ enum CustomerActionPurpose {
 }
 
 model Customer {
-  savedGarments         CustomerSavedGarment[]
-  profilePhotos         CustomerProfilePhoto[]
-  pushDevices           CustomerPushDevice[]
-  notificationsInbox    CustomerNotification[]
-  id                    String                 @id @db.Uuid
-  email                 String?                @unique @db.VarChar(320)
-  phoneNumber           String?                @unique @map("phone_number") @db.VarChar(16)
-  pendingPhoneNumber    String?                @map("pending_phone_number") @db.VarChar(16)
-  phoneVerifiedAt       DateTime?              @map("phone_verified_at") @db.Timestamptz(3)
-  phoneConsentAt        DateTime?              @map("phone_consent_at") @db.Timestamptz(3)
-  displayName           String                 @map("display_name") @db.VarChar(160)
-  status                CustomerStatus         @default(PENDING_VERIFICATION)
-  securityVersion       Int                    @default(0) @map("security_version")
-  verificationProofHash String?                @map("verification_proof_hash") @db.Char(64)
-  termsVersion          String                 @map("terms_version") @db.VarChar(40)
-  termsAcceptedAt       DateTime               @map("terms_accepted_at") @db.Timestamptz(3)
-  language              String                 @default("en") @db.VarChar(12)
-  notifications         Boolean                @default(false)
-  interests             String[]               @default([])
-  avatarSetupCompletedAt DateTime?              @map("avatar_setup_completed_at") @db.Timestamptz(3)
-  lastActiveAt          DateTime?              @map("last_active_at") @db.Timestamptz(3)
-  deletedAt             DateTime?              @map("deleted_at") @db.Timestamptz(3)
-  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
-  identities            CustomerIdentity[]
-  sessions              CustomerSession[]
-  actionTokens          CustomerActionToken[]
-  creditAccount         CustomerCreditAccount?
-  mobilePurchases       CustomerMobilePurchase[]
-  paidCreditGrants      CustomerPaidCreditGrant[]
-  photoConsents         CustomerPhotoConsent[]
-  tryOnSessions         TryOnSession[]
-  tryOnRuns             KioskTryOnRun[]
-  storeVisits           CustomerStoreVisit[]
+  savedGarments          CustomerSavedGarment[]
+  profilePhotos          CustomerProfilePhoto[]
+  pushDevices            CustomerPushDevice[]
+  notificationsInbox     CustomerNotification[]
+  id                     String                    @id @db.Uuid
+  email                  String?                   @unique @db.VarChar(320)
+  phoneNumber            String?                   @unique @map("phone_number") @db.VarChar(16)
+  pendingPhoneNumber     String?                   @map("pending_phone_number") @db.VarChar(16)
+  phoneVerifiedAt        DateTime?                 @map("phone_verified_at") @db.Timestamptz(3)
+  phoneConsentAt         DateTime?                 @map("phone_consent_at") @db.Timestamptz(3)
+  displayName            String                    @map("display_name") @db.VarChar(160)
+  status                 CustomerStatus            @default(PENDING_VERIFICATION)
+  securityVersion        Int                       @default(0) @map("security_version")
+  verificationProofHash  String?                   @map("verification_proof_hash") @db.Char(64)
+  termsVersion           String                    @map("terms_version") @db.VarChar(40)
+  termsAcceptedAt        DateTime                  @map("terms_accepted_at") @db.Timestamptz(3)
+  language               String                    @default("en") @db.VarChar(12)
+  notifications          Boolean                   @default(false)
+  interests              String[]                  @default([])
+  avatarSetupCompletedAt DateTime?                 @map("avatar_setup_completed_at") @db.Timestamptz(3)
+  lastActiveAt           DateTime?                 @map("last_active_at") @db.Timestamptz(3)
+  deletedAt              DateTime?                 @map("deleted_at") @db.Timestamptz(3)
+  createdAt              DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  identities             CustomerIdentity[]
+  sessions               CustomerSession[]
+  actionTokens           CustomerActionToken[]
+  creditAccount          CustomerCreditAccount?
+  mobilePurchases        CustomerMobilePurchase[]
+  paidCreditGrants       CustomerPaidCreditGrant[]
+  photoConsents          CustomerPhotoConsent[]
+  tryOnSessions          TryOnSession[]
+  tryOnRuns              KioskTryOnRun[]
+  storeVisits            CustomerStoreVisit[]
 
   @@index([pendingPhoneNumber])
   @@map("customers")
@@ -83,19 +83,19 @@ model CustomerSavedGarment {
 }
 
 model CustomerProfilePhoto {
-  id               String   @id @db.Uuid
-  customerId       String   @map("customer_id") @db.Uuid
-  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  storageKey       String   @unique @map("storage_key") @db.VarChar(512)
-  kind             String   @default("PROFILE") @db.VarChar(16)
-  consentVersion   String   @map("consent_version") @db.VarChar(40)
-  consentStatement String   @map("consent_statement")
-  consentLanguage  String   @map("consent_language") @db.VarChar(12)
+  id               String    @id @db.Uuid
+  customerId       String    @map("customer_id") @db.Uuid
+  customer         Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  storageKey       String    @unique @map("storage_key") @db.VarChar(512)
+  kind             String    @default("PROFILE") @db.VarChar(16)
+  consentVersion   String    @map("consent_version") @db.VarChar(40)
+  consentStatement String    @map("consent_statement")
+  consentLanguage  String    @map("consent_language") @db.VarChar(12)
   readyAt          DateTime? @map("ready_at") @db.Timestamptz(3)
   expiresAt        DateTime? @map("expires_at") @db.Timestamptz(3)
   deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(3)
   storageDeletedAt DateTime? @map("storage_deleted_at") @db.Timestamptz(3)
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([customerId, createdAt])
   @@index([customerId, kind, createdAt])
@@ -122,18 +122,18 @@ model CustomerIdentity {
 }
 
 model CustomerSession {
-  pushDevices CustomerPushDevice[]
-  id          String               @id @db.Uuid
-  customerId  String               @map("customer_id") @db.Uuid
-  familyId    String               @map("family_id") @db.Uuid
-  tokenHash   String               @unique @map("token_hash") @db.Char(64)
-  expiresAt   DateTime             @map("expires_at") @db.Timestamptz(3)
-  revokedAt   DateTime?            @map("revoked_at") @db.Timestamptz(3)
-  lastUsedAt  DateTime?            @map("last_used_at") @db.Timestamptz(3)
-  deviceName  String?              @map("device_name") @db.VarChar(100)
-  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  authenticatedAt DateTime         @default(now()) @map("authenticated_at") @db.Timestamptz(3)
-  customer    Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pushDevices     CustomerPushDevice[]
+  id              String               @id @db.Uuid
+  customerId      String               @map("customer_id") @db.Uuid
+  familyId        String               @map("family_id") @db.Uuid
+  tokenHash       String               @unique @map("token_hash") @db.Char(64)
+  expiresAt       DateTime             @map("expires_at") @db.Timestamptz(3)
+  revokedAt       DateTime?            @map("revoked_at") @db.Timestamptz(3)
+  lastUsedAt      DateTime?            @map("last_used_at") @db.Timestamptz(3)
+  deviceName      String?              @map("device_name") @db.VarChar(100)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  authenticatedAt DateTime             @default(now()) @map("authenticated_at") @db.Timestamptz(3)
+  customer        Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId, revokedAt])
   @@index([familyId])
@@ -557,17 +557,17 @@ model UserOAuthRequest {
 }
 
 model UserSession {
-  id                 String    @id @db.Uuid
-  userId             String    @map("user_id") @db.Uuid
-  credentialsVersion Int       @default(0) @map("credentials_version")
-  refreshTokenHash   String    @map("refresh_token_hash")
-  expiresAt          DateTime  @map("expires_at") @db.Timestamptz(3)
-  revokedAt          DateTime? @map("revoked_at") @db.Timestamptz(3)
-  lastUsedAt         DateTime? @map("last_used_at") @db.Timestamptz(3)
-  deviceLabel        String?   @map("device_label") @db.VarChar(160)
-  userAgentJson      Json?     @map("user_agent_json")
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                    String                 @id @db.Uuid
+  userId                String                 @map("user_id") @db.Uuid
+  credentialsVersion    Int                    @default(0) @map("credentials_version")
+  refreshTokenHash      String                 @map("refresh_token_hash")
+  expiresAt             DateTime               @map("expires_at") @db.Timestamptz(3)
+  revokedAt             DateTime?              @map("revoked_at") @db.Timestamptz(3)
+  lastUsedAt            DateTime?              @map("last_used_at") @db.Timestamptz(3)
+  deviceLabel           String?                @map("device_label") @db.VarChar(160)
+  userAgentJson         Json?                  @map("user_agent_json")
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   impersonationSessions ImpersonationSession[] @relation("ImpersonationActorSession")
 
   @@index([userId])
@@ -684,21 +684,21 @@ model Organization {
 }
 
 model ImpersonationSession {
-  id            String                     @id @db.Uuid
-  actorUserId   String?                    @map("actor_user_id") @db.Uuid
-  actorUserSessionId String?                @map("actor_user_session_id") @db.Uuid
-  actorSnapshot Json?                      @map("actor_snapshot")
-  targetStoreId String                     @map("target_store_id") @db.Uuid
-  effectiveRoleCode String                  @default("store-admin") @map("effective_role_code") @db.VarChar(80)
-  status        ImpersonationSessionStatus @default(ACTIVE)
-  startedAt     DateTime                   @default(now()) @map("started_at") @db.Timestamptz(3)
-  expiresAt     DateTime                   @map("expires_at") @db.Timestamptz(3)
-  endedAt       DateTime?                  @map("ended_at") @db.Timestamptz(3)
-  createdAt     DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
-  actorUser     User?                      @relation("ImpersonationSessionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
-  actorUserSession UserSession?             @relation("ImpersonationActorSession", fields: [actorUserSessionId], references: [id], onDelete: SetNull)
-  targetStore   Organization               @relation("ImpersonationSessionTargetStore", fields: [targetStoreId], references: [id], onDelete: Restrict)
+  id                 String                     @id @db.Uuid
+  actorUserId        String?                    @map("actor_user_id") @db.Uuid
+  actorUserSessionId String?                    @map("actor_user_session_id") @db.Uuid
+  actorSnapshot      Json?                      @map("actor_snapshot")
+  targetStoreId      String                     @map("target_store_id") @db.Uuid
+  effectiveRoleCode  String                     @default("store-admin") @map("effective_role_code") @db.VarChar(80)
+  status             ImpersonationSessionStatus @default(ACTIVE)
+  startedAt          DateTime                   @default(now()) @map("started_at") @db.Timestamptz(3)
+  expiresAt          DateTime                   @map("expires_at") @db.Timestamptz(3)
+  endedAt            DateTime?                  @map("ended_at") @db.Timestamptz(3)
+  createdAt          DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  actorUser          User?                      @relation("ImpersonationSessionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorUserSession   UserSession?               @relation("ImpersonationActorSession", fields: [actorUserSessionId], references: [id], onDelete: SetNull)
+  targetStore        Organization               @relation("ImpersonationSessionTargetStore", fields: [targetStoreId], references: [id], onDelete: Restrict)
 
   @@index([actorUserId])
   @@index([actorUserSessionId])
@@ -1578,6 +1578,9 @@ model KioskTryOnRun {
   personAssetId                          String?                  @map("person_asset_id") @db.Uuid
   garmentAssetId                         String?                  @map("garment_asset_id") @db.Uuid
   productId                              String?                  @map("product_id") @db.Uuid
+  productPriceAmountCents                Int?                     @map("product_price_amount_cents")
+  productPriceMaximumAmountCents         Int?                     @map("product_price_maximum_amount_cents")
+  productPriceCurrency                   String?                  @map("product_price_currency") @db.VarChar(3)
   catalogSource                          String?                  @map("catalog_source") @db.VarChar(40)
   externalProductId                      String?                  @map("external_product_id") @db.VarChar(180)
   externalVariantId                      String?                  @map("external_variant_id") @db.VarChar(180)
@@ -1712,32 +1715,32 @@ model MobilePaymentConnection {
 }
 
 model CustomerMobilePurchase {
-  id                   String   @id @db.Uuid
-  customerId           String   @map("customer_id") @db.Uuid
-  planId               String?  @map("plan_id") @db.Uuid
-  customCreditPlanId   String?  @map("custom_credit_plan_id") @db.Uuid
-  merchantOrderId      String   @unique @map("merchant_order_id") @db.VarChar(63)
-  requestKey           String   @unique @map("request_key") @db.VarChar(160)
-  providerOrderId      String?  @map("provider_order_id") @db.VarChar(100)
-  status               String   @default("INITIALIZING") @db.VarChar(24)
-  environment          String   @db.VarChar(16)
-  amountMinor          Int      @map("amount_minor")
-  currency             String   @db.Char(3)
+  id                   String                   @id @db.Uuid
+  customerId           String                   @map("customer_id") @db.Uuid
+  planId               String?                  @map("plan_id") @db.Uuid
+  customCreditPlanId   String?                  @map("custom_credit_plan_id") @db.Uuid
+  merchantOrderId      String                   @unique @map("merchant_order_id") @db.VarChar(63)
+  requestKey           String                   @unique @map("request_key") @db.VarChar(160)
+  providerOrderId      String?                  @map("provider_order_id") @db.VarChar(100)
+  status               String                   @default("INITIALIZING") @db.VarChar(24)
+  environment          String                   @db.VarChar(16)
+  amountMinor          Int                      @map("amount_minor")
+  currency             String                   @db.Char(3)
   credits              Int
-  bonusCredits         Int      @default(0) @map("bonus_credits")
-  billingPeriod        MobilePlanBillingPeriod @map("billing_period")
-  checkoutUrl          String?  @map("checkout_url") @db.Text
-  encryptedPayload     String   @map("encrypted_payload") @db.Text
-  initializationVector String   @map("initialization_vector") @db.VarChar(128)
-  authenticationTag    String   @map("authentication_tag") @db.VarChar(128)
-  keyVersion           String   @map("key_version") @db.VarChar(80)
-  expiresAt            DateTime @map("expires_at") @db.Timestamptz(3)
-  paidAt               DateTime? @map("paid_at") @db.Timestamptz(3)
-  checkedAt            DateTime? @map("checked_at") @db.Timestamptz(3)
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  customer             Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  plan                 MobilePlan? @relation(fields: [planId], references: [id], onDelete: Restrict)
-  customCreditPlan     CustomCreditPlan? @relation(fields: [customCreditPlanId], references: [id], onDelete: Restrict)
+  bonusCredits         Int                      @default(0) @map("bonus_credits")
+  billingPeriod        MobilePlanBillingPeriod  @map("billing_period")
+  checkoutUrl          String?                  @map("checkout_url") @db.Text
+  encryptedPayload     String                   @map("encrypted_payload") @db.Text
+  initializationVector String                   @map("initialization_vector") @db.VarChar(128)
+  authenticationTag    String                   @map("authentication_tag") @db.VarChar(128)
+  keyVersion           String                   @map("key_version") @db.VarChar(80)
+  expiresAt            DateTime                 @map("expires_at") @db.Timestamptz(3)
+  paidAt               DateTime?                @map("paid_at") @db.Timestamptz(3)
+  checkedAt            DateTime?                @map("checked_at") @db.Timestamptz(3)
+  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  customer             Customer                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  plan                 MobilePlan?              @relation(fields: [planId], references: [id], onDelete: Restrict)
+  customCreditPlan     CustomCreditPlan?        @relation(fields: [customCreditPlanId], references: [id], onDelete: Restrict)
   grant                CustomerPaidCreditGrant?
 
   @@index([customerId, createdAt])
@@ -1746,15 +1749,15 @@ model CustomerMobilePurchase {
 }
 
 model CustomerPaidCreditGrant {
-  id              String   @id @db.Uuid
-  customerId      String   @map("customer_id") @db.Uuid
-  purchaseId      String   @unique @map("purchase_id") @db.Uuid
+  id              String                 @id @db.Uuid
+  customerId      String                 @map("customer_id") @db.Uuid
+  purchaseId      String                 @unique @map("purchase_id") @db.Uuid
   credits         Int
-  usedCredits     Int      @default(0) @map("used_credits")
-  reservedCredits Int      @default(0) @map("reserved_credits")
-  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(3)
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  usedCredits     Int                    @default(0) @map("used_credits")
+  reservedCredits Int                    @default(0) @map("reserved_credits")
+  expiresAt       DateTime?              @map("expires_at") @db.Timestamptz(3)
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  customer        Customer               @relation(fields: [customerId], references: [id], onDelete: Restrict)
   purchase        CustomerMobilePurchase @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
   runs            KioskTryOnRun[]
 
@@ -1784,18 +1787,22 @@ model CustomerPhotoConsent {
 }
 
 model CustomerStoreQr {
-  id                 String               @id @db.Uuid
-  organizationId     String               @map("organization_id") @db.Uuid
-  tokenHash          String               @unique @map("token_hash") @db.Char(64)
-  label              String               @db.VarChar(100)
-  dailyCustomerLimit Int                  @default(5) @map("daily_customer_limit")
-  createdByUserId    String               @map("created_by_user_id") @db.Uuid
-  expiresAt          DateTime             @map("expires_at") @db.Timestamptz(3)
-  revokedAt          DateTime?            @map("revoked_at") @db.Timestamptz(3)
-  revokedByUserId    String?              @map("revoked_by_user_id") @db.Uuid
-  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  visits             CustomerStoreVisit[]
+  id                   String               @id @db.Uuid
+  organizationId       String               @map("organization_id") @db.Uuid
+  tokenHash            String               @unique @map("token_hash") @db.Char(64)
+  accessCodeHash       String?              @unique @map("access_code_hash") @db.Char(64)
+  accessCodeCiphertext String?              @map("access_code_ciphertext") @db.Text
+  accessCodeIv         String?              @map("access_code_iv") @db.VarChar(32)
+  accessCodeTag        String?              @map("access_code_tag") @db.VarChar(32)
+  label                String               @db.VarChar(100)
+  dailyCustomerLimit   Int                  @default(5) @map("daily_customer_limit")
+  createdByUserId      String               @map("created_by_user_id") @db.Uuid
+  expiresAt            DateTime             @map("expires_at") @db.Timestamptz(3)
+  revokedAt            DateTime?            @map("revoked_at") @db.Timestamptz(3)
+  revokedByUserId      String?              @map("revoked_by_user_id") @db.Uuid
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  visits               CustomerStoreVisit[]
 
   @@index([organizationId, createdAt])
   @@map("customer_store_qrs")
@@ -1862,29 +1869,32 @@ model TryOnAsset {
 }
 
 model TryOnLook {
-  id              String               @id @db.Uuid
-  sessionId       String               @map("try_on_session_id") @db.Uuid
-  kioskTryOnRunId String               @unique @map("kiosk_try_on_run_id") @db.Uuid
-  personAssetId   String               @map("person_asset_id") @db.Uuid
-  garmentAssetId  String?              @map("garment_asset_id") @db.Uuid
-  productId       String?              @map("product_id") @db.Uuid
-  resultAssetId   String               @map("result_asset_id") @db.Uuid
-  assignmentScope KioskAssignmentScope @map("assignment_scope")
-  organizationId  String?              @map("organization_id") @db.Uuid
-  storeId         String?              @map("store_id") @db.Uuid
-  kioskDeviceId   String?              @map("kiosk_device_id") @db.Uuid
-  expiresAt       DateTime             @map("expires_at") @db.Timestamptz(3)
-  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  session         TryOnSession         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  kioskTryOnRun   KioskTryOnRun        @relation(fields: [kioskTryOnRunId], references: [id], onDelete: Cascade)
-  personAsset     TryOnAsset           @relation("TryOnLookPersonAsset", fields: [personAssetId], references: [id], onDelete: Restrict)
-  garmentAsset    TryOnAsset?          @relation("TryOnLookGarmentAsset", fields: [garmentAssetId], references: [id], onDelete: Restrict)
-  product         Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
-  resultAsset     TryOnAsset           @relation("TryOnLookResultAsset", fields: [resultAssetId], references: [id], onDelete: Restrict)
-  organization    Organization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  store           Store?               @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
-  kioskDevice     KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: SetNull)
+  id                      String               @id @db.Uuid
+  sessionId               String               @map("try_on_session_id") @db.Uuid
+  kioskTryOnRunId         String               @unique @map("kiosk_try_on_run_id") @db.Uuid
+  personAssetId           String               @map("person_asset_id") @db.Uuid
+  garmentAssetId          String?              @map("garment_asset_id") @db.Uuid
+  productId               String?              @map("product_id") @db.Uuid
+  priceAmountCents        Int?                 @map("price_amount_cents")
+  priceMaximumAmountCents Int?                 @map("price_maximum_amount_cents")
+  priceCurrency           String?              @map("price_currency") @db.VarChar(3)
+  resultAssetId           String               @map("result_asset_id") @db.Uuid
+  assignmentScope         KioskAssignmentScope @map("assignment_scope")
+  organizationId          String?              @map("organization_id") @db.Uuid
+  storeId                 String?              @map("store_id") @db.Uuid
+  kioskDeviceId           String?              @map("kiosk_device_id") @db.Uuid
+  expiresAt               DateTime             @map("expires_at") @db.Timestamptz(3)
+  createdAt               DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session                 TryOnSession         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  kioskTryOnRun           KioskTryOnRun        @relation(fields: [kioskTryOnRunId], references: [id], onDelete: Cascade)
+  personAsset             TryOnAsset           @relation("TryOnLookPersonAsset", fields: [personAssetId], references: [id], onDelete: Restrict)
+  garmentAsset            TryOnAsset?          @relation("TryOnLookGarmentAsset", fields: [garmentAssetId], references: [id], onDelete: Restrict)
+  product                 Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+  resultAsset             TryOnAsset           @relation("TryOnLookResultAsset", fields: [resultAssetId], references: [id], onDelete: Restrict)
+  organization            Organization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  store                   Store?               @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
+  kioskDevice             KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: SetNull)
 
   @@index([sessionId, createdAt])
   @@index([kioskDeviceId, createdAt])
@@ -2322,20 +2332,20 @@ enum MobilePlanBillingPeriod {
 }
 
 model MobilePlan {
-  id               String                  @id @db.Uuid
-  code             String                  @unique @db.VarChar(80)
-  name             String                  @db.VarChar(160)
-  description      String                  @default("") @db.VarChar(500)
-  descriptionTranslations Json            @default("{}") @map("description_translations")
-  status           PricingPlanStatus       @default(INACTIVE)
-  currency         String                  @db.Char(3)
-  priceCents       Int                     @map("price_cents")
-  billingPeriod    MobilePlanBillingPeriod @map("billing_period")
-  includedCredits  Int                     @map("included_credits")
-  trialCredits     Int                     @default(0) @map("trial_credits")
-  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
-  purchases        CustomerMobilePurchase[]
+  id                      String                   @id @db.Uuid
+  code                    String                   @unique @db.VarChar(80)
+  name                    String                   @db.VarChar(160)
+  description             String                   @default("") @db.VarChar(500)
+  descriptionTranslations Json                     @default("{}") @map("description_translations")
+  status                  PricingPlanStatus        @default(INACTIVE)
+  currency                String                   @db.Char(3)
+  priceCents              Int                      @map("price_cents")
+  billingPeriod           MobilePlanBillingPeriod  @map("billing_period")
+  includedCredits         Int                      @map("included_credits")
+  trialCredits            Int                      @default(0) @map("trial_credits")
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  purchases               CustomerMobilePurchase[]
 
   @@index([status, priceCents])
   @@map("mobile_plans")
@@ -2356,15 +2366,15 @@ enum CustomCreditChannel {
 }
 
 model CustomCreditPlan {
-  id             String              @id @db.Uuid
-  channel        CustomCreditChannel @unique
-  name           String              @db.VarChar(160)
-  status         PricingPlanStatus   @default(INACTIVE)
-  currency       String              @db.Char(3)
-  unitPriceCents Int                 @map("unit_price_cents")
-  version        Int                 @default(1)
-  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id              String                   @id @db.Uuid
+  channel         CustomCreditChannel      @unique
+  name            String                   @db.VarChar(160)
+  status          PricingPlanStatus        @default(INACTIVE)
+  currency        String                   @db.Char(3)
+  unitPriceCents  Int                      @map("unit_price_cents")
+  version         Int                      @default(1)
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
   mobilePurchases CustomerMobilePurchase[]
 
   @@map("custom_credit_plans")

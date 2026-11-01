@@ -14,7 +14,7 @@ Approved 2026-10-27. This follow-up implements the country selector, profile bot
 
 - Profile editing uses a compact, keyboard-aware modal bottom sheet with Edit profile, the existing name limit/validation, an orange Save changes action and a secondary Cancel action. The character counter is hidden. Save progress disables duplicate submissions, failures preserve the typed name, and success refreshes the existing owned account. The sheet checks the original customer before saving.
 - Shared bottom-sheet/dialog surfaces use the existing warm SelfX colors, rounded corners and normal Flutter controls. The dashboard/kiosk UI is not reused. Existing Home header positions remain unchanged.
-- Me → About SelfX is a real screen. It shows the approved logo, existing description and the version/build reported by the installed application through `package_info_plus`. It never substitutes a hardcoded app version when metadata cannot load; an unavailable/retry state is shown.
+- Me → About SelfX explains personal Try-On, participating Store-sponsored sessions, photo-use guidance and saved-result retention. It shows the approved logo and the version/build reported by the installed application through `package_info_plus`. It never substitutes a hardcoded app version when metadata cannot load; an unavailable/retry state is shown.
 - The customer app has no Licenses section or license-page navigation, including under About SelfX. This UI-only removal leaves Flutter's bundled notice files and dependency license text intact.
 - Support email metadata uses the same cross-platform installed-version reader. Existing Android update compatibility/signature checks remain unchanged.
 

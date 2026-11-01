@@ -639,5 +639,9 @@
   "Sort products": "পণ্য সাজান",
   "Recommended": "প্রস্তাবিত",
   "Name (A-Z)": "নাম (A-Z)",
-  "Name (Z-A)": "নাম (Z-A)"
+  "Name (Z-A)": "নাম (Z-A)",
+  "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "দ্রুত সহায়তার জন্য, আপনি কী করছিলেন, কী আশা করেছিলেন এবং কী ঘটেছে তা জানান। সম্ভব হলে সমস্যাটি পুনরায় ঘটানোর ধাপগুলো লিখুন। ইমেল সহায়তা বেছে নিলে অ্যাপের সংস্করণ স্বয়ংক্রিয়ভাবে যোগ হবে।",
+  "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "অ্যাপের সংস্করণ: {p0}\n\nআপনি কী করতে চাইছিলেন?\n\nকী ঘটেছে?\n\nসমস্যাটি পুনরায় ঘটানোর ধাপ (সম্ভব হলে):\n\n",
+  "Store-sponsored Try-On": "স্টোর-স্পন্সর করা ট্রাই-অন",
+  "My Looks": "আমার লুকস"
 }

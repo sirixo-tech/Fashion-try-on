@@ -142,9 +142,13 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     await this.limit(
       `experience-${scope}-customer`,
       customerId,
-      scope === "upload" ? 40 : 20,
+      scope === "upload" ? 40 : scope === "store" ? 10 : 20,
     );
-    await this.limit(`experience-${scope}-ip`, ip, 300);
+    await this.limit(
+      `experience-${scope}-ip`,
+      ip,
+      scope === "store" ? 60 : 300,
+    );
   }
 
   private async limit(scope: string, value: string, maximum = 20) {

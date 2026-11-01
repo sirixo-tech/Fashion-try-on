@@ -639,5 +639,9 @@
   "Sort products": "ഉൽപ്പന്നങ്ങൾ ക്രമീകരിക്കുക",
   "Recommended": "ശുപാർശ ചെയ്തത്",
   "Name (A-Z)": "പേര് (A-Z)",
-  "Name (Z-A)": "പേര് (Z-A)"
+  "Name (Z-A)": "പേര് (Z-A)",
+  "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "വേഗത്തിൽ സഹായിക്കാനായി നിങ്ങൾ എന്താണ് ചെയ്യാൻ ശ്രമിച്ചത്, എന്താണ് പ്രതീക്ഷിച്ചത്, എന്താണ് സംഭവിച്ചത് എന്ന് അറിയിക്കുക. കഴിയുമെങ്കിൽ പ്രശ്നം വീണ്ടും ഉണ്ടാക്കാനുള്ള ഘട്ടങ്ങളും ചേർക്കുക. ഇമെയിൽ പിന്തുണ തിരഞ്ഞെടുക്കുമ്പോൾ ആപ്പിന്റെ പതിപ്പ് സ്വയമേവ ചേർക്കും.",
+  "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "ആപ്പ് പതിപ്പ്: {p0}\n\nനിങ്ങൾ എന്താണ് ചെയ്യാൻ ശ്രമിച്ചത്?\n\nഎന്താണ് സംഭവിച്ചത്?\n\nപ്രശ്നം വീണ്ടും ഉണ്ടാക്കാനുള്ള ഘട്ടങ്ങൾ (സാധ്യമെങ്കിൽ):\n\n",
+  "Store-sponsored Try-On": "സ്റ്റോർ സ്പോൺസർ ചെയ്യുന്ന ട്രൈ-ഓൺ",
+  "My Looks": "എന്റെ ലുക്കുകൾ"
 }

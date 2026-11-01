@@ -639,5 +639,9 @@
   "Sort products": "उत्पाद क्रमवारी लावा",
   "Recommended": "शिफारस केलेले",
   "Name (A-Z)": "नाव (A-Z)",
-  "Name (Z-A)": "नाव (Z-A)"
+  "Name (Z-A)": "नाव (Z-A)",
+  "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "लवकर मदत मिळण्यासाठी, तुम्ही काय करत होतात, काय अपेक्षित होते आणि प्रत्यक्षात काय झाले ते सांगा. शक्य असल्यास समस्या पुन्हा कशी घडवायची याच्या पायऱ्या द्या. ईमेल सहाय्य निवडल्यावर अॅपची आवृत्ती आपोआप जोडली जाईल.",
+  "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "अॅपची आवृत्ती: {p0}\n\nतुम्ही काय करण्याचा प्रयत्न करत होतात?\n\nकाय झाले?\n\nसमस्या पुन्हा घडवण्याच्या पायऱ्या (शक्य असल्यास):\n\n",
+  "Store-sponsored Try-On": "स्टोअर-प्रायोजित ट्राय-ऑन",
+  "My Looks": "माझे लुक्स"
 }

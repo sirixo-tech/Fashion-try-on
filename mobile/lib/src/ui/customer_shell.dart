@@ -175,7 +175,7 @@ class _CustomerShellState extends State<CustomerShell>
       experience,
       product: product,
       demoProduct: demoProduct,
-      demoModelId: demoModelId,
+      demoModelId: demoModelId ?? experience.demoModelId,
     );
     if (!ready || !mounted) return;
     if (Navigator.canPop(context)) Navigator.pop(context);
@@ -200,6 +200,7 @@ class _CustomerShellState extends State<CustomerShell>
           context,
           experience,
           product: selected,
+          demoModelId: experience.demoModelId,
         )) {
           return;
         }
@@ -413,7 +414,7 @@ class _CustomerShellState extends State<CustomerShell>
                 1,
               ),
               nav(
-                'Saved',
+                'My Looks',
                 Icons.bookmarks_outlined,
                 Icons.bookmarks_rounded,
                 2,

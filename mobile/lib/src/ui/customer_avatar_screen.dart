@@ -170,47 +170,65 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: tr(context, 'Back'),
-                      onPressed: busy
-                          ? null
-                          : () {
-                              if (!widget.setup) {
-                                final goHome = CustomerHomeScope.maybeOf(
-                                  context,
-                                );
-                                if (goHome != null) {
-                                  goHome();
-                                } else {
-                                  Navigator.pop(context);
-                                }
-                                return;
-                              }
-                              if (step == 1) {
-                                setState(() => step = 0);
-                              } else {
-                                unawaited(widget.controller.signOut());
-                              }
-                            },
-                      icon: const Icon(Icons.arrow_back_rounded),
-                    ),
-                    Expanded(
-                      child: Align(
-                        alignment: AlignmentDirectional.centerEnd,
-                        child: step == 1 && widget.setup
-                            ? TextButton(
-                                onPressed: busy || !avatar.loaded
-                                    ? null
-                                    : finish,
-                                child: const CustomerText('Skip for now'),
-                              )
-                            : const SizedBox.shrink(),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: SizedBox(
+                  height: 64,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CustomerBrand(
+                        compact: MediaQuery.sizeOf(context).width < 380,
                       ),
-                    ),
-                  ],
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            tooltip: tr(context, 'Back'),
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFFF5EFE4),
+                              foregroundColor: CustomerColors.ink,
+                              fixedSize: const Size(48, 48),
+                            ),
+                            onPressed: busy
+                                ? null
+                                : () {
+                                    if (!widget.setup) {
+                                      final goHome = CustomerHomeScope.maybeOf(
+                                        context,
+                                      );
+                                      if (goHome != null) {
+                                        goHome();
+                                      } else {
+                                        Navigator.pop(context);
+                                      }
+                                      return;
+                                    }
+                                    if (step == 1) {
+                                      setState(() => step = 0);
+                                    } else {
+                                      unawaited(widget.controller.signOut());
+                                    }
+                                  },
+                            icon: const Icon(Icons.arrow_back_rounded),
+                          ),
+                          SizedBox(
+                            width: 96,
+                            child: Align(
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: step == 1 && widget.setup
+                                  ? TextButton(
+                                      onPressed: busy || !avatar.loaded
+                                          ? null
+                                          : finish,
+                                      child: const CustomerText('Skip for now'),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
               Expanded(
@@ -219,19 +237,21 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                     final compact = constraints.maxHeight < 720;
                     final largeText =
                         MediaQuery.textScalerOf(context).scale(14) > 18;
-                    final photoAspectRatio = compact || largeText ? .9 : .78;
+                    final photoAspectRatio = largeText
+                        ? .82
+                        : compact
+                        ? .86
+                        : .76;
                     return SingleChildScrollView(
                       padding: EdgeInsets.fromLTRB(
-                        24,
-                        compact ? 2 : 8,
-                        24,
-                        compact ? 10 : 16,
+                        18,
+                        compact ? 4 : 12,
+                        18,
+                        compact ? 12 : 20,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Center(child: CustomerBrand()),
-                          SizedBox(height: compact ? 12 : 16),
                           if (widget.setup)
                             Row(
                               children: [
@@ -252,7 +272,7 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                   ),
                               ],
                             ),
-                          SizedBox(height: widget.setup ? 18 : 6),
+                          SizedBox(height: widget.setup ? 18 : 8),
                           CustomerText(
                             step == 0
                                 ? 'I want to try on'
@@ -269,7 +289,7 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                               height: 1.5,
                             ),
                           ),
-                          SizedBox(height: compact ? 12 : 18),
+                          SizedBox(height: compact ? 14 : 20),
                           if (step == 0) ...[
                             LayoutBuilder(
                               builder: (context, constraints) {
@@ -328,12 +348,12 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                 ),
                               ],
                             ),
-                            SizedBox(height: compact ? 12 : 14),
+                            SizedBox(height: compact ? 14 : 18),
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
+                                horizontal: 18,
+                                vertical: 16,
                               ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFF0E4),
@@ -344,14 +364,14 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                   Icon(
                                     Icons.lightbulb_outline_rounded,
                                     color: CustomerColors.orange,
-                                    size: 20,
+                                    size: 28,
                                   ),
-                                  SizedBox(width: 9),
+                                  SizedBox(width: 14),
                                   Expanded(
                                     child: CustomerText(
                                       'Clear photos. Good light. Plain background.',
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 14,
                                         color: CustomerColors.ink,
                                         height: 1.45,
                                       ),
@@ -360,12 +380,12 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                 ],
                               ),
                             ),
-                            SizedBox(height: compact ? 12 : 14),
+                            SizedBox(height: compact ? 12 : 16),
                             Container(
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(18),
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(20),
                                 border: Border.all(color: CustomerColors.line),
                               ),
                               child: const Row(
@@ -375,11 +395,11 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                     padding: EdgeInsets.only(top: 2),
                                     child: Icon(
                                       Icons.lock_outline_rounded,
-                                      size: 17,
+                                      size: 24,
                                       color: CustomerColors.orange,
                                     ),
                                   ),
-                                  SizedBox(width: 8),
+                                  SizedBox(width: 14),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
@@ -388,16 +408,16 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                         CustomerText(
                                           'Use your saved full-body photo by default. Change it for any Try-On.',
                                           style: TextStyle(
-                                            fontSize: 12,
-                                            height: 1.4,
+                                            fontSize: 14,
+                                            height: 1.45,
                                           ),
                                         ),
                                         SizedBox(height: 4),
                                         CustomerText(
                                           'Saved until you replace or delete them, or delete your account.',
                                           style: TextStyle(
-                                            fontSize: 12,
-                                            height: 1.4,
+                                            fontSize: 14,
+                                            height: 1.45,
                                             color: CustomerColors.muted,
                                           ),
                                         ),
@@ -415,12 +435,13 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                       : () => setState(() => step = 0),
                                   icon: const Icon(
                                     Icons.tune_rounded,
-                                    size: 20,
+                                    size: 24,
                                   ),
                                   label: const CustomerText('Edit interests'),
                                   style: TextButton.styleFrom(
                                     foregroundColor: const Color(0xFFE35D16),
                                     textStyle: const TextStyle(
+                                      fontSize: 17,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -440,7 +461,7 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                 child: const CustomerText('Try again'),
                               ),
                           ],
-                          SizedBox(height: compact ? 16 : 20),
+                          SizedBox(height: compact ? 16 : 24),
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton(
@@ -456,10 +477,17 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                   : step == 0
                                   ? next
                                   : finish,
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(64),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(22),
+                                ),
+                              ),
                               child: CustomerText(
                                 step == 1 && !widget.setup
                                     ? 'Save changes'
                                     : 'Continue',
+                                style: const TextStyle(fontSize: 18),
                               ),
                             ),
                           ),
@@ -486,10 +514,10 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
     final bytes = avatar.photos[kind];
     final ready = bytes != null;
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(26),
         border: Border.all(color: const Color(0xFFF0ECE8)),
         boxShadow: const [
           BoxShadow(
@@ -506,15 +534,15 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
             children: [
               Icon(
                 selfie ? Icons.face_outlined : Icons.accessibility_new_rounded,
-                size: 18,
+                size: 25,
                 color: CustomerColors.orange,
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 8),
               Expanded(
                 child: CustomerText(
                   label,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 17,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -523,20 +551,20 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                 const Icon(
                   Icons.check_circle,
                   color: Color(0xFF47815E),
-                  size: 18,
+                  size: 22,
                 ),
             ],
           ),
-          const SizedBox(height: 9),
+          const SizedBox(height: 11),
           Semantics(
             button: true,
             label: tr(context, ready ? 'Change $label' : 'Add $label'),
             child: InkWell(
               key: ValueKey('avatar-$kind'),
               onTap: busy ? null : () => choose(kind),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(20),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(20),
                 child: AspectRatio(
                   aspectRatio: aspectRatio,
                   child: Stack(
@@ -565,20 +593,23 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                         ),
                       if (!ready)
                         const Positioned(
-                          top: 10,
-                          left: 8,
+                          top: 14,
+                          left: 12,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               color: Colors.white70,
                               borderRadius: BorderRadius.all(
-                                Radius.circular(6),
+                                Radius.circular(10),
                               ),
                             ),
                             child: Padding(
-                              padding: EdgeInsets.all(5),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 7,
+                              ),
                               child: CustomerText(
                                 'Example',
-                                style: TextStyle(fontSize: 10),
+                                style: TextStyle(fontSize: 13),
                               ),
                             ),
                           ),
@@ -588,7 +619,7 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                         right: 0,
                         bottom: 0,
                         child: Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(16),
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topCenter,
@@ -602,9 +633,9 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                               const Icon(
                                 Icons.camera_alt_outlined,
                                 color: Colors.white,
-                                size: 19,
+                                size: 28,
                               ),
-                              const SizedBox(width: 9),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -613,6 +644,7 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                       label,
                                       style: const TextStyle(
                                         color: Colors.white,
+                                        fontSize: 17,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -620,7 +652,7 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                       ready ? 'Change photo' : 'Tap to upload',
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 11,
+                                        fontSize: 14,
                                       ),
                                     ),
                                   ],

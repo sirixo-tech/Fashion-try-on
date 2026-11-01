@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import {
   Injectable,
   Logger,
@@ -26,6 +26,10 @@ import {
 import { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 import { TryOnSessionService } from "../try-on/try-on-session.service.js";
 import { recordCustomerLookNotification } from "./customer-notifications.service.js";
+import {
+  decryptProviderSecret,
+  encryptProviderSecret,
+} from "../integrations/provider-secret-cipher.js";
 import {
   customerNotificationCopy,
   CUSTOMER_TRANSLATION_VERSION,
@@ -91,8 +95,62 @@ export function parseStoreQr(value: string): string {
     fail("STORE_QR_INVALID", "Scan a SelfX Store QR code.");
   return token;
 }
+const STORE_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function newStoreAccessCode() {
+  return [...randomBytes(8)]
+    .map((byte) => STORE_CODE_ALPHABET[byte & 31])
+    .join("");
+}
+function parseStoreAccess(value: string): { token?: string; code?: string } {
+  const raw = value.trim();
+  if (/^[A-Za-z0-9]{8}$/.test(raw)) return { code: raw.toUpperCase() };
+  if (raw.startsWith("selfx://")) {
+    let uri: URL;
+    try {
+      uri = new URL(raw);
+    } catch {
+      fail("STORE_QR_INVALID", "Enter a valid Store code or scan its QR.");
+    }
+    if (
+      uri.hostname !== "store" ||
+      uri.port ||
+      (uri.pathname && uri.pathname !== "/") ||
+      uri.hash ||
+      uri.username ||
+      uri.password ||
+      uri.searchParams.size !== 1
+    )
+      fail("STORE_QR_INVALID", "Enter a valid Store code or scan its QR.");
+    if (uri.searchParams.has("code")) {
+      const values = uri.searchParams.getAll("code");
+      if (values.length !== 1 || !/^[A-Za-z0-9]{8}$/.test(values[0] ?? ""))
+        fail("STORE_QR_INVALID", "Enter a valid Store code or scan its QR.");
+      return { code: values[0]!.toUpperCase() };
+    }
+  }
+  return { token: parseStoreQr(raw) };
+}
 function digest(value: string | Buffer) {
   return createHash("sha256").update(value).digest("hex");
+}
+function digestStoreCode(value: string) {
+  const lookupKey = createHmac("sha256", storeQrEncryptionKey())
+    .update("SelfX Store QR lookup key v1")
+    .digest();
+  return createHmac("sha256", lookupKey).update(value).digest("hex");
+}
+function storeQrEncryptionKey() {
+  const key = Buffer.from(
+    process.env.SELFX_INTEGRATION_ENCRYPTION_KEY?.trim() ?? "",
+    "base64",
+  );
+  if (key.length !== 32)
+    fail(
+      "STORE_QR_CONFIGURATION_UNAVAILABLE",
+      "Store QR code display is temporarily unavailable.",
+      503,
+    );
+  return key;
 }
 function fail(code: string, message: string, status = 400): never {
   throw new ApiErrorException(status, code, message);
@@ -768,6 +826,15 @@ export class CustomerExperienceService
             personAssetId: person.id,
             garmentAssetId: garment.id,
             productId: input.productId,
+            productPriceAmountCents:
+              product?.minimumPriceAmountCents ??
+              product?.priceAmountCents ??
+              null,
+            productPriceMaximumAmountCents:
+              product?.maximumPriceAmountCents ??
+              product?.priceAmountCents ??
+              null,
+            productPriceCurrency: product?.priceCurrency ?? null,
             catalogSource: product ? "SELFX" : null,
             provider: provider.provider,
             providerDisplayName: provider.providerDisplayName,
@@ -992,6 +1059,9 @@ export class CustomerExperienceService
             personAssetId: run.personAssetId!,
             garmentAssetId: run.garmentAssetId,
             productId: run.productId,
+            priceAmountCents: run.productPriceAmountCents,
+            priceMaximumAmountCents: run.productPriceMaximumAmountCents,
+            priceCurrency: run.productPriceCurrency,
             expiresAt,
             existingResultAssetId: asset.id,
             resultAsset: { storageKey: asset.storageKey, expiresAt },
@@ -1148,6 +1218,9 @@ export class CustomerExperienceService
         runId: row.kioskTryOnRunId,
         name: row.product?.name ?? "Your look",
         nameIsDefault: !row.product,
+        priceAmountCents: row.priceAmountCents,
+        priceMaximumAmountCents: row.priceMaximumAmountCents,
+        priceCurrency: row.priceCurrency,
         createdAt: row.createdAt.toISOString(),
         expiresAt: row.expiresAt.toISOString(),
         result: this.assetDto(row.resultAsset),
@@ -1264,6 +1337,11 @@ export class CustomerExperienceService
   ) {
     await this.requireStore(organizationId);
     const token = randomBytes(32).toString("base64url");
+    const accessCode = newStoreAccessCode();
+    const encodedCode = encryptProviderSecret(
+      accessCode,
+      storeQrEncryptionKey(),
+    );
     const row = await this.db.$transaction(async (tx) => {
       // Serialize QR replacement per Store so concurrent creates cannot leave
       // multiple unrevoked codes behind.
@@ -1279,13 +1357,21 @@ export class CustomerExperienceService
           organizationId,
           createdByUserId,
           tokenHash: digest(token),
+          accessCodeHash: digestStoreCode(accessCode),
+          accessCodeCiphertext: encodedCode.encryptedPayload,
+          accessCodeIv: encodedCode.initializationVector,
+          accessCodeTag: encodedCode.authenticationTag,
           label,
           dailyCustomerLimit,
           expiresAt: new Date(Date.now() + 365 * DAY),
         },
       });
     });
-    return { ...this.qrDto(row), payload: `selfx://store?token=${token}` };
+    return {
+      ...this.qrDto(row),
+      code: accessCode,
+      payload: `selfx://store?code=${accessCode}`,
+    };
   }
   private qrDto(row: {
     id: string;
@@ -1305,18 +1391,20 @@ export class CustomerExperienceService
     };
   }
   async listQrs(organizationId: string) {
+    const rows = await this.db.customerStoreQr.findMany({
+      where: {
+        organizationId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 1,
+    });
     return {
-      data: (
-        await this.db.customerStoreQr.findMany({
-          where: {
-            organizationId,
-            revokedAt: null,
-            expiresAt: { gt: new Date() },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 1,
-        })
-      ).map((row) => this.qrDto(row)),
+      data: rows.map((row) => ({
+        ...this.qrDto(row),
+        ...this.storeQrAccess(row),
+      })),
     };
   }
   async revokeQr(organizationId: string, id: string, actorId: string) {
@@ -1327,8 +1415,11 @@ export class CustomerExperienceService
     return { message: "QR access revoked." };
   }
   async joinStore(customerId: string, value: string) {
+    const access = parseStoreAccess(value);
     const qr = await this.db.customerStoreQr.findUnique({
-      where: { tokenHash: digest(parseStoreQr(value)) },
+      where: access.code
+        ? { accessCodeHash: digestStoreCode(access.code) }
+        : { tokenHash: digest(access.token!) },
       include: { organization: true },
     });
     if (
@@ -1357,6 +1448,29 @@ export class CustomerExperienceService
       dailyCustomerLimit: qr.dailyCustomerLimit,
       payer: "STORE",
     };
+  }
+  private storeQrAccess(row: {
+    accessCodeHash: string | null;
+    accessCodeCiphertext: string | null;
+    accessCodeIv: string | null;
+    accessCodeTag: string | null;
+  }) {
+    if (
+      !row.accessCodeHash ||
+      !row.accessCodeCiphertext ||
+      !row.accessCodeIv ||
+      !row.accessCodeTag
+    )
+      return {};
+    const code = decryptProviderSecret<string>(
+      {
+        encryptedPayload: row.accessCodeCiphertext,
+        initializationVector: row.accessCodeIv,
+        authenticationTag: row.accessCodeTag,
+      },
+      storeQrEncryptionKey(),
+    );
+    return { code, payload: `selfx://store?code=${code}` };
   }
   private async requireVisit(customerId: string, id: string) {
     const visit = await this.db.customerStoreVisit.findFirst({
