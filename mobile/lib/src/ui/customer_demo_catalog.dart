@@ -127,6 +127,70 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
     }
   }
 
+  Widget _categoryTab(String value) {
+    final isSelected = category == value;
+    final label = switch (value) {
+      'ALL' => 'All',
+      'WOMEN' => 'Women',
+      _ => 'Men',
+    };
+    final icon = switch (value) {
+      'ALL' => Icons.grid_view_rounded,
+      _ => Icons.person_outline_rounded,
+    };
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: Semantics(
+          button: true,
+          selected: isSelected,
+          child: Material(
+            color: isSelected ? CustomerColors.orange : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(
+                color: isSelected ? CustomerColors.orange : CustomerColors.line,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => setState(() => category = value),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 16,
+                        color: isSelected ? Colors.white : CustomerColors.ink,
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: CustomerText(
+                          label,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : CustomerColors.ink,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     widget.experience.auth.removeListener(_preferencesChanged);
@@ -231,44 +295,9 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
         const SizedBox(height: 12),
         Row(
           children: [
-            for (final value in ['ALL', 'WOMEN', 'MEN'])
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ChoiceChip(
-                      label: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(switch (value) {
-                            'ALL' => Icons.grid_view_rounded,
-                            _ => Icons.person_outline_rounded,
-                          }, size: 16),
-                          const SizedBox(width: 5),
-                          Flexible(
-                            child: CustomerText(switch (value) {
-                              'ALL' => 'All',
-                              'WOMEN' => 'Women',
-                              _ => 'Men',
-                            }, textAlign: TextAlign.center),
-                          ),
-                        ],
-                      ),
-                      selected: category == value,
-                      onSelected: (_) => setState(() => category = value),
-                      selectedColor: CustomerColors.orange,
-                      labelStyle: TextStyle(
-                        color: category == value
-                            ? Colors.white
-                            : CustomerColors.ink,
-                      ),
-                      showCheckmark: false,
-                    ),
-                  ),
-                ),
-              ),
+            _categoryTab('ALL'),
+            _categoryTab('WOMEN'),
+            _categoryTab('MEN'),
           ],
         ),
         const SizedBox(height: 16),

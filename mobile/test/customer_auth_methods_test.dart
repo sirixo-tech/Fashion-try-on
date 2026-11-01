@@ -157,7 +157,7 @@ void main() {
     (tester) async {
       final phone = _FailingPhone();
       await mount(tester, phone: phone);
-      await tap(tester, find.text('Sign in with a code'));
+      await tap(tester, find.text('Mobile (OTP)'));
       await tester.enterText(find.byType(TextFormField).first, '+919876543210');
       await tester.pumpAndSettle();
       await tap(tester, find.byType(CheckboxListTile));
@@ -201,7 +201,7 @@ void main() {
             429,
             7,
           );
-      await tap(tester, find.text('Sign in with a code'));
+      await tap(tester, find.text('Mobile (OTP)'));
       await tester.enterText(find.byType(TextFormField).first, '+919876543210');
       await tester.pumpAndSettle();
       await tap(tester, find.byType(CheckboxListTile));

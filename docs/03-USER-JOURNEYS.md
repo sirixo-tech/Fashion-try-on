@@ -1,5 +1,14 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-28 — Separate sign-in methods (2026-11-01)
+
+Returning customers choose Email for email/password sign-in or Mobile (OTP)
+for phone verification. Email never asks for a phone number; Mobile never asks
+for an email or password. After requesting a mobile code, customers enter it in
+the existing Firebase verification flow. Google/Apple and signup remain
+separate existing options. The sign-in header uses one clear fashion image with
+SelfX branding and a language control.
+
 ### CUSTOMER-MOBILE-27 — Browse by saved interest and start Try-On from a card (2026-11-01)
 
 Home initially selects the customer's saved Men or Women interest. Customers can

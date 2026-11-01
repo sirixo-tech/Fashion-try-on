@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-31 — Separate email and mobile sign-in (2026-11-01)
+
+Customer sign-in presents separate Email and Mobile (OTP) methods. Email
+accepts an email address and password only. Mobile (OTP) accepts an
+international phone number, uses the existing consented Firebase verification
+flow, then presents its code field. Do not combine email and phone in a single
+sign-in field or show the phone country picker in Email mode. Replace the busy
+sign-in collage with a single clear bundled fashion photograph behind the
+existing SelfX logo, language control, title and subtitle. Signup remains on
+its existing email/optional-phone flow; no authentication API or account rules
+change.
+
 ### CUSTOMER-MOBILE-30 — My Looks card actions and styling (2026-11-01)
 
 My Looks shows each generated result as a full-width uncropped image with

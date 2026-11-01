@@ -214,243 +214,259 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                 ),
               ),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Center(child: CustomerBrand()),
-                      const SizedBox(height: 24),
-                      if (widget.setup)
-                        Row(
-                          children: [
-                            for (var i = 0; i < 2; i++)
-                              Expanded(
-                                child: Container(
-                                  margin: EdgeInsetsDirectional.only(
-                                    end: i == 0 ? 6 : 0,
-                                  ),
-                                  height: 3,
-                                  decoration: BoxDecoration(
-                                    color: i <= step
-                                        ? CustomerColors.orange
-                                        : CustomerColors.line,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      SizedBox(height: widget.setup ? 24 : 10),
-                      CustomerText(
-                        step == 0 ? 'I want to try on' : 'Create your avatar',
-                        style: Theme.of(context).textTheme.headlineLarge,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxHeight < 720;
+                    final largeText =
+                        MediaQuery.textScalerOf(context).scale(14) > 18;
+                    final photoAspectRatio = compact || largeText ? .9 : .78;
+                    return SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        compact ? 2 : 8,
+                        24,
+                        compact ? 10 : 16,
                       ),
-                      const SizedBox(height: 10),
-                      CustomerText(
-                        step == 0
-                            ? 'Choose one or more interests.'
-                            : 'Save two photos for easier Try-Ons.',
-                        style: const TextStyle(
-                          color: CustomerColors.muted,
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      if (step == 0) ...[
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            return Wrap(
-                              spacing: 12,
-                              runSpacing: 12,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Center(child: CustomerBrand()),
+                          SizedBox(height: compact ? 12 : 16),
+                          if (widget.setup)
+                            Row(
                               children: [
-                                for (final entry in const [
-                                  ('WOMEN', 'Women', 'demo-model-maya'),
-                                  ('MEN', 'Men', 'demo-model-arjun'),
-                                ])
-                                  SizedBox(
-                                    width: (constraints.maxWidth - 12) / 2,
-                                    child: _InterestCard(
-                                      value: entry.$2,
-                                      asset: entry.$3,
-                                      selected: selected.contains(entry.$1),
-                                      onTap: busy
-                                          ? null
-                                          : () => setState(() {
-                                              selected
-                                                ..clear()
-                                                ..add(entry.$1);
-                                            }),
-                                    ),
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                      ] else ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _photo(
-                                'SELFIE',
-                                'Selfie',
-                                selected.contains('MEN')
-                                    ? 'avatar-selfie-example-man-v1'
-                                    : 'avatar-selfie-example-v1',
-                                true,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _photo(
-                                'FULL_BODY',
-                                'Full body',
-                                selected.contains('MEN')
-                                    ? 'demo-model-arjun'
-                                    : 'demo-model-maya',
-                                false,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 13,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF0E4),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(
-                                Icons.lightbulb_outline_rounded,
-                                color: CustomerColors.orange,
-                                size: 20,
-                              ),
-                              SizedBox(width: 9),
-                              Expanded(
-                                child: CustomerText(
-                                  'Clear photos. Good light. Plain background.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: CustomerColors.ink,
-                                    height: 1.45,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: CustomerColors.line),
-                          ),
-                          child: const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.lock_outline_rounded,
-                                    size: 17,
-                                    color: CustomerColors.orange,
-                                  ),
-                                  SizedBox(width: 8),
+                                for (var i = 0; i < 2; i++)
                                   Expanded(
-                                    child: CustomerText(
-                                      'Private. Saved for you.',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
+                                    child: Container(
+                                      margin: EdgeInsetsDirectional.only(
+                                        end: i == 0 ? 6 : 0,
+                                      ),
+                                      height: 3,
+                                      decoration: BoxDecoration(
+                                        color: i <= step
+                                            ? CustomerColors.orange
+                                            : CustomerColors.line,
+                                        borderRadius: BorderRadius.circular(4),
                                       ),
                                     ),
                                   ),
+                              ],
+                            ),
+                          SizedBox(height: widget.setup ? 18 : 6),
+                          CustomerText(
+                            step == 0
+                                ? 'I want to try on'
+                                : 'Create your avatar',
+                            style: Theme.of(context).textTheme.headlineLarge,
+                          ),
+                          const SizedBox(height: 10),
+                          CustomerText(
+                            step == 0
+                                ? 'Choose one or more interests.'
+                                : 'Save two photos for easier Try-Ons.',
+                            style: const TextStyle(
+                              color: CustomerColors.muted,
+                              height: 1.5,
+                            ),
+                          ),
+                          SizedBox(height: compact ? 12 : 18),
+                          if (step == 0) ...[
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                return Wrap(
+                                  spacing: 12,
+                                  runSpacing: 12,
+                                  children: [
+                                    for (final entry in const [
+                                      ('WOMEN', 'Women', 'demo-model-maya'),
+                                      ('MEN', 'Men', 'demo-model-arjun'),
+                                    ])
+                                      SizedBox(
+                                        width: (constraints.maxWidth - 12) / 2,
+                                        child: _InterestCard(
+                                          value: entry.$2,
+                                          asset: entry.$3,
+                                          selected: selected.contains(entry.$1),
+                                          onTap: busy
+                                              ? null
+                                              : () => setState(() {
+                                                  selected
+                                                    ..clear()
+                                                    ..add(entry.$1);
+                                                }),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ] else ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _photo(
+                                    'SELFIE',
+                                    'Selfie',
+                                    selected.contains('MEN')
+                                        ? 'avatar-selfie-example-man-v1'
+                                        : 'avatar-selfie-example-v1',
+                                    true,
+                                    photoAspectRatio,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _photo(
+                                    'FULL_BODY',
+                                    'Full body',
+                                    selected.contains('MEN')
+                                        ? 'demo-model-arjun'
+                                        : 'demo-model-maya',
+                                    false,
+                                    photoAspectRatio,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: compact ? 12 : 14),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF0E4),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Row(
+                                children: [
                                   Icon(
-                                    Icons.verified_user_rounded,
+                                    Icons.lightbulb_outline_rounded,
                                     color: CustomerColors.orange,
-                                    size: 24,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 9),
+                                  Expanded(
+                                    child: CustomerText(
+                                      'Clear photos. Good light. Plain background.',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: CustomerColors.ink,
+                                        height: 1.45,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                              SizedBox(height: 8),
-                              CustomerText(
-                                'Use your saved full-body photo by default. Change it for any Try-On.',
-                                style: TextStyle(fontSize: 12, height: 1.5),
+                            ),
+                            SizedBox(height: compact ? 12 : 14),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: CustomerColors.line),
                               ),
-                              SizedBox(height: 6),
-                              CustomerText(
-                                'Saved until you replace or delete them, or delete your account.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  height: 1.5,
-                                  color: CustomerColors.muted,
+                              child: const Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: EdgeInsets.only(top: 2),
+                                    child: Icon(
+                                      Icons.lock_outline_rounded,
+                                      size: 17,
+                                      color: CustomerColors.orange,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        CustomerText(
+                                          'Use your saved full-body photo by default. Change it for any Try-On.',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        CustomerText(
+                                          'Saved until you replace or delete them, or delete your account.',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            height: 1.4,
+                                            color: CustomerColors.muted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (!widget.setup)
+                              Center(
+                                child: TextButton.icon(
+                                  onPressed: busy
+                                      ? null
+                                      : () => setState(() => step = 0),
+                                  icon: const Icon(
+                                    Icons.tune_rounded,
+                                    size: 20,
+                                  ),
+                                  label: const CustomerText('Edit interests'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: const Color(0xFFE35D16),
+                                    textStyle: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                        if (!widget.setup)
-                          Center(
-                            child: TextButton.icon(
-                              onPressed: busy
+                          ],
+                          if (avatar.busy) ...[
+                            const SizedBox(height: 16),
+                            const LinearProgressIndicator(),
+                          ],
+                          if (avatar.error != null) ...[
+                            const SizedBox(height: 16),
+                            CustomerNotice(avatar.error!, error: true),
+                            if (!avatar.loaded)
+                              TextButton(
+                                onPressed: busy ? null : avatar.load,
+                                child: const CustomerText('Try again'),
+                              ),
+                          ],
+                          SizedBox(height: compact ? 16 : 20),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              key: const ValueKey('avatar-continue'),
+                              onPressed:
+                                  busy ||
+                                      !avatar.loaded ||
+                                      selected.isEmpty ||
+                                      (step == 1 &&
+                                          widget.setup &&
+                                          avatar.ids.length < 2)
                                   ? null
-                                  : () => setState(() => step = 0),
-                              icon: const Icon(Icons.tune_rounded, size: 20),
-                              label: const CustomerText('Edit interests'),
-                              style: TextButton.styleFrom(
-                                foregroundColor: const Color(0xFFE35D16),
-                                textStyle: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                  : step == 0
+                                  ? next
+                                  : finish,
+                              child: CustomerText(
+                                step == 1 && !widget.setup
+                                    ? 'Save changes'
+                                    : 'Continue',
                               ),
                             ),
                           ),
-                      ],
-                      if (avatar.busy) ...[
-                        const SizedBox(height: 16),
-                        const LinearProgressIndicator(),
-                      ],
-                      if (avatar.error != null) ...[
-                        const SizedBox(height: 16),
-                        CustomerNotice(avatar.error!, error: true),
-                        if (!avatar.loaded)
-                          TextButton(
-                            onPressed: busy ? null : avatar.load,
-                            child: const CustomerText('Try again'),
-                          ),
-                      ],
-                      const SizedBox(height: 28),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          key: const ValueKey('avatar-continue'),
-                          onPressed:
-                              busy ||
-                                  !avatar.loaded ||
-                                  selected.isEmpty ||
-                                  (step == 1 &&
-                                      widget.setup &&
-                                      avatar.ids.length < 2)
-                              ? null
-                              : step == 0
-                              ? next
-                              : finish,
-                          child: CustomerText(
-                            step == 1 && !widget.setup
-                                ? 'Save changes'
-                                : 'Continue',
-                          ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -460,7 +476,13 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
     ),
   );
 
-  Widget _photo(String kind, String label, String asset, bool selfie) {
+  Widget _photo(
+    String kind,
+    String label,
+    String asset,
+    bool selfie,
+    double aspectRatio,
+  ) {
     final bytes = avatar.photos[kind];
     final ready = bytes != null;
     return Container(
@@ -516,7 +538,7 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: AspectRatio(
-                  aspectRatio: .64,
+                  aspectRatio: aspectRatio,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [

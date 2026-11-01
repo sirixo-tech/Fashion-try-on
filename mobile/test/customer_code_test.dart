@@ -66,60 +66,35 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets(
-    'email code login requires six digits, keeps its request proof and starts a normal SelfX session',
-    (tester) async {
-      await mount(tester);
-      await tap(tester, find.text('Sign in with a code'));
-      await tester.enterText(
-        find.byType(TextFormField).first,
-        'customer@example.test',
-      );
-      await tap(tester, find.widgetWithText(FilledButton, 'Send code'));
-      expect(
-        tester
-            .widget<TextButton>(
-              find.widgetWithText(TextButton, 'Resend in 60s'),
-            )
-            .onPressed,
-        isNull,
-      );
-      await tester.enterText(find.byType(TextFormField).last, '12345');
-      await tap(tester, find.widgetWithText(FilledButton, 'Verify code'));
-      expect(
-        api.calls.where((c) => c.path == '/auth/email-code/login'),
-        isEmpty,
-      );
-      await tester.enterText(find.byType(TextFormField).last, '123456');
-      await tap(tester, find.widgetWithText(FilledButton, 'Verify code'));
-      expect(
-        api.calls.singleWhere((c) => c.path == '/auth/email-code/login').body,
-        containsPair('loginProof', 'b' * 43),
-      );
-      expect(auth.stage, CustomerStage.ready);
-      expect(phone.sent, isEmpty);
-    },
-  );
-  testWidgets(
-    'new users can open signup from code login and keep their email',
-    (tester) async {
-      await mount(tester);
-      await tap(tester, find.text('Sign in with a code'));
-      await tester.enterText(
-        find.byType(TextFormField).first,
-        'new@example.test',
-      );
-      await tap(tester, find.text('Create an account'));
-      expect(find.text('Your name'), findsOneWidget);
-      expect(
-        tester
-            .widget<TextFormField>(find.byType(TextFormField).at(1))
-            .controller!
-            .text,
-        'new@example.test',
-      );
-    },
-  );
+  testWidgets('sign-in clearly separates email/password from mobile OTP', (
+    tester,
+  ) async {
+    await mount(tester);
+    expect(find.text('Email'), findsOneWidget);
+    expect(find.text('Mobile (OTP)'), findsOneWidget);
+    expect(find.text('Password'), findsOneWidget);
+    expect(find.text('Phone number'), findsNothing);
+
+    await tap(tester, find.text('Mobile (OTP)'));
+    expect(find.text('Phone number'), findsOneWidget);
+    expect(find.text('Password'), findsNothing);
+    expect(find.text('Email address'), findsNothing);
+
+    await tap(tester, find.text('Email'));
+    expect(find.text('Email address'), findsOneWidget);
+    expect(find.text('Password'), findsOneWidget);
+    expect(find.text('Phone number'), findsNothing);
+    expect(phone.sent, isEmpty);
+  });
+  testWidgets('signup keeps its existing email or mobile identifier flow', (
+    tester,
+  ) async {
+    await mount(tester);
+    await tap(tester, find.text('Create an account'));
+    expect(find.text('Your name'), findsOneWidget);
+    expect(find.text('Email or mobile number'), findsOneWidget);
+    expect(find.text('Mobile (OTP)'), findsNothing);
+  });
   testWidgets(
     'Account security uses six-digit reset codes and an eight-character password minimum',
     (tester) async {
@@ -150,7 +125,7 @@ void main() {
     tester,
   ) async {
     await mount(tester);
-    await tap(tester, find.text('Sign in with a code'));
+    await tap(tester, find.text('Mobile (OTP)'));
     await tester.enterText(find.byType(TextFormField).first, '+919876543210');
     await tester.pump();
     await tap(tester, find.byType(CheckboxListTile));
@@ -165,7 +140,7 @@ void main() {
       await mount(tester);
       expect(auth.capabilities.phone, false);
       api.phoneAvailable = true;
-      await tap(tester, find.text('Sign in with a code'));
+      await tap(tester, find.text('Mobile (OTP)'));
       await tester.enterText(find.byType(TextFormField).first, '+919876543210');
       await tester.pump();
       await tap(tester, find.byType(CheckboxListTile));

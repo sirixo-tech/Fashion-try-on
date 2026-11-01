@@ -24,6 +24,13 @@ Interests are preferences, not gender identification or authorization, and do
 not restrict other products. This slice does not add a new jewellery provider
 or claim that unsupported jewellery Try-On is now available.
 
+## My avatar screen refinement (2026-11-01)
+
+Keep the saved-photo default/change and retention information together in one
+concise note; omit the duplicate “Private. Saved for you.” heading. Fit the
+normal portrait screen without scrolling, while preserving scroll fallback for
+constrained heights and larger text.
+
 ## Retention exception approved by the user
 
 Saved avatar SELFIE and FULL_BODY originals have no automatic expiry. They

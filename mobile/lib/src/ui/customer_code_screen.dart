@@ -213,9 +213,7 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
         leading: widget.linkPhone
             ? (busy ? const SizedBox.shrink() : const CustomerHomeBackButton())
             : null,
-        title: CustomerText(
-          widget.linkPhone ? 'Phone number' : 'Sign in with a code',
-        ),
+        title: CustomerText(widget.linkPhone ? 'Phone number' : 'Mobile (OTP)'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -231,9 +229,7 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
                 ),
                 const SizedBox(height: 28),
                 CustomerText(
-                  widget.linkPhone
-                      ? 'Verify your phone'
-                      : 'Email or mobile number',
+                  widget.linkPhone ? 'Verify your phone' : 'Phone number',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 16),
@@ -258,11 +254,9 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
                   key: phoneField,
                   controller: contact,
                   countries: widget.auth.countries,
-                  allowEmail: !widget.linkPhone,
+                  allowEmail: false,
                   enabled: !busy && !sent,
-                  label: widget.linkPhone
-                      ? 'Phone number'
-                      : 'Email or mobile number',
+                  label: 'Phone number',
                   onChanged: () => setState(() => consent = false),
                 ),
                 if (phoneUnavailable &&
@@ -281,9 +275,7 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
                   ),
                 if (sent) ...[
                   const SizedBox(height: 12),
-                  const CustomerText(
-                    'Enter the 6-digit code. Email codes expire after 10 minutes. For SMS, request a new code if it has expired.',
-                  ),
+                  const CustomerText('Enter the 6-digit code.'),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: code,

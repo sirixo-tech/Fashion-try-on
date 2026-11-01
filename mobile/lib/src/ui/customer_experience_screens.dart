@@ -1497,7 +1497,7 @@ class _CustomerStudioState extends State<CustomerStudio> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(28),
                       child: AspectRatio(
-                        aspectRatio: .72,
+                        aspectRatio: .75,
                         child: CustomerAssetImage(
                           experience: exp,
                           photo: CustomerPhoto.fromJson(result),
@@ -2180,6 +2180,51 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
     }
   }
 
+  Widget savedTab(bool garments, String label, IconData icon) {
+    final isSelected = showGarments == garments;
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Semantics(
+          button: true,
+          selected: isSelected,
+          child: Material(
+            color: isSelected
+                ? CustomerColors.orange.withValues(alpha: .12)
+                : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(
+                color: isSelected ? CustomerColors.orange : CustomerColors.line,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => setState(() => showGarments = garments),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon, size: 18, color: CustomerColors.ink),
+                      const SizedBox(width: 7),
+                      Flexible(
+                        child: CustomerText(label, textAlign: TextAlign.center),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.experience,
@@ -2202,29 +2247,8 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
             const SizedBox(height: 14),
             Row(
               children: [
-                for (final entry in [
-                  (false, 'Looks', Icons.auto_awesome_rounded),
-                  (true, 'Wardrobe', Icons.checkroom_rounded),
-                ])
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: ChoiceChip(
-                        label: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(entry.$3, size: 18),
-                            const SizedBox(width: 7),
-                            CustomerText(entry.$2),
-                          ],
-                        ),
-                        selected: showGarments == entry.$1,
-                        onSelected: (_) =>
-                            setState(() => showGarments = entry.$1),
-                        showCheckmark: false,
-                      ),
-                    ),
-                  ),
+                savedTab(false, 'Looks', Icons.auto_awesome_rounded),
+                savedTab(true, 'Wardrobe', Icons.checkroom_rounded),
               ],
             ),
             const SizedBox(height: 14),
@@ -2478,7 +2502,7 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                             top: Radius.circular(20),
                           ),
                           child: AspectRatio(
-                            aspectRatio: .72,
+                            aspectRatio: .75,
                             child: CustomerAssetImage(
                               experience: exp,
                               photo: look.result,
@@ -2654,7 +2678,7 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
         ClipRRect(
           borderRadius: BorderRadius.circular(28),
           child: AspectRatio(
-            aspectRatio: .72,
+            aspectRatio: .75,
             child: CustomerAssetImage(
               experience: widget.experience,
               photo: widget.look.result,

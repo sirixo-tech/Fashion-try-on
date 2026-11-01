@@ -1,5 +1,25 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-32 — Flush image cards and full-width tabs (2026-11-01)
+
+Remove avoidable top/bottom letterbox space from product and saved-look image
+cards while keeping full Try-On results uncropped. Let Home category filters
+and Saved Looks/Wardrobe tabs fill their row evenly with consistent touch
+targets; do not leave the labels as compact intrinsic-width chips.
+
+### CUSTOMER-MOBILE-31 — Separate email and mobile sign-in (2026-11-01)
+
+Sign-in uses two icon-labeled methods: Email and Mobile (OTP). Email displays
+an email-only field, password and Forgot password. Mobile (OTP) displays the
+country selector and phone-only field; after Send code, retain the consented
+Firebase flow and show the OTP entry on that flow's code screen. Never show the
+email/phone switch or password under Mobile, and never show the country picker
+under Email. Keep Google/Apple capability controls, linked Terms/Privacy notice,
+signup flow, rate limits and backend behavior. Use one clear bundled fashion
+photo in the top hero, with the existing logo, language control and text kept
+legible over it; remove the collage from this screen. Translate the method
+labels in all 20 catalogs and preserve RTL, keyboard and narrow-screen behavior.
+
 ### CUSTOMER-MOBILE-30 — My Looks card actions and styling (2026-11-01)
 
 On Saved → Looks, show each full try-on image uncropped across the card width.
@@ -149,11 +169,11 @@ Use a dark blue information-screen backdrop and larger Try-On/model image cards 
 
 ### CUSTOMER-MOBILE-15 — Demo Explore and detail (2026-10-28)
 
-Home has a SelfX Demo outfit grid with search and All/Women/Men filters. Each card opens a sample product detail view with a large garment preview and My Avatar / demo model selection. The fitting room displays the selected person and garment, with one-off replacement actions. Demo products have no price or purchase control. Store QR mode retains the Store catalog. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
+Home has a SelfX Demo outfit grid with search and full-width evenly spaced All/Women/Men filters. Each edge-to-edge product image fills its image-card area and opens a sample product detail view with a large garment preview and My Avatar / demo model selection. The fitting room displays the selected person and garment, with one-off replacement actions. Demo products have no price or purchase control. Store QR mode retains the Store catalog. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
 
 ### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
 
-Follow the supplied PoC with photographic interest cards, selection ticks, a two-step indicator, side-by-side selfie/full-body cards, explicit examples, guidance and Continue/Skip. Women and Men are mutually exclusive, and the example selfie/full-body photos match the selected category. Camera/gallery opens after the saved-photo consent notice. Support small screens, accessibility text, 20 languages and RTL. Add Me → My avatar and per-Try-On Change photo. See `CUSTOMER-MOBILE-14-AVATAR.md`.
+Follow the supplied PoC with photographic interest cards, selection ticks, a two-step indicator, side-by-side selfie/full-body cards, explicit examples, guidance and Continue/Skip. Women and Men are mutually exclusive, and the example selfie/full-body photos match the selected category. Camera/gallery opens after the saved-photo consent notice. On My avatar, show full-body default/change behavior and saved-photo retention once in a concise note; omit the redundant “Private. Saved for you.” heading. Fit the normal portrait screen without scrolling, while retaining scroll fallback for constrained heights and larger text. Support accessibility text, 20 languages and RTL. Add Me → My avatar and per-Try-On Change photo. See `CUSTOMER-MOBILE-14-AVATAR.md`.
 
 ### CUSTOMER-MOBILE-13 — Try-On image direction (2026-10-28)
 

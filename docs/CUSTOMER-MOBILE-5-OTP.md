@@ -2,6 +2,16 @@
 
 Approved 2026-10-27: add email/phone code sign-in, verified phone linking, optional signup phone/country-code fields, six-digit email verification/reset codes and translated OTP states. Keep Google/Apple/password login, the eight-character password minimum, current premium presentation and header positions.
 
+## Sign-in presentation follow-up (2026-11-01)
+
+The customer login presents separate Email and Mobile (OTP) methods. Email
+sign-in uses an email address and password. Mobile OTP uses a phone-only field,
+country selection, consented Firebase verification and a code-entry step. The
+single Email or mobile number login field and email-code login option are no
+longer exposed in the customer login UI; the backend email-code capability and
+email verification/reset codes are unchanged. Signup retains its existing
+email/optional-phone flow.
+
 ## Customer behavior
 
 - Sign in → **Sign in with a code** opens one **Email or mobile number** input. Phone numbers include their international country code, e.g. `+91`. Email sends a six-digit code through the existing SelfX mail outbox. Phone verification uses Firebase Authentication, then exchanges the verified Firebase ID token for the normal SelfX customer session.

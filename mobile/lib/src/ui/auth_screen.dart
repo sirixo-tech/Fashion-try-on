@@ -28,6 +28,8 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       code = TextEditingController();
   final verificationEmail = TextEditingController();
   final identifierField = GlobalKey<CustomerPhoneFieldState>();
+  final mobileField = GlobalKey<CustomerPhoneFieldState>();
+  final mobile = TextEditingController();
   Timer? resendTimer;
   int resendWait = 0;
   void startResendWait() {
@@ -54,9 +56,15 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   bool get credentialForm => view == CustomerAuthView.signIn || signup;
   bool get numberSignup =>
       signup && email.text.trim().isNotEmpty && !email.text.contains('@');
-  String get identifier => email.text.contains('@')
-      ? email.text.trim()
-      : identifierField.currentState?.canonical ?? email.text.trim();
+  String get identifier {
+    if (view == CustomerAuthView.signIn && mobileOtp) {
+      return mobileField.currentState?.canonical ?? mobile.text.trim();
+    }
+    return email.text.contains('@')
+        ? email.text.trim()
+        : identifierField.currentState?.canonical ?? email.text.trim();
+  }
+
   void change(CustomerAuthView next) {
     FocusScope.of(context).unfocus();
     resendTimer?.cancel();
@@ -100,12 +108,14 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     child: Row(
       children: [
         _authMethodButton(
-          'Password',
+          Icons.email_outlined,
+          'Email',
           selected: !mobileOtp,
           onTap: () => setMobileOtp(false),
         ),
         _authMethodButton(
-          'Sign in with a code',
+          Icons.phone_android_outlined,
+          'Mobile (OTP)',
           selected: mobileOtp,
           onTap: () => setMobileOtp(true),
         ),
@@ -114,6 +124,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   );
 
   Widget _authMethodButton(
+    IconData icon,
     String label, {
     required bool selected,
     required VoidCallback onTap,
@@ -129,14 +140,23 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
           borderRadius: BorderRadius.circular(11),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 12),
-            child: CustomerText(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : CustomerColors.ink,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 17),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: CustomerText(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? Colors.white : CustomerColors.ink,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -154,9 +174,9 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
         children: [
           const ColoredBox(color: Color(0xFFFFF5EF)),
           Image.asset(
-            'assets/editorial/welcome-tryon-v6.webp',
+            'assets/editorial/plans-editorial-06-v3.jpg',
             fit: BoxFit.cover,
-            alignment: const Alignment(.72, -.82),
+            alignment: Alignment.center,
             filterQuality: FilterQuality.medium,
             excludeFromSemantics: true,
           ),
@@ -232,7 +252,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   Future<void> continueWithMobileOtp() async {
     if (!ensurePolicy()) return;
     if (!(form.currentState?.validate() ?? false)) return;
-    final phone = identifierField.currentState?.canonical;
+    final phone = mobileField.currentState?.canonical;
     if (phone == null) return;
     FocusScope.of(context).unfocus();
     await Navigator.push<void>(
@@ -397,6 +417,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   void dispose() {
     scroll.dispose();
     email.dispose();
+    mobile.dispose();
     password.dispose();
     name.dispose();
     code.dispose();
@@ -590,7 +611,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                         ),
                                         child: CustomerText(
                                           compact
-                                              ? 'Email or mobile number'
+                                              ? 'or continue with'
                                               : 'or use email',
                                           textAlign: TextAlign.center,
                                           style: const TextStyle(
@@ -628,19 +649,27 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                               _authMethodSelector(),
                               const SizedBox(height: 14),
                             ],
-                            if (credentialForm)
+                            if (signup)
                               CustomerPhoneField(
                                 key: identifierField,
                                 controller: email,
                                 countries: auth.countries,
-                                label:
-                                    mobileOtp && view == CustomerAuthView.signIn
-                                    ? 'Phone number'
-                                    : 'Email or mobile number',
-                                allowEmail: signup || !mobileOtp,
+                                label: 'Email or mobile number',
+                                allowEmail: true,
                                 compact: compact,
                                 enabled: !busy,
                                 onChanged: () => setState(() {}),
+                              )
+                            else if (view == CustomerAuthView.signIn &&
+                                mobileOtp)
+                              CustomerPhoneField(
+                                key: mobileField,
+                                controller: mobile,
+                                countries: auth.countries,
+                                label: 'Phone number',
+                                allowEmail: false,
+                                compact: compact,
+                                enabled: !busy,
                               )
                             else
                               TextFormField(

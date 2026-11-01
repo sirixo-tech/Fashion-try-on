@@ -602,15 +602,9 @@ void main() {
       }
       await tap(tester, find.text('Skip'));
       await capture('sign-in');
-      await tap(tester, find.text('Sign in with a code'));
-      await capture('code-contact');
-      await tester.enterText(
-        find.byType(TextFormField).first,
-        'customer@example.test',
-      );
-      await tap(tester, find.widgetWithText(FilledButton, 'Send code'));
-      await capture('code-entry');
-      await tap(tester, find.byType(BackButton));
+      await tap(tester, find.text('Mobile (OTP)'));
+      await capture('mobile-otp-contact');
+      await tap(tester, find.text('Email'));
       await tap(tester, find.text('Create an account'));
       expect(
         tester.getTopLeft(find.byType(CustomerBrand)).dy,
