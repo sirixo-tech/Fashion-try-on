@@ -231,7 +231,7 @@ describe.skipIf(!url)(
         auth.login(number, "wrong-password", ip),
       ).rejects.toMatchObject({ status: 401 });
       await expect(
-        auth.phoneLogin("synthetic-token", ip),
+        auth.phoneLogin("synthetic-token", ip, undefined, true),
       ).rejects.toMatchObject({ status: 409 });
       const other = await register("other@selfx.invalid");
       await db.customer.update({
@@ -327,10 +327,10 @@ describe.skipIf(!url)(
     it("links a verified phone only to the authenticated account and keeps identity/history across phone login", async () => {
       const first = await register();
       await expect(
-        auth.phoneLogin("synthetic-token", ip),
+        auth.phoneLogin("synthetic-token", ip, undefined, true),
       ).rejects.toMatchObject({ status: 409 });
       await auth.linkPhone(bearer(first), "synthetic-token", ip);
-      const linked = await auth.phoneLogin("synthetic-token", ip);
+      const linked = await auth.phoneLogin("synthetic-token", ip, undefined, true);
       expect(linked.customer.id).toBe(first.customer.id);
       expect(linked.customer.phoneNumber).toBe("+919876543210");
       const second = await register("other@selfx.invalid");
@@ -343,7 +343,7 @@ describe.skipIf(!url)(
         data: { status: "SUSPENDED" },
       });
       await expect(
-        auth.phoneLogin("synthetic-token", ip),
+        auth.phoneLogin("synthetic-token", ip, undefined, true),
       ).rejects.toMatchObject({ status: 401 });
     });
     it("does not extend phone-link authentication time through refresh, rejects stale/invalid proofs and fails closed without Firebase", async () => {
@@ -357,12 +357,12 @@ describe.skipIf(!url)(
       ).rejects.toMatchObject({ status: 403 });
       phone.verify.mockRejectedValueOnce(new Error("invalid"));
       await expect(
-        auth.phoneLogin("synthetic-token", ip),
+        auth.phoneLogin("synthetic-token", ip, undefined, true),
       ).rejects.toMatchObject({ status: 400 });
       phone.ready.mockReturnValue(false);
       expect(auth.capabilities().providers.phone).toBe(false);
       await expect(
-        auth.phoneLogin("synthetic-token", ip),
+        auth.phoneLogin("synthetic-token", ip, undefined, true),
       ).rejects.toMatchObject({ status: 503 });
       expect(
         await db.customerIdentity.count({

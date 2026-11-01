@@ -643,5 +643,18 @@
   "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "ತ್ವರಿತ ಸಹಾಯಕ್ಕಾಗಿ, ನೀವು ಏನು ಮಾಡುತ್ತಿದ್ದಿರಿ, ಏನಾಗುತ್ತದೆ ಎಂದು ನಿರೀಕ್ಷಿಸಿದ್ದಿರಿ ಮತ್ತು ನಿಜವಾಗಿ ಏನಾಯಿತು ಎಂದು ತಿಳಿಸಿ. ಸಾಧ್ಯವಾದರೆ ಸಮಸ್ಯೆಯನ್ನು ಮರುಕಳಿಸುವ ಹಂತಗಳನ್ನು ಸೇರಿಸಿ. ಇಮೇಲ್ ಬೆಂಬಲ ಆಯ್ಕೆ ಮಾಡಿದಾಗ ಆ್ಯಪ್ ಆವೃತ್ತಿ ಸ್ವಯಂಚಾಲಿತವಾಗಿ ಸೇರಿಸಲಾಗುತ್ತದೆ.",
   "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "ಆ್ಯಪ್ ಆವೃತ್ತಿ: {p0}\n\nನೀವು ಏನು ಮಾಡಲು ಪ್ರಯತ್ನಿಸುತ್ತಿದ್ದಿರಿ?\n\nಏನಾಯಿತು?\n\nಸಮಸ್ಯೆಯನ್ನು ಮರುಕಳಿಸುವ ಹಂತಗಳು (ಸಾಧ್ಯವಾದರೆ):\n\n",
   "Store-sponsored Try-On": "ಸ್ಟೋರ್ ಪ್ರಾಯೋಜಿತ ಟ್ರೈ-ಆನ್",
-  "My Looks": "ನನ್ನ ಲುಕ್ಸ್"
+  "My Looks": "ನನ್ನ ಲುಕ್ಸ್",
+  "I agree to the Terms and Privacy Policy and consent to SMS verification.": "ನಾನು ನಿಯಮಗಳು ಮತ್ತು ಗೌಪ್ಯತಾ ನೀತಿಗೆ ಒಪ್ಪುತ್ತೇನೆ ಮತ್ತು SMS ಪರಿಶೀಲನೆಗೆ ಸಮ್ಮತಿಸುತ್ತೇನೆ.",
+  "SMS details": "SMS ವಿವರಗಳು",
+  "SMS verification": "SMS ಪರಿಶೀಲನೆ",
+  "Your phone number is sent to Google through Firebase to deliver sign-in codes and help prevent abuse. SMS charges may apply.": "ಸೈನ್-ಇನ್ ಕೋಡ್‌ಗಳನ್ನು ಕಳುಹಿಸಲು ಮತ್ತು ದುರುಪಯೋಗ ತಡೆಯಲು ನಿಮ್ಮ ಸಂಖ್ಯೆಯನ್ನು Firebase ಮೂಲಕ Googleಗೆ ಕಳುಹಿಸಲಾಗುತ್ತದೆ. SMS ಶುಲ್ಕ ಅನ್ವಯಿಸಬಹುದು.",
+  "Please accept the Terms, Privacy Policy, and SMS verification consent.": "ನಿಯಮಗಳು, ಗೌಪ್ಯತಾ ನೀತಿ ಮತ್ತು SMS ಪರಿಶೀಲನೆಗೆ ದಯವಿಟ್ಟು ಸಮ್ಮತಿಸಿ."
+,
+  "Crop photo": "ಫೋಟೋ ಕ್ರಾಪ್ ಮಾಡಿ",
+  "Pinch to zoom and drag to adjust the photo.": "ಜೂಮ್ ಮಾಡಲು ಪಿಂಚ್ ಮಾಡಿ ಮತ್ತು ಫೋಟೋ ಹೊಂದಿಸಲು ಎಳೆಯಿರಿ.",
+  "Reset": "ಮರುಹೊಂದಿಸಿ",
+  "Use cropped photo": "ಕ್ರಾಪ್ ಮಾಡಿದ ಫೋಟೋ ಬಳಸಿ",
+  "Preparing photo…": "ಫೋಟೋ ಸಿದ್ಧವಾಗುತ್ತಿದೆ…",
+  "This photo could not be opened. Choose another.": "ಈ ಫೋಟೋ ತೆರೆಯಲಾಗಲಿಲ್ಲ. ಬೇರೆ ಫೋಟೋ ಆಯ್ಕೆಮಾಡಿ.",
+  "The photo could not be cropped. Please try again.": "ಫೋಟೋ ಕ್ರಾಪ್ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ."
 }

@@ -19,15 +19,17 @@ fixed positions. Keep the code field visible but disabled until Firebase sends
 the SMS; sending the code only enables it and changes the primary action to
 Verify. Keep a reserved resend row below the code field, corresponding to Email's
 Forgot password action, so resend availability never shifts Terms or the primary
-button. Keep SMS consent visible before and after the request and preserve the
-existing Firebase proof, cooldown and attempt protections. Use a photo-free
+button. Email and Mobile sign-in share one required Terms/Privacy and SMS
+verification-consent checkbox, with a separate SMS details link. Keep it visible
+before and after the request and preserve the existing Firebase proof, cooldown
+and attempt protections. Use a photo-free
 SelfX login header. Place consent-validation errors directly above the Terms
 and Privacy checkbox in larger text, with clear spacing between the mobile
 fields and consent controls.
 
 ## Customer behavior
 
-- Sign in has separate Email/password and Mobile (OTP) methods. Phone numbers use their international country code, such as `+91`; SMS is requested only after explicit consent. Firebase Authentication verifies the code, then exchanges the verified Firebase ID token for the normal SelfX customer session. The six-digit code field is always visible beneath the phone number and is enabled after SMS is sent. The resend action occupies a fixed row beneath it. Email verification/reset codes continue through the existing SelfX mail outbox.
+- Sign in has separate Email/password and Mobile (OTP) methods. Both sign-in tabs show one shared Terms/Privacy and SMS-verification-consent checkbox; its SMS details link explains Google's processing and possible carrier charges. Phone numbers use their international country code, such as `+91`; SMS is requested only after explicit consent. Firebase Authentication verifies the code, then exchanges the verified Firebase ID token for the normal SelfX customer session and records the consent timestamp. The six-digit code field is always visible beneath the phone number and is enabled after SMS is sent. The resend action occupies one fixed row beneath the code field. Email verification/reset codes continue through the existing SelfX mail outbox.
 - Both Forgot password and the separate Me → Account security screen accept six-digit reset codes and passwords of 8–128 characters, with resend countdowns.
 - Signup still requires name, email, password and terms acceptance. Country code/phone are optional. A supplied phone is stored only as pending contact information; it does not reserve ownership or allow phone login. Verify email, sign in, then open **Me → Phone number** to verify/link it. Phone-only automatic account creation is intentionally excluded: an unknown verified phone directs the user to email signup or their existing account method.
 - Existing customers keep the same customer ID, credits, Saved history and Store visit context. No automatic account merging by matching email or phone. A number already linked to another customer cannot be claimed. Suspended/deleted customers cannot sign in through a new method.
@@ -49,7 +51,7 @@ fields and consent controls.
 - `POST /api/v1/customer/auth/email-code/request`: email and optional existing `loginProof`; returns generic mail status, proof and resend delay.
 - `POST /api/v1/customer/auth/email-code/login`: email, six-digit code, proof and optional device name.
 - `POST /api/v1/customer/auth/phone/request`: canonical international phone number; rate-limited preflight, returning the configured public project ID.
-- `POST /api/v1/customer/auth/phone/login`: Firebase ID token; returns the existing SelfX session bundle for a linked customer.
+- `POST /api/v1/customer/auth/phone/login`: Firebase ID token plus `acceptPhoneVerification=true`; records the consent timestamp and returns the existing SelfX session bundle for a linked customer.
 - `POST /api/v1/customer/me/phone`: authenticated SelfX bearer plus Firebase ID token and `acceptPhoneVerification=true`; derives ownership server-side.
 - Signup optionally accepts canonical `phoneNumber`; `/me` returns verified and pending contacts. Capabilities expose `providers.emailCode`, `providers.phone` and `codeLength=6`. No private Firebase credentials are returned.
 - Migrations `20261027010000_customer_phone_login` and `20261027011000_customer_phone_consent` extend the existing customer/identity/session/action-token models. No merchant tenant or parallel account system is created. Customer dashboard method labels include Phone for linked identities.

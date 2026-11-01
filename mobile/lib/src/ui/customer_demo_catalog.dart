@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' as intl;
 import '../experience/customer_experience.dart';
 import '../l10n/customer_copy.dart';
 import 'customer_theme.dart';
@@ -65,11 +66,19 @@ class CustomerDemoCatalog extends StatefulWidget {
   final CustomerExperience experience;
   final Future<void> Function(Json product, String? modelId) onTryOn;
   final Future<void> Function(Json product, String? modelId) onUploadPerson;
+  final bool storeMode;
+  final Future<void> Function(Json product)? onTryStoreProduct;
+  final Future<void> Function()? onRefreshStoreProducts;
+  final VoidCallback? onMoreStoreProducts;
   const CustomerDemoCatalog({
     super.key,
     required this.experience,
     required this.onTryOn,
     required this.onUploadPerson,
+    this.storeMode = false,
+    this.onTryStoreProduct,
+    this.onRefreshStoreProducts,
+    this.onMoreStoreProducts,
   });
 
   @override
@@ -115,9 +124,9 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
     if (mounted) setState(() => category = next);
   }
 
-  Future<void> toggleSaved(String id) async {
+  Future<void> toggleSaved(String source, String id) async {
     try {
-      await widget.experience.toggleSavedGarment('DEMO', id);
+      await widget.experience.toggleSavedGarment(source, id);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -201,47 +210,62 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
   @override
   Widget build(BuildContext context) {
     final exp = widget.experience;
-    final products = exp.demoProducts
-        .where(
-          (item) =>
-              (category == 'ALL' || item['category'] == category) &&
-              (item['name'] as String).toLowerCase().contains(
-                search.text.trim().toLowerCase(),
-              ),
-        )
-        .toList();
+    final sourceProducts = widget.storeMode ? exp.products : exp.demoProducts;
+    final source = widget.storeMode ? 'STORE' : 'DEMO';
+    final products = sourceProducts.where((item) {
+      final dynamic audience;
+      if (widget.storeMode) {
+        audience = item['audience'] ?? (item['category'] as Map?)?['audience'];
+      } else {
+        audience = item['category'];
+      }
+      final matchesCategory =
+          category == 'ALL' ||
+          audience == category ||
+          ((category == 'MEN' || category == 'WOMEN') && audience == 'UNISEX');
+      return matchesCategory &&
+          (item['name'] as String).toLowerCase().contains(
+            search.text.trim().toLowerCase(),
+          );
+    }).toList();
     if (sortOrder == 'NAME_ASC') {
       products.sort(
-        (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+        (a, b) => (a['name'] as String).toLowerCase().compareTo(
+          (b['name'] as String).toLowerCase(),
+        ),
       );
     } else if (sortOrder == 'NAME_DESC') {
       products.sort(
-        (a, b) => (b['name'] as String).compareTo(a['name'] as String),
+        (a, b) => (b['name'] as String).toLowerCase().compareTo(
+          (a['name'] as String).toLowerCase(),
+        ),
       );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: CustomerText(
-                'Explore outfits',
-                style: Theme.of(context).textTheme.headlineMedium,
+        if (!widget.storeMode) ...[
+          Row(
+            children: [
+              Expanded(
+                child: CustomerText(
+                  'Explore outfits',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
               ),
-            ),
-            const Icon(
-              Icons.auto_awesome_rounded,
-              color: CustomerColors.orange,
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        const CustomerText(
-          'A starter collection for your first Try-On.',
-          style: TextStyle(color: CustomerColors.muted),
-        ),
-        const SizedBox(height: 16),
+              const Icon(
+                Icons.auto_awesome_rounded,
+                color: CustomerColors.orange,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const CustomerText(
+            'A starter collection for your first Try-On.',
+            style: TextStyle(color: CustomerColors.muted),
+          ),
+          const SizedBox(height: 16),
+        ],
         Row(
           children: [
             Expanded(
@@ -301,9 +325,20 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
           ],
         ),
         const SizedBox(height: 16),
-        if (exp.demoLoading && exp.demoProducts.isEmpty)
+        if ((widget.storeMode ? exp.productsLoading : exp.demoLoading) &&
+            sourceProducts.isEmpty)
           const LinearProgressIndicator()
-        else if (exp.demoError != null && exp.demoProducts.isEmpty) ...[
+        else if (widget.storeMode &&
+            exp.productsError != null &&
+            sourceProducts.isEmpty) ...[
+          CustomerNotice(exp.productsError!, error: true),
+          TextButton(
+            onPressed: widget.onRefreshStoreProducts,
+            child: const CustomerText('Try again'),
+          ),
+        ] else if (!widget.storeMode &&
+            exp.demoError != null &&
+            sourceProducts.isEmpty) ...[
           CustomerNotice(
             'Could not load outfits. ${exp.demoError}',
             error: true,
@@ -312,9 +347,12 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
             onPressed: exp.loadDemoCatalog,
             child: const CustomerText('Try again'),
           ),
-        ] else if (products.isEmpty)
+        ] else if (products.isEmpty &&
+            !(widget.storeMode && exp.productsLoading))
           CustomerNotice(
-            search.text.trim().isEmpty
+            widget.storeMode && sourceProducts.isEmpty
+                ? 'No eligible products are available yet. Ask the Store to enable its products for Try-On.'
+                : search.text.trim().isEmpty
                 ? 'No outfits in this category yet.'
                 : 'No outfits match your search.',
           )
@@ -327,7 +365,8 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                 runSpacing: 8,
                 children: [
                   for (final product in products)
-                    if (_productImages[product['id']] case final String path)
+                    if (widget.storeMode ||
+                        _productImages[product['id']] != null)
                       SizedBox(
                         width: cardWidth,
                         child: Material(
@@ -341,18 +380,24 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               InkWell(
-                                onTap: () => Navigator.push<void>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => CustomerDemoProductScreen(
-                                      experience: exp,
-                                      product: product,
-                                      models: exp.demoModels,
-                                      onTryOn: widget.onTryOn,
-                                      onUploadPerson: widget.onUploadPerson,
-                                    ),
-                                  ),
-                                ),
+                                onTap: widget.storeMode
+                                    ? () => widget.onTryStoreProduct?.call(
+                                        product,
+                                      )
+                                    : () => Navigator.push<void>(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              CustomerDemoProductScreen(
+                                                experience: exp,
+                                                product: product,
+                                                models: exp.demoModels,
+                                                onTryOn: widget.onTryOn,
+                                                onUploadPerson:
+                                                    widget.onUploadPerson,
+                                              ),
+                                        ),
+                                      ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -361,25 +406,59 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                                       child: Stack(
                                         fit: StackFit.expand,
                                         children: [
-                                          Image.asset(path, fit: BoxFit.cover),
+                                          if (widget.storeMode &&
+                                              _storeImageUrl(product) != null)
+                                            Image.network(
+                                              _storeImageUrl(product)!,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) =>
+                                                  const Center(
+                                                    child: Icon(
+                                                      Icons.checkroom_rounded,
+                                                      size: 40,
+                                                      color:
+                                                          CustomerColors.muted,
+                                                    ),
+                                                  ),
+                                            )
+                                          else if (!widget.storeMode &&
+                                              demoProductImage(
+                                                    product['id'] as String,
+                                                  ) !=
+                                                  null)
+                                            Image.asset(
+                                              demoProductImage(
+                                                product['id'] as String,
+                                              )!,
+                                              fit: BoxFit.cover,
+                                            )
+                                          else
+                                            const Center(
+                                              child: Icon(
+                                                Icons.checkroom_rounded,
+                                                size: 40,
+                                                color: CustomerColors.muted,
+                                              ),
+                                            ),
                                           Align(
                                             alignment: Alignment.topRight,
                                             child: IconButton.filledTonal(
                                               tooltip: tr(
                                                 context,
                                                 exp.isGarmentSaved(
-                                                      'DEMO',
+                                                      source,
                                                       product['id'] as String,
                                                     )
                                                     ? 'Remove from saved garments'
                                                     : 'Save garment',
                                               ),
                                               onPressed: () => toggleSaved(
+                                                source,
                                                 product['id'] as String,
                                               ),
                                               icon: Icon(
                                                 exp.isGarmentSaved(
-                                                      'DEMO',
+                                                      source,
                                                       product['id'] as String,
                                                     )
                                                     ? Icons.favorite_rounded
@@ -398,15 +477,51 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                                         8,
                                         8,
                                       ),
-                                      child: Text(
-                                        product['name'] as String,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13,
-                                        ),
-                                      ),
+                                      child: widget.storeMode
+                                          ? Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    product['name'] as String,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (_storePrice(product)
+                                                    case final String
+                                                        price) ...[
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    price,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                      color:
+                                                          CustomerColors.orange,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontSize: 11,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            )
+                                          : Text(
+                                              product['name'] as String,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13,
+                                              ),
+                                            ),
                                     ),
                                   ],
                                 ),
@@ -417,8 +532,11 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                                   width: double.infinity,
                                   height: 36,
                                   child: OutlinedButton.icon(
-                                    onPressed: () =>
-                                        widget.onTryOn(product, null),
+                                    onPressed: widget.storeMode
+                                        ? () => widget.onTryStoreProduct?.call(
+                                            product,
+                                          )
+                                        : () => widget.onTryOn(product, null),
                                     icon: const Icon(
                                       Icons.checkroom_outlined,
                                       size: 17,
@@ -448,10 +566,39 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
               );
             },
           ),
+        if (widget.storeMode && exp.hasMoreProducts) ...[
+          const SizedBox(height: 10),
+          OutlinedButton(
+            onPressed: exp.productsLoading ? null : widget.onMoreStoreProducts,
+            child: CustomerText(
+              exp.productsLoading ? 'Loading…' : 'Load more products',
+            ),
+          ),
+        ],
       ],
     );
   }
 }
+
+String? _storePrice(Json product) {
+  final amount =
+      ((product['minimumPriceAmountCents'] ?? product['priceAmountCents'])
+              as num?)
+          ?.toInt();
+  final currency = product['priceCurrency'] as String?;
+  if (amount == null || currency == null || currency.trim().isEmpty) {
+    return null;
+  }
+  final price = intl.NumberFormat.simpleCurrency(
+    name: currency.toUpperCase(),
+  ).format(amount / 100);
+  return product['hasVariablePrices'] == true ? 'From $price' : price;
+}
+
+String? _storeImageUrl(Json product) =>
+    ((product['image'] as Map?)?['url'] as String?)?.trim().isEmpty == true
+    ? null
+    : (product['image'] as Map?)?['url'] as String?;
 
 class CustomerDemoProductScreen extends StatefulWidget {
   final CustomerExperience experience;

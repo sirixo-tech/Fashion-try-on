@@ -53,8 +53,8 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
 
   CustomerAuthView view = CustomerAuthView.signIn;
   bool obscure = true, busy = false, acceptedPolicy = false;
-  bool mobileOtp = false, mobileCodeSent = false, smsConsent = false;
-  String? error, notice, signupProof, policyError, smsConsentError;
+  bool mobileOtp = false, mobileCodeSent = false;
+  String? error, notice, signupProof, policyError;
   String? phoneDiagnostic;
   String phoneStage = 'SELFX_PREFLIGHT';
   CustomerController get auth => widget.controller;
@@ -84,8 +84,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       mobileChallenge = null;
       mobileCooldown = 0;
       mobileGuesses = 0;
-      smsConsent = false;
-      smsConsentError = null;
+      acceptedPolicy = false;
       policyError = null;
       phoneDiagnostic = null;
       error = null;
@@ -113,8 +112,6 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       mobileChallenge = null;
       mobileCooldown = 0;
       mobileGuesses = 0;
-      smsConsent = false;
-      smsConsentError = null;
       phoneDiagnostic = null;
       policyError = null;
       code.clear();
@@ -286,21 +283,14 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
         code.clear();
         phoneDiagnostic = null;
       }
-      smsConsent = false;
-      smsConsentError = null;
     });
   }
 
   Future<void> requestMobileCode({bool resend = false}) async {
     if (busy || mobileCooldown > 0) return;
-    final policyAccepted = ensurePolicy();
+    final policyAccepted = ensurePolicy(includeSmsConsent: true);
     final contactValid = resend || (form.currentState?.validate() ?? false);
-    if (!smsConsent && mobile.text.trim().isNotEmpty) {
-      setState(
-        () => smsConsentError = 'Accept phone verification to continue.',
-      );
-    }
-    if (!policyAccepted || !contactValid || !smsConsent) return;
+    if (!policyAccepted || !contactValid) return;
     final phone = mobileField.currentState?.canonical;
     if (phone == null) return;
     FocusScope.of(context).unfocus();
@@ -345,7 +335,9 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   }
 
   Future<void> verifyMobileCode() async {
-    if (busy || mobileGuesses >= 5 || !ensurePolicy()) return;
+    if (busy || mobileGuesses >= 5 || !ensurePolicy(includeSmsConsent: true)) {
+      return;
+    }
     if (!(form.currentState?.validate() ?? false)) return;
     await runMobilePhone(() async {
       mobileGuesses++;
@@ -429,7 +421,10 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   }
 
   Future<void> submit() async {
-    if (credentialForm && !ensurePolicy()) return;
+    if (credentialForm &&
+        !ensurePolicy(includeSmsConsent: view == CustomerAuthView.signIn)) {
+      return;
+    }
     if (!(form.currentState?.validate() ?? false)) return;
     await run(() async {
       if (view == CustomerAuthView.signIn) {
@@ -506,7 +501,9 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   }
 
   Future<void> oauth(String provider) async {
-    if (!ensurePolicy()) return;
+    if (!ensurePolicy(includeSmsConsent: view == CustomerAuthView.signIn)) {
+      return;
+    }
     await run(() async {
       if (provider == 'GOOGLE' && !auth.capabilities.google) {
         await auth.refreshCapabilities();
@@ -521,7 +518,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     });
   }
 
-  bool ensurePolicy() {
+  bool ensurePolicy({bool includeSmsConsent = false}) {
     if (acceptedPolicy) {
       if (policyError != null) setState(() => policyError = null);
       return true;
@@ -529,7 +526,9 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     setState(() {
       policyError = tr(
         context,
-        'Please read and accept the Terms and Privacy Policy.',
+        includeSmsConsent
+            ? 'Please accept the Terms, Privacy Policy, and SMS verification consent.'
+            : 'Please read and accept the Terms and Privacy Policy.',
       );
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -940,24 +939,6 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              if (smsConsentError != null) ...[
-                                _inlineAuthError(smsConsentError!),
-                                const SizedBox(height: 4),
-                              ],
-                              CheckboxListTile(
-                                contentPadding: EdgeInsets.zero,
-                                value: smsConsent,
-                                onChanged: busy
-                                    ? null
-                                    : (value) => setState(() {
-                                        smsConsent = value ?? false;
-                                        if (smsConsent) smsConsentError = null;
-                                      }),
-                                title: const CustomerText(
-                                  'I agree to receive a verification SMS. Google processes my number for authentication and abuse prevention. SMS charges may apply.',
-                                  style: TextStyle(fontSize: 12, height: 1.3),
-                                ),
-                              ),
                               if (phoneDiagnostic != null) ...[
                                 const SizedBox(height: 4),
                                 CustomerText(
@@ -968,19 +949,6 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                   ),
                                 ),
                               ],
-                              Align(
-                                alignment: AlignmentDirectional.centerEnd,
-                                child: TextButton(
-                                  onPressed: busy || mobileCooldown > 0
-                                      ? null
-                                      : () => requestMobileCode(resend: true),
-                                  child: CustomerText(
-                                    mobileCooldown > 0
-                                        ? 'Resend in ${mobileCooldown}s'
-                                        : 'Send a new code',
-                                  ),
-                                ),
-                              ),
                               if (mobileGuesses >= 5)
                                 const CustomerText(
                                   'Too many attempts. Request a new code.',
@@ -1116,6 +1084,8 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                       ),
                                       child: CustomerPolicyNotice(
                                         accepted: acceptedPolicy,
+                                        includeSmsConsent:
+                                            view == CustomerAuthView.signIn,
                                         onChanged: busy
                                             ? null
                                             : (value) => setState(() {

@@ -155,6 +155,12 @@ Future<bool> prepareCustomerStudio(
       selectedDemoProduct: demoProduct,
       selectedDemoModelId: demoModelId,
     );
+    final storeImage = (product?['image'] as Json?)?['url'] as String?;
+    if (context.mounted && storeImage != null && storeImage.isNotEmpty) {
+      unawaited(
+        precacheImage(NetworkImage(storeImage), context).catchError((_) {}),
+      );
+    }
   }
   return context.mounted && experience.session != null;
 }
@@ -1161,30 +1167,26 @@ class _PlansEditorialGalleryState extends State<_PlansEditorialGallery> {
       const SizedBox(height: 12),
       ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 72),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const Icon(
               Icons.format_quote_rounded,
               color: CustomerColors.orange,
-              size: 30,
+              size: 26,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CustomerText(
-                    _comments[_index],
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 2),
-                  CustomerText(
-                    'SelfX',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
+            const SizedBox(height: 2),
+            CustomerText(
+              _comments[_index],
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 2),
+            CustomerText(
+              'SelfX',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
@@ -1945,6 +1947,19 @@ class _CustomerAssetImageState extends State<CustomerAssetImage> {
         loading = false;
       });
       return;
+    }
+    if (widget.cacheInMemory) {
+      final preloaded = await widget.experience.waitForPreloadedAssetImage(
+        widget.photo,
+      );
+      if (!mounted || id != request) return;
+      if (preloaded != null) {
+        setState(() {
+          bytes = preloaded;
+          loading = false;
+        });
+        return;
+      }
     }
     setState(() {
       bytes = null;
@@ -2832,25 +2847,13 @@ class CustomerStoreCatalog extends StatelessWidget {
     required this.onRefresh,
     required this.onMore,
   });
-  Future<void> toggleSaved(BuildContext context, String id) async {
-    try {
-      await experience.toggleSavedGarment('STORE', id);
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: CustomerText(CustomerExperience.message(error))),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final store = experience.storeVisit!['store'] as Map;
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
         children: [
           const CustomerText(
             'YOUR STORE VISIT',
@@ -2887,122 +2890,15 @@ class CustomerStoreCatalog extends StatelessWidget {
               onPressed: () => onTryOn({}),
               child: const CustomerText('Open current Try-On'),
             ),
-          if (experience.productsLoading && experience.products.isEmpty)
-            const LinearProgressIndicator(),
-          if (experience.productsError != null) ...[
-            CustomerNotice(experience.productsError!, error: true),
-            TextButton(
-              onPressed: onRefresh,
-              child: const CustomerText('Reload products'),
-            ),
-          ],
-          if (!experience.productsLoading &&
-              experience.productsError == null &&
-              experience.products.isEmpty)
-            const PremiumPanel(
-              child: CustomerText(
-                'No eligible products are available yet. Ask the Store to enable its products for Try-On.',
-              ),
-            ),
-          for (final product in experience.products)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: PremiumPanel(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      height: 240,
-                      width: double.infinity,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          if ((product['image'] as Map?)?['url']
-                              case final String url)
-                            Image.network(url, fit: BoxFit.cover)
-                          else
-                            const Icon(Icons.checkroom_rounded, size: 48),
-                          Align(
-                            alignment: Alignment.topRight,
-                            child: IconButton.filledTonal(
-                              tooltip:
-                                  experience.isGarmentSaved(
-                                    'STORE',
-                                    product['id'] as String,
-                                  )
-                                  ? 'Remove from saved garments'
-                                  : 'Save garment',
-                              onPressed: () =>
-                                  toggleSaved(context, product['id'] as String),
-                              icon: Icon(
-                                experience.isGarmentSaved(
-                                      'STORE',
-                                      product['id'] as String,
-                                    )
-                                    ? Icons.favorite_rounded
-                                    : Icons.favorite_border_rounded,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            product['name'] as String,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          if (_storePriceLabel(
-                                ((product['minimumPriceAmountCents'] ??
-                                            product['priceAmountCents'])
-                                        as num?)
-                                    ?.toInt(),
-                                product['priceCurrency'] as String?,
-                              )
-                              case final String price)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                product['hasVariablePrices'] == true
-                                    ? 'From $price'
-                                    : price,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
-                                      color: CustomerColors.orange,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: () => onTryOn(product),
-                          icon: const Icon(Icons.auto_awesome_outlined),
-                          label: const CustomerText('Try on me'),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          if (experience.hasMoreProducts)
-            OutlinedButton(
-              onPressed: experience.productsLoading ? null : onMore,
-              child: const CustomerText('Load more products'),
-            ),
+          CustomerDemoCatalog(
+            experience: experience,
+            storeMode: true,
+            onTryOn: (_, _) async {},
+            onUploadPerson: (_, _) async {},
+            onTryStoreProduct: (product) async => onTryOn(product),
+            onRefreshStoreProducts: onRefresh,
+            onMoreStoreProducts: onMore,
+          ),
         ],
       ),
     );
@@ -3060,9 +2956,7 @@ class _CustomerStoreScannerState extends State<CustomerStoreScanner>
     if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(raw) &&
         !RegExp(r'^[A-Za-z0-9]{8}$').hasMatch(raw) &&
         !(uri?.scheme == 'selfx' && uri?.host == 'store')) {
-      setState(
-        () => error = tr(context, 'Use a SelfX Store QR code.'),
-      );
+      setState(() => error = tr(context, 'Use a SelfX Store QR code.'));
       return;
     }
     returned = true;
@@ -3124,28 +3018,37 @@ class _CustomerStoreScannerState extends State<CustomerStoreScanner>
           )
         else
           PremiumPanel(
-            child: Column(
-              children: [
-                const Icon(
-                  Icons.qr_code_scanner_rounded,
-                  size: 64,
-                  color: CustomerColors.orange,
-                ),
-                const SizedBox(height: 16),
-                const CustomerText(
-                  'The camera scans on your device. Camera frames are not uploaded.',
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton(
-                  onPressed: () {
-                    setState(() => camera = true);
-                    WidgetsBinding.instance.addPostFrameCallback(
-                      (_) => unawaited(startCamera()),
-                    );
-                  },
-                  child: const CustomerText('Open camera'),
-                ),
-              ],
+            padding: const EdgeInsets.all(28),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 320),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.qr_code_scanner_rounded,
+                    size: 88,
+                    color: CustomerColors.orange,
+                  ),
+                  const SizedBox(height: 20),
+                  const CustomerText(
+                    'The camera scans on your device. Camera frames are not uploaded.',
+                  ),
+                  const SizedBox(height: 20),
+                  OutlinedButton(
+                    onPressed: () {
+                      setState(() => camera = true);
+                      WidgetsBinding.instance.addPostFrameCallback(
+                        (_) => unawaited(startCamera()),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 58),
+                      padding: const EdgeInsets.symmetric(horizontal: 30),
+                    ),
+                    child: const CustomerText('Open camera'),
+                  ),
+                ],
+              ),
             ),
           ),
         const SizedBox(height: 24),
@@ -3161,11 +3064,13 @@ class _CustomerStoreScannerState extends State<CustomerStoreScanner>
           ],
           decoration: InputDecoration(
             labelText: tr(context, 'Or paste the SelfX Store code'),
+            constraints: const BoxConstraints(minHeight: 68),
           ),
         ),
         const SizedBox(height: 16),
         FilledButton(
           onPressed: () => accept(text.text),
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 60)),
           child: const CustomerText('Open Store'),
         ),
         if (error != null) ...[

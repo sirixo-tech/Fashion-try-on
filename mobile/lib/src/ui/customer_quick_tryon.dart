@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -81,106 +82,127 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
     if (!await ensureSession() || !mounted) return;
     if (person) {
       await exp.chooseDemoModel(item['id'] as String);
+    } else if (exp.storeMode) {
+      exp.chooseStoreProduct(item);
     } else {
       await exp.chooseDemoProduct(item['id'] as String);
     }
   });
 
-  Widget sampleRail(String title, List<Json> items, {required bool person}) =>
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 7),
-            child: CustomerText(
-              title,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-            ),
-          ),
-          SizedBox(
-            height: 105,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final item = items[index];
-                final id = item['id'] as String;
-                final image = person
-                    ? demoModelImage(id)
-                    : demoProductImage(id);
-                final selected = person
-                    ? exp.demoModelId == id
-                    : exp.demoProduct?['id'] == id;
-                return InkWell(
-                  onTap:
-                      working ||
-                          exp.busy ||
-                          exp.generating ||
-                          exp.hasUncertainRequest
-                      ? null
-                      : () => chooseSample(item, person: person),
+  Widget sampleRail(
+    String title,
+    List<Json> items, {
+    required bool person,
+    bool storeProducts = false,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 7),
+        child: CustomerText(
+          title,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+      ),
+      SizedBox(
+        height: 105,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: items.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final item = items[index];
+            final id = item['id'] as String;
+            final image = person ? demoModelImage(id) : demoProductImage(id);
+            final storeImageUrl = storeProducts
+                ? ((item['image'] as Map?)?['url'] as String?)
+                : null;
+            final bool selected;
+            if (person) {
+              selected = exp.demoModelId == id;
+            } else if (storeProducts) {
+              selected = exp.product?['id'] == id;
+            } else {
+              selected = exp.demoProduct?['id'] == id;
+            }
+            return InkWell(
+              onTap:
+                  working ||
+                      exp.busy ||
+                      exp.generating ||
+                      exp.hasUncertainRequest
+                  ? null
+                  : () => chooseSample(item, person: person),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 78,
+                decoration: BoxDecoration(
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    width: 78,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: selected
-                            ? CustomerColors.orange
-                            : CustomerColors.line,
-                        width: selected ? 2 : 1,
+                  border: Border.all(
+                    color: selected
+                        ? CustomerColors.orange
+                        : CustomerColors.line,
+                    width: selected ? 2 : 1,
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (storeImageUrl != null)
+                      Image.network(
+                        storeImageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const Icon(
+                          Icons.checkroom_rounded,
+                          color: CustomerColors.muted,
+                        ),
+                      )
+                    else if (image != null)
+                      Image.asset(
+                        image,
+                        fit: person ? BoxFit.cover : BoxFit.contain,
                       ),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (image != null)
-                          Image.asset(
-                            image,
-                            fit: person ? BoxFit.cover : BoxFit.contain,
-                          ),
-                        Align(
-                          alignment: Alignment.bottomCenter,
-                          child: Container(
-                            width: double.infinity,
-                            color: Colors.black54,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 3,
-                              vertical: 4,
-                            ),
-                            child: Text(
-                              item['name'] as String,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                              ),
-                            ),
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        width: double.infinity,
+                        color: Colors.black54,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 3,
+                          vertical: 4,
+                        ),
+                        child: Text(
+                          item['name'] as String,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
                           ),
                         ),
-                        if (selected)
-                          const Align(
-                            alignment: Alignment.topRight,
-                            child: Icon(
-                              Icons.check_circle,
-                              color: CustomerColors.orange,
-                              size: 19,
-                            ),
-                          ),
-                      ],
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      );
+                    if (selected)
+                      const Align(
+                        alignment: Alignment.topRight,
+                        child: Icon(
+                          Icons.check_circle,
+                          color: CustomerColors.orange,
+                          size: 19,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  );
 
   Future<void> primaryAction() => run(() async {
     if (exp.run?['status'] == 'COMPLETED' ||
@@ -193,7 +215,7 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
   });
 
   Future<void> trySuggested(Json item) => run(() async {
-    final selectedModelId = exp.storeMode ? null : exp.demoModelId;
+    final selectedModelId = exp.demoModelId;
     final ready = await prepareCustomerStudio(
       context,
       exp,
@@ -217,7 +239,7 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
         builder: (context, size) {
           final tight = size.maxHeight < 550;
           final models = exp.demoModels;
-          final products = exp.demoProducts;
+          final products = exp.storeMode ? exp.products : exp.demoProducts;
           return Padding(
             padding: completed
                 ? EdgeInsets.zero
@@ -393,43 +415,86 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                                 ],
                               ),
                             ),
-                            if (!exp.storeMode) ...[
-                              const SizedBox(height: 12),
-                              Expanded(
-                                child: ListView(
-                                  children: [
-                                    if (exp.demoLoading)
-                                      const LinearProgressIndicator(),
-                                    if (exp.demoError != null)
-                                      CustomerText(exp.demoError!),
-                                    if (models.isNotEmpty ||
-                                        products.isNotEmpty) ...[
-                                      const CustomerText(
-                                        'Try our samples',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 14,
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: ListView(
+                                children: [
+                                  if (exp.demoLoading ||
+                                      (exp.storeMode &&
+                                          exp.productsLoading &&
+                                          products.isEmpty))
+                                    const LinearProgressIndicator(),
+                                  if (exp.demoError != null && models.isEmpty)
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        CustomerText(exp.demoError!),
+                                        TextButton(
+                                          onPressed: exp.loadDemoCatalog,
+                                          child: const CustomerText(
+                                            'Try again',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  if (exp.storeMode &&
+                                      exp.productsError != null)
+                                    CustomerText(
+                                      exp.productsError!,
+                                      style: TextStyle(
+                                        color: Color(0xFF9A3025),
+                                      ),
+                                    ),
+                                  if (exp.storeMode &&
+                                      exp.products.isEmpty &&
+                                      exp.productsError != null)
+                                    TextButton(
+                                      onPressed: () => unawaited(
+                                        exp.loadProducts().catchError(
+                                          (Object _) {},
                                         ),
                                       ),
-                                      const SizedBox(height: 8),
-                                      if (models.isNotEmpty)
-                                        sampleRail(
-                                          'People',
-                                          models,
-                                          person: true,
-                                        ),
-                                      const SizedBox(height: 12),
-                                      if (products.isNotEmpty)
-                                        sampleRail(
-                                          'Garments',
-                                          products,
-                                          person: false,
-                                        ),
-                                    ],
-                                  ],
-                                ),
+                                      child: const CustomerText('Try again'),
+                                    ),
+                                  if (models.isNotEmpty || products.isNotEmpty)
+                                    const CustomerText(
+                                      'Try our samples',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  const SizedBox(height: 8),
+                                  if (models.isNotEmpty)
+                                    sampleRail('People', models, person: true),
+                                  if (models.isNotEmpty && products.isNotEmpty)
+                                    const SizedBox(height: 12),
+                                  if (products.isNotEmpty)
+                                    sampleRail(
+                                      'Garments',
+                                      products,
+                                      person: false,
+                                      storeProducts: exp.storeMode,
+                                    ),
+                                  if (exp.storeMode && exp.hasMoreProducts)
+                                    TextButton(
+                                      onPressed: exp.productsLoading
+                                          ? null
+                                          : () => unawaited(
+                                              exp
+                                                  .loadProducts(more: true)
+                                                  .catchError((Object _) {}),
+                                            ),
+                                      child: CustomerText(
+                                        exp.productsLoading
+                                            ? 'Loading…'
+                                            : 'Load more products',
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ],
+                            ),
                           ],
                         ),
                 ),
@@ -537,6 +602,7 @@ class _PreviewCard extends StatelessWidget {
                         experience: experience,
                         photo: photo!,
                         fit: BoxFit.cover,
+                        cacheInMemory: true,
                       )
                     : imageUrl != null
                     ? Image.network(

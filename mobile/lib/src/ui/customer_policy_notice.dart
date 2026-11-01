@@ -7,21 +7,26 @@ import 'customer_theme.dart';
 class CustomerPolicyNotice extends StatefulWidget {
   final bool accepted;
   final ValueChanged<bool?>? onChanged;
+  final bool includeSmsConsent;
   const CustomerPolicyNotice({
     super.key,
     required this.accepted,
     required this.onChanged,
+    this.includeSmsConsent = false,
   });
   @override
   State<CustomerPolicyNotice> createState() => _CustomerPolicyNoticeState();
 }
 
 class _CustomerPolicyNoticeState extends State<CustomerPolicyNotice> {
-  final terms = TapGestureRecognizer(), privacy = TapGestureRecognizer();
+  final terms = TapGestureRecognizer(),
+      privacy = TapGestureRecognizer(),
+      sms = TapGestureRecognizer();
   @override
   void dispose() {
     terms.dispose();
     privacy.dispose();
+    sms.dispose();
     super.dispose();
   }
 
@@ -39,6 +44,17 @@ class _CustomerPolicyNoticeState extends State<CustomerPolicyNotice> {
       'You control your photos and account. Read the SelfX Privacy Policy for retention and deletion details.',
       address: CustomerPublicLinks.privacy,
     );
+    sms.onTap = () => customerInfo(
+      context,
+      'SMS verification',
+      'Your phone number is sent to Google through Firebase to deliver sign-in codes and help prevent abuse. SMS charges may apply.',
+    );
+    final notice = widget.includeSmsConsent
+        ? tr(
+            context,
+            'I agree to the Terms and Privacy Policy and consent to SMS verification.',
+          )
+        : tr(context, 'I agree to the Terms and Privacy Policy.');
     const link = TextStyle(
       color: CustomerColors.ink,
       decoration: TextDecoration.underline,
@@ -53,19 +69,16 @@ class _CustomerPolicyNoticeState extends State<CustomerPolicyNotice> {
           visualDensity: VisualDensity.compact,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           activeColor: CustomerColors.orange,
-          semanticLabel: tr(
-            context,
-            'I agree to the Terms and Privacy Policy.',
-          ),
+          semanticLabel: notice,
         ),
         const SizedBox(width: 6),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const CustomerText(
-                'I agree to the Terms and Privacy Policy.',
-                style: TextStyle(fontSize: 12, height: 1.25),
+              CustomerText(
+                notice,
+                style: const TextStyle(fontSize: 12, height: 1.25),
               ),
               Text.rich(
                 TextSpan(
@@ -81,6 +94,14 @@ class _CustomerPolicyNoticeState extends State<CustomerPolicyNotice> {
                       style: link,
                       recognizer: privacy,
                     ),
+                    if (widget.includeSmsConsent) ...[
+                      const TextSpan(text: '  ·  '),
+                      TextSpan(
+                        text: tr(context, 'SMS details'),
+                        style: link,
+                        recognizer: sms,
+                      ),
+                    ],
                   ],
                 ),
                 style: const TextStyle(

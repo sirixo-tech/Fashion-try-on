@@ -8,6 +8,7 @@ import 'customer_code_screen.dart';
 import 'customer_security_screen.dart';
 import 'customer_profile_sheet.dart';
 import 'customer_sheet.dart';
+import 'customer_photo_crop_screen.dart';
 import 'customer_theme.dart';
 import 'customer_home_back.dart';
 
@@ -172,7 +173,20 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           widget.auth.profile?.id != owner) {
         return;
       }
-      await widget.photo.upload(selected);
+      final cropped = await cropCustomerPhoto(
+        context,
+        selected,
+        title: 'Crop photo',
+        aspectRatio: 1,
+        maxOutputDimension: 1024,
+      );
+      if (!mounted ||
+          cropped == null ||
+          widget.auth.stage != CustomerStage.ready ||
+          widget.auth.profile?.id != owner) {
+        return;
+      }
+      await widget.photo.upload(cropped);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

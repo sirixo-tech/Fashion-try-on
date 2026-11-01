@@ -24,6 +24,12 @@ Interests are preferences, not gender identification or authorization, and do
 not restrict other products. This slice does not add a new jewellery provider
 or claim that unsupported jewellery Try-On is now available.
 
+After selecting or capturing an avatar photo, customers may adjust its framing
+in an in-app crop screen before upload. Selfies use a portrait crop frame;
+full-body photos keep the selected image's aspect ratio so framing does not
+discard the body. Cropped bytes go through the existing consented avatar upload
+and server normalization path. Canceling crop performs no upload.
+
 ## My avatar screen refinement (2026-11-01)
 
 Keep the saved-photo default/change and retention information together in one

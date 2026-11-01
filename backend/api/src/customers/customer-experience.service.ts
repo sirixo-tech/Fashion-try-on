@@ -477,7 +477,7 @@ export class CustomerExperienceService
     demoId: string,
   ) {
     const session = await this.ownSession(customer.id, sessionId);
-    if (session.customerStoreVisitId)
+    if (session.customerStoreVisitId && purpose === "GARMENT")
       fail(
         "STORE_PRODUCT_REQUIRED",
         "Choose an eligible product from this Store.",

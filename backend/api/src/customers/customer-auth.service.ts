@@ -487,7 +487,18 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       resendAfterSeconds: 10,
     };
   }
-  async phoneLogin(idToken: string, ip: string, deviceName?: string) {
+  async phoneLogin(
+    idToken: string,
+    ip: string,
+    deviceName: string | undefined,
+    acceptPhoneVerification: boolean,
+  ) {
+    if (!acceptPhoneVerification)
+      customerError(
+        "CUSTOMER_PHONE_CONSENT_REQUIRED",
+        "Accept phone verification consent to continue.",
+        400,
+      );
     await this.limit("phone-login-ip", ip, 20);
     const verified = await this.verifiedPhone(idToken);
     const identity = await this.db.customerIdentity.findUnique({
@@ -509,6 +520,10 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         "This phone is not linked. Sign in with email or create an account, then verify your phone in Account settings.",
         409,
       );
+    await this.db.customer.update({
+      where: { id: identity!.customerId },
+      data: { phoneConsentAt: new Date() },
+    });
     return this.newSession(
       identity!.customerId,
       deviceName,

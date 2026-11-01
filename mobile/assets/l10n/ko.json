@@ -643,5 +643,18 @@
   "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "더 빠른 지원을 위해 어떤 작업을 하고 있었는지, 무엇을 기대했는지, 실제로 어떤 일이 있었는지 알려 주세요. 가능하면 문제를 재현하는 단계도 포함해 주세요. 이메일 지원을 선택하면 앱 버전이 자동으로 추가됩니다.",
   "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "앱 버전: {p0}\n\n무엇을 하려고 하셨나요?\n\n어떤 일이 있었나요?\n\n문제를 재현하는 단계(가능한 경우):\n\n",
   "Store-sponsored Try-On": "매장 후원 Try-On",
-  "My Looks": "내 룩"
+  "My Looks": "내 룩",
+  "I agree to the Terms and Privacy Policy and consent to SMS verification.": "이용약관과 개인정보 처리방침에 동의하며 SMS 인증에 동의합니다.",
+  "SMS details": "SMS 세부정보",
+  "SMS verification": "SMS 인증",
+  "Your phone number is sent to Google through Firebase to deliver sign-in codes and help prevent abuse. SMS charges may apply.": "로그인 코드를 보내고 악용을 방지하기 위해 전화번호가 Firebase를 통해 Google에 전송됩니다. SMS 요금이 부과될 수 있습니다.",
+  "Please accept the Terms, Privacy Policy, and SMS verification consent.": "이용약관, 개인정보 처리방침 및 SMS 인증에 동의해 주세요."
+,
+  "Crop photo": "사진 자르기",
+  "Pinch to zoom and drag to adjust the photo.": "핀치하여 확대하고 드래그하여 사진을 조정하세요.",
+  "Reset": "초기화",
+  "Use cropped photo": "자른 사진 사용",
+  "Preparing photo…": "사진 준비 중…",
+  "This photo could not be opened. Choose another.": "이 사진을 열 수 없습니다. 다른 사진을 선택하세요.",
+  "The photo could not be cropped. Please try again.": "사진을 자를 수 없습니다. 다시 시도해 주세요."
 }

@@ -643,5 +643,18 @@
   "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "Para receber ajuda mais rapidamente, conte o que estava fazendo, o que esperava e o que aconteceu. Se puder, inclua as etapas para reproduzir o problema. A versão do app é adicionada automaticamente ao escolher o suporte por e-mail.",
   "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "Versão do app: {p0}\n\nO que você estava tentando fazer?\n\nO que aconteceu?\n\nEtapas para reproduzir o problema (se possível):\n\n",
   "Store-sponsored Try-On": "Try-On patrocinado pela loja",
-  "My Looks": "Meus looks"
+  "My Looks": "Meus looks",
+  "I agree to the Terms and Privacy Policy and consent to SMS verification.": "Concordo com os Termos e a Política de Privacidade e autorizo a verificação por SMS.",
+  "SMS details": "Detalhes do SMS",
+  "SMS verification": "Verificação por SMS",
+  "Your phone number is sent to Google through Firebase to deliver sign-in codes and help prevent abuse. SMS charges may apply.": "Seu número é enviado ao Google pelo Firebase para entregar códigos de acesso e ajudar a evitar abusos. Podem ser cobradas tarifas de SMS.",
+  "Please accept the Terms, Privacy Policy, and SMS verification consent.": "Aceite os Termos, a Política de Privacidade e a verificação por SMS."
+,
+  "Crop photo": "Cortar foto",
+  "Pinch to zoom and drag to adjust the photo.": "Faça o gesto de pinça para ampliar e arraste para ajustar a foto.",
+  "Reset": "Redefinir",
+  "Use cropped photo": "Usar foto cortada",
+  "Preparing photo…": "Preparando foto…",
+  "This photo could not be opened. Choose another.": "Não foi possível abrir esta foto. Escolha outra.",
+  "The photo could not be cropped. Please try again.": "Não foi possível cortar a foto. Tente novamente."
 }

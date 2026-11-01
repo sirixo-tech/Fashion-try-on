@@ -5,6 +5,7 @@ import '../experience/customer_media.dart';
 import '../l10n/customer_copy.dart';
 import '../services/customer_avatar.dart';
 import 'customer_entry_theme.dart';
+import 'customer_photo_crop_screen.dart';
 import 'customer_theme.dart';
 
 class CustomerAvatarScreen extends StatefulWidget {
@@ -136,15 +137,25 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
         await avatar.remove(kind);
         return;
       }
-      final photo = await picker.pick(
+      final selectedPhoto = await picker.pick(
         source == 'camera'
             ? CustomerPhotoSource.camera
             : CustomerPhotoSource.gallery,
       );
-      if (photo != null &&
+      if (selectedPhoto != null &&
           mounted &&
           widget.controller.stage == CustomerStage.ready) {
-        await avatar.upload(kind, photo);
+        final photo = await cropCustomerPhoto(
+          context,
+          selectedPhoto,
+          title: 'Crop photo',
+          aspectRatio: kind == 'SELFIE' ? .8 : null,
+        );
+        if (photo != null &&
+            mounted &&
+            widget.controller.stage == CustomerStage.ready) {
+          await avatar.upload(kind, photo);
+        }
       }
     } catch (_) {
       if (mounted) {

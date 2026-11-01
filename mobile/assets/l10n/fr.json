@@ -643,5 +643,18 @@
   "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "Pour obtenir de l’aide plus rapidement, indiquez ce que vous faisiez, ce à quoi vous vous attendiez et ce qui s’est passé. Ajoutez les étapes pour reproduire le problème si possible. La version de l’application est ajoutée automatiquement si vous choisissez l’assistance par e-mail.",
   "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "Version de l’application : {p0}\n\nQue cherchiez-vous à faire ?\n\nQue s’est-il passé ?\n\nÉtapes pour reproduire le problème (si possible) :\n\n",
   "Store-sponsored Try-On": "Essai sponsorisé par le magasin",
-  "My Looks": "Mes looks"
+  "My Looks": "Mes looks",
+  "I agree to the Terms and Privacy Policy and consent to SMS verification.": "J’accepte les conditions et la politique de confidentialité et consens à la vérification par SMS.",
+  "SMS details": "Détails des SMS",
+  "SMS verification": "Vérification par SMS",
+  "Your phone number is sent to Google through Firebase to deliver sign-in codes and help prevent abuse. SMS charges may apply.": "Votre numéro est envoyé à Google via Firebase pour transmettre les codes de connexion et prévenir les abus. Des frais SMS peuvent s’appliquer.",
+  "Please accept the Terms, Privacy Policy, and SMS verification consent.": "Veuillez accepter les conditions, la politique de confidentialité et la vérification par SMS."
+,
+  "Crop photo": "Recadrer la photo",
+  "Pinch to zoom and drag to adjust the photo.": "Pincez pour zoomer et faites glisser pour ajuster la photo.",
+  "Reset": "Réinitialiser",
+  "Use cropped photo": "Utiliser la photo recadrée",
+  "Preparing photo…": "Préparation de la photo…",
+  "This photo could not be opened. Choose another.": "Impossible d’ouvrir cette photo. Choisissez-en une autre.",
+  "The photo could not be cropped. Please try again.": "Impossible de recadrer la photo. Veuillez réessayer."
 }

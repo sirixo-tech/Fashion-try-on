@@ -643,5 +643,18 @@
   "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "للحصول على مساعدة أسرع، أخبرنا بما كنت تفعله وما توقعت حدوثه وما حدث بالفعل. أضف خطوات إعادة المشكلة إن أمكن. تُضاف نسخة التطبيق تلقائيًا عند اختيار الدعم عبر البريد الإلكتروني.",
   "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "إصدار التطبيق: {p0}\n\nما الذي كنت تحاول فعله؟\n\nماذا حدث؟\n\nخطوات إعادة المشكلة (إن أمكن):\n\n",
   "Store-sponsored Try-On": "تجربة برعاية المتجر",
-  "My Looks": "إطلالاتي"
+  "My Looks": "إطلالاتي",
+  "I agree to the Terms and Privacy Policy and consent to SMS verification.": "أوافق على الشروط وسياسة الخصوصية وأوافق على التحقق عبر الرسائل النصية.",
+  "SMS details": "تفاصيل الرسائل النصية",
+  "SMS verification": "التحقق عبر الرسائل النصية",
+  "Your phone number is sent to Google through Firebase to deliver sign-in codes and help prevent abuse. SMS charges may apply.": "يُرسل رقم هاتفك إلى Google عبر Firebase لإيصال رموز تسجيل الدخول والمساعدة في منع إساءة الاستخدام. قد تُطبق رسوم الرسائل النصية.",
+  "Please accept the Terms, Privacy Policy, and SMS verification consent.": "يرجى الموافقة على الشروط وسياسة الخصوصية والتحقق عبر الرسائل النصية."
+,
+  "Crop photo": "قص الصورة",
+  "Pinch to zoom and drag to adjust the photo.": "قرّب بإصبعيك واسحب لضبط الصورة.",
+  "Reset": "إعادة ضبط",
+  "Use cropped photo": "استخدم الصورة بعد قصّها",
+  "Preparing photo…": "جارٍ تجهيز الصورة…",
+  "This photo could not be opened. Choose another.": "تعذّر فتح هذه الصورة. اختر صورة أخرى.",
+  "The photo could not be cropped. Please try again.": "تعذّر قص الصورة. يُرجى المحاولة مرة أخرى."
 }

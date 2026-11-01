@@ -205,7 +205,11 @@ class CustomerController extends ChangeNotifier {
       await acceptCodeSession(
         () => api.request(
           '/auth/phone/login',
-          body: {'idToken': idToken, 'deviceName': 'SelfX mobile'},
+          body: {
+            'idToken': idToken,
+            'deviceName': 'SelfX mobile',
+            'acceptPhoneVerification': true,
+          },
         ),
       );
     }

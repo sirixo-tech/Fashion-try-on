@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
+import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import '../auth/customer_api.dart';
 import '../auth/customer_controller.dart';
@@ -62,6 +63,7 @@ class CustomerExperience extends ChangeNotifier {
   static const _assetImageCacheMaxAge = Duration(minutes: 10);
   final CustomerController auth;
   final _assetImageCache = <String, _CachedCustomerAssetImage>{};
+  final _assetImagePreloads = <String, Future<void>>{};
   int _assetImageCacheBytes = 0;
   Json? summary, session, run, storeVisit;
   CustomerPhoto? person, outfit;
@@ -81,6 +83,7 @@ class CustomerExperience extends ChangeNotifier {
       productsLoading = false;
   bool hasMoreLooks = false, hasMoreProducts = false;
   int savedPage = 0, productPage = 0;
+  Future<void>? _pendingSavedLoad;
   String? error, pollError, productsError;
   String? avatarError;
   bool usingAvatar = false;
@@ -158,6 +161,60 @@ class CustomerExperience extends ChangeNotifier {
     _assetImageCacheBytes = 0;
   }
 
+  Future<void> preloadRecentLookImages({int limit = 3}) async {
+    final epoch = _epoch;
+    for (final look in looks.take(limit)) {
+      if (!_valid(epoch)) return;
+      await _preloadAssetImage(look.result, epoch);
+    }
+  }
+
+  Future<void> preloadTryOnImages() async {
+    final epoch = _epoch;
+    for (final photo in [person, outfit].whereType<CustomerPhoto>()) {
+      if (!_valid(epoch)) return;
+      await _preloadAssetImage(photo, epoch);
+    }
+  }
+
+  Future<void> _preloadAssetImage(CustomerPhoto photo, int epoch) async {
+    if (!_valid(epoch) || !photo.expiresAt.isAfter(DateTime.now())) return;
+    if (cachedAssetImage(photo) != null) return;
+    final existing = _assetImagePreloads[photo.id];
+    if (existing != null) return existing;
+    final pending = _fetchAndCacheAssetImage(photo, epoch);
+    _assetImagePreloads[photo.id] = pending;
+    try {
+      await pending;
+    } finally {
+      if (identical(_assetImagePreloads[photo.id], pending)) {
+        _assetImagePreloads.remove(photo.id);
+      }
+    }
+  }
+
+  Future<Uint8List?> waitForPreloadedAssetImage(CustomerPhoto photo) async {
+    final pending = _assetImagePreloads[photo.id];
+    if (pending == null) return null;
+    await pending;
+    return cachedAssetImage(photo);
+  }
+
+  Future<void> _fetchAndCacheAssetImage(CustomerPhoto photo, int epoch) async {
+    try {
+      final data = await auth.authorized('/try-on/assets/${photo.id}');
+      final url = data['url'] as String;
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode < 200 || response.statusCode >= 300) return;
+      if (!_valid(epoch) || response.bodyBytes.isEmpty) return;
+      cacheAssetImage(photo, response.bodyBytes);
+    } catch (_) {
+      // Preloading is opportunistic; the normal image widget can retry later.
+    }
+  }
+
   bool _valid(int epoch) =>
       !_disposed &&
       epoch == _epoch &&
@@ -171,12 +228,15 @@ class CustomerExperience extends ChangeNotifier {
     if (auth.stage != CustomerStage.ready || auth.profile?.id != _owner) {
       ++_epoch;
       _clearAssetImageCache();
+      _assetImagePreloads.clear();
       _poll?.cancel();
       _owner = auth.profile?.id;
       summary = session = run = storeVisit = product = null;
       person = outfit = null;
       personPreview = outfitPreview = null;
       looks = [];
+      savedLoading = false;
+      _pendingSavedLoad = null;
       savedGarments = [];
       products = [];
       demoProducts = demoModels = [];
@@ -226,7 +286,7 @@ class CustomerExperience extends ChangeNotifier {
   }
 
   Future<void> loadDemoCatalog() async {
-    if (demoLoading || storeMode) return;
+    if (demoLoading) return;
     final epoch = _epoch;
     demoLoading = true;
     demoError = null;
@@ -384,6 +444,7 @@ class CustomerExperience extends ChangeNotifier {
       outfit = CustomerPhoto.fromJson(saved);
     }
     _notify();
+    unawaited(preloadTryOnImages());
   }
 
   Future<void> chooseDemoModel(String id) async {
@@ -406,6 +467,7 @@ class CustomerExperience extends ChangeNotifier {
       demoModelId = id;
       avatarError = null;
       _requestId = null;
+      unawaited(preloadTryOnImages());
     } finally {
       if (_valid(epoch)) {
         busy = false;
@@ -436,6 +498,7 @@ class CustomerExperience extends ChangeNotifier {
       outfitPreview = null;
       demoProduct = demoProducts.where((item) => item['id'] == id).firstOrNull;
       _requestId = null;
+      unawaited(preloadTryOnImages());
     } finally {
       if (_valid(epoch)) {
         busy = false;
@@ -502,6 +565,7 @@ class CustomerExperience extends ChangeNotifier {
       demoModelId = null;
       avatarError = null;
       _requestId = null;
+      unawaited(preloadTryOnImages());
     } finally {
       if (_valid(epoch)) {
         busy = false;
@@ -525,12 +589,14 @@ class CustomerExperience extends ChangeNotifier {
       if (purpose == 'PERSON') {
         person = CustomerPhoto.fromJson(data);
         personPreview = bytes;
+        cacheAssetImage(person!, bytes);
         usingAvatar = false;
         demoModelId = null;
         avatarError = null;
       } else {
         outfit = CustomerPhoto.fromJson(data);
         outfitPreview = bytes;
+        cacheAssetImage(outfit!, bytes);
         demoProduct = null;
       }
       _requestId = null;
@@ -627,7 +693,22 @@ class CustomerExperience extends ChangeNotifier {
   }
 
   Future<void> loadSaved({bool more = false}) async {
+    final pending = _pendingSavedLoad;
+    if (pending != null) {
+      await pending;
+      if (!more) return;
+    }
     if (savedLoading) return;
+    final operation = _loadSaved(more: more);
+    _pendingSavedLoad = operation;
+    try {
+      await operation;
+    } finally {
+      if (identical(_pendingSavedLoad, operation)) _pendingSavedLoad = null;
+    }
+  }
+
+  Future<void> _loadSaved({required bool more}) async {
     final epoch = _epoch, page = more ? savedPage + 1 : 1;
     savedLoading = true;
     _notify();
@@ -667,6 +748,8 @@ class CustomerExperience extends ChangeNotifier {
     if (!_valid(epoch)) return;
     ++_epoch;
     _clearAssetImageCache();
+    _assetImagePreloads.clear();
+    _pendingSavedLoad = null;
     savedLoading = productsLoading = busy = false;
     _poll?.cancel();
     run = session = product = storeVisit = null;

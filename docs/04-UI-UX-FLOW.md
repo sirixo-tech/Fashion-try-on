@@ -1,5 +1,38 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-36 — Store catalog parity, Try-On choices and photo crop (2026-11-02)
+
+Keep the Plans & credits editorial quote and SelfX attribution centered under
+the carousel image. In a Store visit, keep the Store name, sponsorship notice
+and Exit Store action, then use the same two-column product card layout,
+search, evenly-spaced All/Women/Men filters and Recommended/Name sorting as
+Home. Show available Store prices beside product names and keep each card's
+Try it on action, Store save behavior, pagination and catalog eligibility.
+The Try-On fitting room keeps the customer's saved-avatar default and always
+offers the existing demo model choices; its garment rail uses eligible Store
+products instead of demo garments. Store models use the same consented,
+temporary person-asset path as other demo models; demo garments remain blocked
+in Store sessions. Add an optional pre-upload crop step for selfie, full-body
+avatar and profile photos, with pan/zoom controls and a preview/action to accept
+the crop. Profile crops are square; selfie crops use a portrait frame, and
+full-body crops preserve the source aspect ratio. Upload the cropped image
+through the existing private-photo contracts and retain all existing consent,
+validation, ownership and retention behavior.
+
+### CUSTOMER-MOBILE-35 — Consent clarity, image warming and Store scanner sizing (2026-11-02)
+
+Use one required checkbox on both Email and Mobile sign-in tabs. Its copy
+accepts Terms and Privacy and explicitly consents to SMS verification; Terms,
+Privacy and SMS details open their respective information. Record phone
+verification consent with a verified phone sign-in. Account creation keeps its
+Terms and Privacy acceptance. After sign-in, fetch the first My Looks page and
+warm at most three recent full-size result images in the existing bounded
+session-memory cache. When a Try-On session starts, warm its selected person and
+garment assets and selected Store product image. Do not add thumbnails or disk
+caching; normal loading and retry remain the fallback. On Visit a Store, enlarge
+the scanner panel, QR graphic, camera action, code field and Open Store action
+to use more of the available phone height; do not add a logo.
+
 ### CUSTOMER-MOBILE-34 — My Looks navigation label (2026-11-02)
 
 Label the Saved bottom-navigation destination **My Looks**. Keep its existing
@@ -13,11 +46,11 @@ code field disabled until Firebase sends the SMS, then enable it without
 revealing or inserting a new row. Keep a fixed resend row beneath the code in
 the place corresponding to Email's Forgot password action. Preserve its height
 before and after the first request so Terms, the primary button and the footer
-do not shift. Keep SMS consent visible before and after the request, add
-comfortable spacing before Terms and Privacy, and place a larger
-consent-required error immediately above that checkbox when an action is
-blocked. Preserve the existing Firebase proof, cooldown, attempt limits,
-phone-link flow and translations.
+do not shift. Use the shared Terms/Privacy and SMS verification checkbox on
+both sign-in tabs, with a tappable SMS details link. Add comfortable spacing
+before consent, and place a larger consent-required error immediately above
+the checkbox when an action is blocked. Preserve Firebase proof, cooldown,
+attempt limits, phone-link flow and translations.
 
 ### CUSTOMER-MOBILE-32 — Flush image cards and full-width tabs (2026-11-01)
 
@@ -38,8 +71,9 @@ change the primary action to Verify. Keep the resend action in a fixed row
 corresponding to Forgot password, reserving its height before the first send so
 the form does not shift. Never show the email/phone switch or password under
 Mobile, and never show the country picker under Email. Keep Google/Apple
-capability controls, linked Terms/Privacy notice, signup flow, rate limits and
-backend behavior. Keep the SelfX logo and language control on a clear,
+capability controls, the shared Terms/Privacy and SMS consent checkbox with an
+SMS details link on both sign-in tabs, signup flow, rate limits and backend
+behavior. Keep the SelfX logo and language control on a clear,
 photo-free header. Translate the method labels in all 20 catalogs and preserve
 RTL, keyboard and narrow-screen behavior.
 
@@ -70,8 +104,9 @@ once automatically after a load or decode failure. Show Reload photo only when
 the automatic retry also fails. Keep recently viewed generated results in a
 bounded session-memory cache only (up to 16 MB and 10 minutes, capped by asset
 expiry); clear it on sign-out/account change, photo erasure or look deletion.
-Do not add thumbnails or disk caching. The current cards, image sizes and
-navigation stay unchanged.
+Warm the first three recent result images after sign-in and the selected person,
+garment and Store product image when a Try-On starts. Do not add thumbnails or
+disk caching. The current cards, image sizes and navigation stay unchanged.
 
 ### CUSTOMER-MOBILE-27 — Personalized catalog filters and card actions (2026-11-01)
 

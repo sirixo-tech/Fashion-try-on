@@ -643,5 +643,18 @@
   "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "விரைவாக உதவ, நீங்கள் என்ன செய்துகொண்டிருந்தீர்கள், என்ன எதிர்பார்த்தீர்கள், என்ன நடந்தது என்பதைச் சொல்லுங்கள். முடிந்தால் சிக்கலை மீண்டும் உருவாக்கும் படிகளையும் சேர்க்கவும். மின்னஞ்சல் ஆதரவைத் தேர்ந்தெடுக்கும்போது செயலியின் பதிப்பு தானாகச் சேர்க்கப்படும்.",
   "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "செயலி பதிப்பு: {p0}\n\nநீங்கள் என்ன செய்ய முயன்றீர்கள்?\n\nஎன்ன நடந்தது?\n\nசிக்கலை மீண்டும் உருவாக்கும் படிகள் (முடிந்தால்):\n\n",
   "Store-sponsored Try-On": "கடை ஆதரவுடன் Try-On",
-  "My Looks": "எனது தோற்றங்கள்"
+  "My Looks": "எனது தோற்றங்கள்",
+  "I agree to the Terms and Privacy Policy and consent to SMS verification.": "விதிமுறைகள் மற்றும் தனியுரிமைக் கொள்கையை ஏற்று SMS சரிபார்ப்புக்கு ஒப்புக்கொள்கிறேன்.",
+  "SMS details": "SMS விவரங்கள்",
+  "SMS verification": "SMS சரிபார்ப்பு",
+  "Your phone number is sent to Google through Firebase to deliver sign-in codes and help prevent abuse. SMS charges may apply.": "உள்நுழைவு குறியீடுகளை அனுப்பவும் தவறான பயன்பாட்டைத் தடுக்கவும் உங்கள் எண் Firebase மூலம் Googleக்கு அனுப்பப்படும். SMS கட்டணம் விதிக்கப்படலாம்.",
+  "Please accept the Terms, Privacy Policy, and SMS verification consent.": "விதிமுறைகள், தனியுரிமைக் கொள்கை மற்றும் SMS சரிபார்ப்பை ஏற்கவும்."
+,
+  "Crop photo": "புகைப்படத்தை செதுக்கு",
+  "Pinch to zoom and drag to adjust the photo.": "பெரிதாக்க பிஞ்ச் செய்து, புகைப்படத்தைச் சரிசெய்ய இழுக்கவும்.",
+  "Reset": "மீட்டமை",
+  "Use cropped photo": "செதுக்கிய புகைப்படத்தைப் பயன்படுத்து",
+  "Preparing photo…": "புகைப்படம் தயாராகிறது…",
+  "This photo could not be opened. Choose another.": "இந்தப் புகைப்படத்தைத் திறக்க முடியவில்லை. வேறொன்றைத் தேர்ந்தெடுக்கவும்.",
+  "The photo could not be cropped. Please try again.": "புகைப்படத்தைச் செதுக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்."
 }

@@ -57,12 +57,22 @@ class _CustomerShellState extends State<CustomerShell>
     unawaited(experience.refresh());
     unawaited(experience.loadDemoCatalog());
     unawaited(experience.loadSavedGarments().catchError((Object _) {}));
+    unawaited(preloadRecentLooks());
     unawaited(picker.discardLost());
     WidgetsBinding.instance.addObserver(this);
   }
 
   void showHome() {
     if (mounted && tab != 0) setState(() => tab = 0);
+  }
+
+  Future<void> preloadRecentLooks() async {
+    try {
+      await experience.loadSaved();
+      await experience.preloadRecentLookImages();
+    } catch (_) {
+      // The My Looks screen retains its normal loading and retry behavior.
+    }
   }
 
   @override

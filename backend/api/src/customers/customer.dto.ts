@@ -48,13 +48,12 @@ export class CustomerEmailLoginDto extends CustomerCodeDto {
 export class CustomerPhoneDto {
   @IsString() @MinLength(20) @MaxLength(16384) idToken!: string;
   @IsOptional() @IsString() @MaxLength(100) deviceName?: string;
+  @Equals(true) acceptPhoneVerification!: boolean;
 }
 export class CustomerPhoneRequestDto {
   @Matches(/^\+[1-9]\d{7,14}$/) phoneNumber!: string;
 }
-export class CustomerPhoneLinkDto extends CustomerPhoneDto {
-  @Equals(true) acceptPhoneVerification!: boolean;
-}
+export class CustomerPhoneLinkDto extends CustomerPhoneDto {}
 export class CustomerVerificationDto extends CustomerCodeDto {
   @Matches(/^[A-Za-z0-9_-]{43}$/) signupProof!: string;
 }

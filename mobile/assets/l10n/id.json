@@ -643,5 +643,18 @@
   "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "Agar kami dapat membantu lebih cepat, ceritakan apa yang sedang Anda lakukan, apa yang Anda harapkan, dan apa yang terjadi. Sertakan langkah untuk mengulangi masalah jika memungkinkan. Versi aplikasi akan ditambahkan otomatis saat Anda memilih dukungan email.",
   "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "Versi aplikasi: {p0}\n\nApa yang sedang ingin Anda lakukan?\n\nApa yang terjadi?\n\nLangkah untuk mengulangi masalah (jika memungkinkan):\n\n",
   "Store-sponsored Try-On": "Try-On yang disponsori Toko",
-  "My Looks": "Look Saya"
+  "My Looks": "Look Saya",
+  "I agree to the Terms and Privacy Policy and consent to SMS verification.": "Saya menyetujui Ketentuan dan Kebijakan Privasi serta menyetujui verifikasi SMS.",
+  "SMS details": "Detail SMS",
+  "SMS verification": "Verifikasi SMS",
+  "Your phone number is sent to Google through Firebase to deliver sign-in codes and help prevent abuse. SMS charges may apply.": "Nomor Anda dikirim ke Google melalui Firebase untuk mengirim kode masuk dan membantu mencegah penyalahgunaan. Biaya SMS mungkin berlaku.",
+  "Please accept the Terms, Privacy Policy, and SMS verification consent.": "Setujui Ketentuan, Kebijakan Privasi, dan verifikasi SMS."
+,
+  "Crop photo": "Pangkas foto",
+  "Pinch to zoom and drag to adjust the photo.": "Cubit untuk memperbesar dan seret untuk menyesuaikan foto.",
+  "Reset": "Atur ulang",
+  "Use cropped photo": "Gunakan foto yang dipangkas",
+  "Preparing photo…": "Menyiapkan foto…",
+  "This photo could not be opened. Choose another.": "Foto ini tidak dapat dibuka. Pilih foto lain.",
+  "The photo could not be cropped. Please try again.": "Foto tidak dapat dipangkas. Silakan coba lagi."
 }

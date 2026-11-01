@@ -643,5 +643,18 @@
   "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "جلد مدد کے لیے بتائیں کہ آپ کیا کر رہے تھے، آپ کو کیا توقع تھی اور حقیقت میں کیا ہوا۔ ممکن ہو تو مسئلے کو دوبارہ پیدا کرنے کے مراحل بھی شامل کریں۔ ای میل سپورٹ منتخب کرنے پر ایپ کا ورژن خود بخود شامل ہو جائے گا۔",
   "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "ایپ کا ورژن: {p0}\n\nآپ کیا کرنے کی کوشش کر رہے تھے؟\n\nکیا ہوا؟\n\nمسئلے کو دوبارہ پیدا کرنے کے مراحل (اگر ممکن ہو):\n\n",
   "Store-sponsored Try-On": "اسٹور کی معاونت سے ٹرائی آن",
-  "My Looks": "میرے لُکس"
+  "My Looks": "میرے لُکس",
+  "I agree to the Terms and Privacy Policy and consent to SMS verification.": "میں شرائط اور رازداری کی پالیسی سے اتفاق کرتا/کرتی ہوں اور SMS تصدیق کی اجازت دیتا/دیتی ہوں۔",
+  "SMS details": "SMS کی تفصیلات",
+  "SMS verification": "SMS تصدیق",
+  "Your phone number is sent to Google through Firebase to deliver sign-in codes and help prevent abuse. SMS charges may apply.": "سائن اِن کوڈ بھیجنے اور غلط استعمال روکنے میں مدد کے لیے آپ کا نمبر Firebase کے ذریعے Google کو بھیجا جاتا ہے۔ SMS چارجز لاگو ہو سکتے ہیں۔",
+  "Please accept the Terms, Privacy Policy, and SMS verification consent.": "براہ کرم شرائط، رازداری کی پالیسی اور SMS تصدیق سے اتفاق کریں۔"
+,
+  "Crop photo": "تصویر تراشیں",
+  "Pinch to zoom and drag to adjust the photo.": "زوم کرنے کے لیے چٹکی کریں اور تصویر درست کرنے کے لیے گھسیٹیں۔",
+  "Reset": "ری سیٹ کریں",
+  "Use cropped photo": "تراشی ہوئی تصویر استعمال کریں",
+  "Preparing photo…": "تصویر تیار کی جا رہی ہے…",
+  "This photo could not be opened. Choose another.": "یہ تصویر نہیں کھل سکی۔ کوئی اور تصویر منتخب کریں۔",
+  "The photo could not be cropped. Please try again.": "تصویر تراشی نہیں جا سکی۔ دوبارہ کوشش کریں۔"
 }

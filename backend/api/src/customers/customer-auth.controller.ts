@@ -93,7 +93,12 @@ export class CustomerAuthController {
   @Header("Cache-Control", "no-store")
   @Post("auth/phone/login")
   phoneLogin(@Body() dto: CustomerPhoneDto, @Req() request: FastifyRequest) {
-    return this.auth.phoneLogin(dto.idToken, request.ip, dto.deviceName);
+    return this.auth.phoneLogin(
+      dto.idToken,
+      request.ip,
+      dto.deviceName,
+      dto.acceptPhoneVerification,
+    );
   }
   @Header("Cache-Control", "no-store")
   @Post("me/phone")

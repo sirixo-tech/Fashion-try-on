@@ -643,5 +643,18 @@
   "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "త్వరగా సహాయం అందించడానికి, మీరు ఏమి చేస్తున్నారు, ఏమి జరగాలని ఆశించారు, నిజంగా ఏమి జరిగిందో మాకు చెప్పండి. సాధ్యమైతే సమస్యను మళ్లీ ఎలా చేయాలో దశలను చేర్చండి. ఇమెయిల్ మద్దతును ఎంచుకున్నప్పుడు యాప్ వెర్షన్ స్వయంచాలకంగా జోడించబడుతుంది.",
   "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "యాప్ వెర్షన్: {p0}\n\nమీరు ఏమి చేయడానికి ప్రయత్నిస్తున్నారు?\n\nఏం జరిగింది?\n\nసమస్యను మళ్లీ ఎలా చేయాలో దశలు (సాధ్యమైతే):\n\n",
   "Store-sponsored Try-On": "స్టోర్ స్పాన్సర్ చేసే ట్రై-ఆన్",
-  "My Looks": "నా లుక్స్"
+  "My Looks": "నా లుక్స్",
+  "I agree to the Terms and Privacy Policy and consent to SMS verification.": "నిబంధనలు, గోప్యతా విధానాన్ని అంగీకరిస్తూ SMS ధృవీకరణకు సమ్మతిస్తున్నాను.",
+  "SMS details": "SMS వివరాలు",
+  "SMS verification": "SMS ధృవీకరణ",
+  "Your phone number is sent to Google through Firebase to deliver sign-in codes and help prevent abuse. SMS charges may apply.": "సైన్-ఇన్ కోడ్‌లను పంపడానికి, దుర్వినియోగాన్ని నివారించడానికి మీ నంబర్ Firebase ద్వారా Googleకు పంపబడుతుంది. SMS ఛార్జీలు వర్తించవచ్చు.",
+  "Please accept the Terms, Privacy Policy, and SMS verification consent.": "నిబంధనలు, గోప్యతా విధానం మరియు SMS ధృవీకరణను అంగీకరించండి."
+,
+  "Crop photo": "ఫోటోను కత్తిరించండి",
+  "Pinch to zoom and drag to adjust the photo.": "జూమ్ చేయడానికి పించ్ చేసి, ఫోటోను సర్దుబాటు చేయడానికి లాగండి.",
+  "Reset": "రీసెట్ చేయండి",
+  "Use cropped photo": "కత్తిరించిన ఫోటోను ఉపయోగించండి",
+  "Preparing photo…": "ఫోటో సిద్ధమవుతోంది…",
+  "This photo could not be opened. Choose another.": "ఈ ఫోటోను తెరవడం సాధ్యం కాలేదు. మరొకదాన్ని ఎంచుకోండి.",
+  "The photo could not be cropped. Please try again.": "ఫోటోను కత్తిరించడం సాధ్యం కాలేదు. మళ్లీ ప్రయత్నించండి."
 }

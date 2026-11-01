@@ -643,5 +643,18 @@
   "For faster help, tell us what you were doing, what you expected, and what happened. Include steps to reproduce the issue if you can. Your app version is added automatically when you choose Email support.": "为了更快获得帮助，请告诉我们您当时在做什么、原本预期什么结果，以及实际发生了什么。如果可以，请附上重现问题的步骤。选择电子邮件支持时，应用版本会自动添加。",
   "App version: {p0}\n\nWhat were you trying to do?\n\nWhat happened?\n\nSteps to reproduce the issue (if possible):\n\n": "应用版本：{p0}\n\n您当时想做什么？\n\n发生了什么？\n\n重现问题的步骤（如可以）：\n\n",
   "Store-sponsored Try-On": "门店赞助的虚拟试穿",
-  "My Looks": "我的造型"
+  "My Looks": "我的造型",
+  "I agree to the Terms and Privacy Policy and consent to SMS verification.": "我同意条款和隐私政策，并同意通过短信进行验证。",
+  "SMS details": "短信详情",
+  "SMS verification": "短信验证",
+  "Your phone number is sent to Google through Firebase to deliver sign-in codes and help prevent abuse. SMS charges may apply.": "为发送登录验证码并帮助防止滥用，您的电话号码会通过 Firebase 发送给 Google。短信可能会产生费用。",
+  "Please accept the Terms, Privacy Policy, and SMS verification consent.": "请同意条款、隐私政策和短信验证。"
+,
+  "Crop photo": "裁剪照片",
+  "Pinch to zoom and drag to adjust the photo.": "捏合缩放并拖动以调整照片。",
+  "Reset": "重置",
+  "Use cropped photo": "使用裁剪后的照片",
+  "Preparing photo…": "正在准备照片…",
+  "This photo could not be opened. Choose another.": "无法打开此照片。请选择其他照片。",
+  "The photo could not be cropped. Please try again.": "无法裁剪照片。请重试。"
 }
