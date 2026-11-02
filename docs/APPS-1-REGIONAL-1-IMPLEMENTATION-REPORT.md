@@ -29,14 +29,29 @@ Implemented locally on 21 October 2026. Production has not been changed.
    replace or expose signing keys. Decide/migrate your production signing identity
    before distributing commercial builds; installing a differently signed APK
    over an existing kiosk build requires a deliberate migration.
-2. Install Java plus Android SDK Build Tools on **every API host/image**. Configure
-   `SELFX_APK_AAPT_PATH` (aapt executable), `SELFX_APK_SIGNER_JAR_PATH`
-   (build-tools/lib/apksigner.jar), `SELFX_APK_JAVA_PATH` (default java),
-   `SELFX_APK_SIGNER_SHA256` (trusted release signing-certificate SHA-256), and
-   `SELFX_APK_PACKAGE_NAME` (default com.selfx.kiosk). Paths must refer to files
-   inside the deployed host, not your Windows workstation. Missing tools or
-   certificate keep uploads unavailable; there is no verification bypass.
-   Android documents signature inspection with
+2. Keep the Railway API service root directory at the repository root and set
+   its Dockerfile path to `Dockerfile.api`. Leave any overriding Railway build
+   command unset so the Dockerfile builds the API image. Leave the Start Command
+   unset to use the Dockerfile startup verification, or set it to
+   `sh ./tools/start-api-with-apk-tools.sh`. The image installs Java 17 and
+   Android SDK Command-line Tools plus
+   Build Tools `36.0.0`, and pins the command-line-tools archive checksum. The
+   image exports these Linux paths:
+   `SELFX_APK_JAVA_PATH=/usr/bin/java`,
+   `SELFX_APK_AAPT_PATH=/opt/android-sdk/build-tools/36.0.0/aapt`, and
+   `SELFX_APK_SIGNER_JAR_PATH=/opt/android-sdk/build-tools/36.0.0/lib/apksigner.jar`.
+   `tools/verify-api-apk-tools.sh` runs during image build and again before API
+   startup; missing Java, aapt or apksigner.jar fails deployment/startup instead
+   of leaving uploads silently unavailable. Keep the Railway pre-deploy
+   migration command as
+   `npx prisma migrate deploy --schema=backend/database/prisma/schema.prisma`.
+   The API build runs Prisma generation before compiling. In Railway, set
+   `SELFX_APK_SIGNER_SHA256` to the trusted kiosk release-certificate SHA-256 and
+   `SELFX_CUSTOMER_APK_SIGNER_SHA256` to the trusted SelfX Mobile release
+   certificate SHA-256. Set `SELFX_APK_PACKAGE_NAME` or
+   `SELFX_CUSTOMER_APK_PACKAGE_NAME` only if the package IDs differ from their
+   defaults (`com.selfx.kiosk` and `com.selfx.selfx_customer`). Do not use local
+   Windows paths. Android documents signature inspection with
    [apksigner verify --print-certs](https://developer.android.com/tools/apksigner).
 3. Reuse configured private `OBJECT_STORAGE_*` credentials/bucket. Allow API
    writes and signed download reads. Do not make the release bucket public.
