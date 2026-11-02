@@ -500,6 +500,8 @@ enum AppReleaseUploadStatus {
   PROCESSING
   COMPLETED
   FAILED
+
+  @@map("app_release_upload_status")
 }
 
 model CompanionApp {
