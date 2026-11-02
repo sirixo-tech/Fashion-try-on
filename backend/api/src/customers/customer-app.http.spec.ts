@@ -26,7 +26,6 @@ const notifications = {
   releases = { customerUpdate: vi.fn(), download: vi.fn() };
 let app: NestFastifyApplication;
 beforeAll(async () => {
-  vi.stubEnv("SELFX_CUSTOMER_PUBLIC_WEB_URL", "https://selfx.test");
   @Module({
     controllers: [CustomerAppController, CustomerNotificationsController],
     providers: [
@@ -71,8 +70,9 @@ it("exposes safe public links and update checks without requiring account creati
   });
   expect(response.statusCode).toBe(200);
   expect(response.json()).toMatchObject({
-    termsUrl: "https://selfx.test/terms",
-    privacyUrl: "https://selfx.test/privacy",
+    supportUrl: "https://selfx.in/contact",
+    termsUrl: "https://selfx.in/fashion/terms",
+    privacyUrl: "https://selfx.in/fashion/privacy",
     pushAvailable: false,
   });
   expect(response.headers["cache-control"]).toBe("no-store");

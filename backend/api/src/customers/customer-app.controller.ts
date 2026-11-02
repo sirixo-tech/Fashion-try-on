@@ -28,24 +28,6 @@ import { CustomerNotificationsService } from "./customer-notifications.service.j
 import { CUSTOMER_TERMS_VERSION } from "./customer.config.js";
 
 export function customerPublicLinks() {
-  let origin = "https://selfxweb-production.up.railway.app";
-  const inherited = process.env.SELFX_WEB_BASE_URL;
-  const configured =
-    process.env.SELFX_CUSTOMER_PUBLIC_WEB_URL ||
-    (inherited?.startsWith("https://") ? inherited : undefined);
-  if (configured) {
-    const parsed = new URL(configured);
-    if (
-      parsed.protocol !== "https:" ||
-      parsed.username ||
-      parsed.password ||
-      parsed.pathname !== "/" ||
-      parsed.search ||
-      parsed.hash
-    )
-      throw new Error("Invalid customer public website URL");
-    origin = parsed.origin;
-  }
   const email =
     process.env.SELFX_SUPPORT_EMAIL?.trim() ||
     process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() ||
@@ -54,9 +36,9 @@ export function customerPublicLinks() {
     throw new Error("Invalid support email");
   return {
     supportEmail: email,
-    supportUrl: `${origin}/support`,
-    privacyUrl: `${origin}/privacy`,
-    termsUrl: `${origin}/terms`,
+    supportUrl: "https://selfx.in/contact",
+    privacyUrl: "https://selfx.in/fashion/privacy",
+    termsUrl: "https://selfx.in/fashion/terms",
     termsVersion: CUSTOMER_TERMS_VERSION,
   };
 }

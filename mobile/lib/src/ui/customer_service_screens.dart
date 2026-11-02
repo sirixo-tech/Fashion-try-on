@@ -16,19 +16,40 @@ const customerDeviceChannel = MethodChannel('com.selfx.customer/services');
 
 Future<void> openCustomerPolicy(
   BuildContext context,
-  CustomerController auth,
   String kind,
 ) async {
-  final links = await CustomerPublicLinks.load(auth.api);
-  if (!context.mounted) return;
+  final address = kind == 'terms'
+      ? CustomerPublicLinks.terms
+      : CustomerPublicLinks.privacy;
   await customerInfo(
     context,
     kind == 'terms' ? 'Terms' : 'Privacy Policy',
     kind == 'terms'
-        ? 'Read the SelfX Terms at ${links['termsUrl']}. Use only authorized images. Personal and Store-sponsored allowances are separate.'
-        : 'Read the Privacy Policy at ${links['privacyUrl']}. Original photos expire within 7 days; mobile saved results within 30 days. You can delete your photos and account in Me.',
-    address: links[kind == 'terms' ? 'termsUrl' : 'privacyUrl'] as String,
+        ? 'Read the SelfX Terms at $address. Use only authorized images. Personal and Store-sponsored allowances are separate.'
+        : 'Read the Privacy Policy at $address. Original photos expire within 7 days; mobile saved results within 30 days. You can delete your photos and account in Me.',
+    address: address,
   );
+}
+
+Future<void> openCustomerContactPage(
+  BuildContext context,
+  CustomerController auth,
+) async {
+  final uri = Uri.parse(CustomerPublicLinks.support);
+  var opened = false;
+  if (uri.scheme == 'https' && uri.host.isNotEmpty && uri.userInfo.isEmpty) {
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // Fall back to the app's email support screen if the browser cannot open.
+    }
+  }
+  if (!opened && context.mounted) {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => CustomerSupportScreen(auth: auth)),
+    );
+  }
 }
 
 class CustomerSupportScreen extends StatefulWidget {

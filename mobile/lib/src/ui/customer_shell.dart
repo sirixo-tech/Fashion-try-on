@@ -638,22 +638,17 @@ class _CustomerShellState extends State<CustomerShell>
         settingsTile(
           Icons.privacy_tip_outlined,
           'Privacy Policy',
-          () => openCustomerPolicy(context, auth, 'privacy'),
+          () => openCustomerPolicy(context, 'privacy'),
         ),
         settingsTile(
           Icons.description_outlined,
           'Terms',
-          () => openCustomerPolicy(context, auth, 'terms'),
+          () => openCustomerPolicy(context, 'terms'),
         ),
         settingsTile(
           Icons.help_outline_rounded,
           'Contact us',
-          () => Navigator.push<void>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CustomerSupportScreen(auth: auth),
-            ),
-          ),
+          () => openCustomerContactPage(context, auth),
         ),
         settingsTile(
           Icons.auto_awesome_outlined,
