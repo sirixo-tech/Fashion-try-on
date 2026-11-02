@@ -32,7 +32,7 @@ WORKDIR /app
 COPY . .
 
 RUN npm ci \
-    && npm run build --workspace=@selfx/api \
+    && npx turbo run build --filter=@selfx/api... \
     && sh ./tools/verify-api-apk-tools.sh
 
 EXPOSE 3001
