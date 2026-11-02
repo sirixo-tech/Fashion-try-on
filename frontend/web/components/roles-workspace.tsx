@@ -373,7 +373,7 @@ function RolePermissionsEditor({
     const changes = target.filter((permission) => editable(permission.code));
     const viewCodes = group.view.map((permission) => permission.code);
     setCodes((current) => {
-      let next = new Set(current);
+      const next = new Set(current);
       if (mode === "view" && !enabled) {
         for (const permission of [...group.view, ...group.manage])
           if (editable(permission.code)) next.delete(permission.code);
