@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "build": "npm run build:integration --workspace=@selfx/shopify-integration && tsc -p tsconfig.json",
+    "build": "npm run prisma:generate --workspace=@selfx/database && npm run build:integration --workspace=@selfx/shopify-integration && tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --exclude \"dist/**\"",
