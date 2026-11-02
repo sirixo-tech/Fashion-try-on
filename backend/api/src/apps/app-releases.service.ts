@@ -239,6 +239,26 @@ export class AppReleasesService implements OnModuleInit, OnModuleDestroy {
     return { data: uploads.map((upload) => this.uploadStatus(upload)) };
   }
 
+  async dismissFailedUpload(userId: string, id: string) {
+    const upload = await this.prisma.appReleaseUpload.findFirst({
+      where: { id, createdById: userId, status: "FAILED" },
+      select: { id: true, objectKey: true },
+    });
+    if (!upload)
+      throw new ApiErrorException(
+        404,
+        "APP_RELEASE_UPLOAD_NOT_FOUND",
+        "Failed upload was not found.",
+      );
+
+    const deleted = await this.prisma.appReleaseUpload.deleteMany({
+      where: { id: upload.id, createdById: userId, status: "FAILED" },
+    });
+    if (deleted.count > 0)
+      await this.deleteStagedObjectIfUnreferenced(upload.objectKey);
+    return { dismissed: deleted.count > 0 };
+  }
+
   private uploadStatus(
     upload: Pick<
       AppReleaseUpload,

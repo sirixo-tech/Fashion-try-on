@@ -134,3 +134,69 @@ it("keeps mobile releases separate and targets customer uploads explicitly", asy
     );
   expect((sent![1]!.body as FormData).get("app")).toBe("CUSTOMER");
 });
+
+it("groups duplicate failed upload errors and dismisses all matching entries", async () => {
+  vi.mocked(getCurrentPlatformAccess).mockResolvedValue({
+    isSuperadmin: true,
+    permissions: [],
+  });
+  const failures = [
+    {
+      id: "failed-new",
+      status: "FAILED",
+      filename: "mobile-app.apk",
+      createdAt: "2026-11-02T11:15:00Z",
+      failureCode: "APP_RELEASE_UPLOAD_EXPIRED",
+      releaseId: null,
+    },
+    {
+      id: "failed-old",
+      status: "FAILED",
+      filename: "mobile-app.apk",
+      createdAt: "2026-11-02T11:10:00Z",
+      failureCode: "APP_RELEASE_UPLOAD_EXPIRED",
+      releaseId: null,
+    },
+  ];
+  vi.mocked(selfxApi).mockImplementation(async (path, init) => {
+    if (path.endsWith("/uploads") && (init?.method ?? "GET") === "GET")
+      return { data: failures } as never;
+    if (init?.method === "DELETE") return { dismissed: true } as never;
+    return {
+      data: [release],
+      hasMore: false,
+      nextCursor: null,
+    } as never;
+  });
+
+  render(<AppReleasesPage platform />);
+  await screen.findByText(
+    "Validation failed (APP_RELEASE_UPLOAD_EXPIRED). Upload the APK again after checking the file.",
+  );
+  expect(
+    screen.getAllByRole("button", {
+      name: "Dismiss mobile-app.apk upload error",
+    }),
+  ).toHaveLength(1);
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Dismiss mobile-app.apk upload error",
+    }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByText(
+        "Validation failed (APP_RELEASE_UPLOAD_EXPIRED). Upload the APK again after checking the file.",
+      ),
+    ).toBeNull(),
+  );
+  expect(selfxApi).toHaveBeenCalledWith(
+    "/api/v1/platform/app-releases/uploads/failed-new",
+    expect.objectContaining({ method: "DELETE" }),
+  );
+  expect(selfxApi).toHaveBeenCalledWith(
+    "/api/v1/platform/app-releases/uploads/failed-old",
+    expect.objectContaining({ method: "DELETE" }),
+  );
+});

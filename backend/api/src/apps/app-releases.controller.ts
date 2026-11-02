@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+} from "@nestjs/common";
 import {
   IsIn,
   IsInt,
@@ -73,6 +82,14 @@ export class AppReleasesController {
   async uploads(@Req() request: FastifyRequest) {
     const user = await this.authorize(request, true);
     return this.releases.listUploads(user.id);
+  }
+  @Delete("uploads/:id")
+  async dismissFailedUpload(
+    @Req() request: FastifyRequest,
+    @Param("id", SelfxUuidParamPipe) id: string,
+  ) {
+    const user = await this.authorize(request, true);
+    return this.releases.dismissFailedUpload(user.id, id);
   }
   @Post("uploads")
   async beginUpload(

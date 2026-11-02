@@ -19,6 +19,7 @@ const auth = { requireAccessUser: vi.fn() },
     upload: vi.fn(),
     beginUpload: vi.fn(),
     endUpload: vi.fn(),
+    dismissFailedUpload: vi.fn(),
     change: vi.fn(),
   };
 @Module({
@@ -55,6 +56,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   auth.requireAccessUser.mockResolvedValue({ id: "fixture-user" });
   service.upload.mockResolvedValue({ id: "fixture-release", status: "DRAFT" });
+  service.dismissFailedUpload.mockResolvedValue({ dismissed: true });
 });
 it("receives binary APK and notes through Fastify multipart", async () => {
   const response = await request(app.getHttpServer())
@@ -103,4 +105,17 @@ it("rejects extra JSON lifecycle fields", async () => {
     .send({ action: "publish", revision: 0, userId: "someone-else" });
   expect(response.status).toBe(400);
   expect(service.change).not.toHaveBeenCalled();
+});
+it("routes manager dismissal of a failed upload", async () => {
+  const uploadId = "019a0d39-0000-7000-8000-000000000001";
+  const response = await request(app.getHttpServer())
+    .delete(`/api/v1/platform/app-releases/uploads/${uploadId}`)
+    .set("Authorization", "Bearer fixture");
+  expect(response.status).toBe(200);
+  expect(response.body).toEqual({ dismissed: true });
+  expect(platform.requirePermission).toHaveBeenCalled();
+  expect(service.dismissFailedUpload).toHaveBeenCalledWith(
+    "fixture-user",
+    uploadId,
+  );
 });

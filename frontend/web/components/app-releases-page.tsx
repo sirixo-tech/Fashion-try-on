@@ -24,6 +24,7 @@ import { getCurrentPlatformAccess } from "@/lib/access-control";
 import { getCurrentMerchantStoreAccess } from "@/lib/current-store";
 import { useSession } from "@/lib/session";
 import { RegionalDateTime } from "@/lib/regional-settings";
+import { XIcon } from "lucide-react";
 
 type AppCode = "KIOSK" | "CUSTOMER" | "CUSTOM";
 type CustomApp = {
@@ -255,9 +256,18 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
   }, [platformMode, canManage, uploadJobs, uploadStatusUnavailable, load]);
 
   const customApps = page.apps ?? [];
-  const visibleUploadJobs = uploadJobs.filter(
-    (job) => job.status !== "COMPLETED",
-  );
+  const visibleUploadJobs = uploadJobs.filter((job, index, all) => {
+    if (job.status === "COMPLETED") return false;
+    if (job.status !== "FAILED") return true;
+    return (
+      all.findIndex(
+        (candidate) =>
+          candidate.status === "FAILED" &&
+          candidate.filename === job.filename &&
+          candidate.failureCode === job.failureCode,
+      ) === index
+    );
+  });
 
   function openUpload() {
     setUploadTarget("KIOSK");
@@ -323,6 +333,39 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
       );
     } finally {
       setUploadPercent(null);
+      setBusy(false);
+    }
+  }
+
+  async function dismissUploadFailure(job: UploadJob) {
+    if (!token || job.status !== "FAILED") return;
+    const matching = uploadJobs.filter(
+      (candidate) =>
+        candidate.status === "FAILED" &&
+        candidate.filename === job.filename &&
+        candidate.failureCode === job.failureCode,
+    );
+    const ids = new Set(matching.map(({ id }) => id));
+    setBusy(true);
+    setError("");
+    try {
+      await Promise.all(
+        matching.map(({ id }) =>
+          selfxApi(`${base}/uploads/${id}`, {
+            method: "DELETE",
+            accessToken: token,
+          }),
+        ),
+      );
+      setUploadJobs((current) => current.filter(({ id }) => !ids.has(id)));
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Upload error could not be dismissed.",
+      );
+      await load(true);
+    } finally {
       setBusy(false);
     }
   }
@@ -448,24 +491,39 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           {visibleUploadJobs.map((job) => (
             <div
               key={job.id}
-              className="rounded-lg border bg-card px-4 py-3 text-sm"
+              className="flex items-start justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-sm"
             >
-              <p className="font-medium">{job.filename}</p>
-              <p
-                className={
-                  job.status === "FAILED"
-                    ? "text-destructive"
-                    : "text-muted-foreground"
-                }
-              >
-                {job.status === "AWAITING_UPLOAD"
-                  ? "Upload not finished. You can start it again."
-                  : job.status === "QUEUED"
-                    ? "Uploaded. Waiting for APK validation…"
-                    : job.status === "PROCESSING"
-                      ? "Validating APK in the background…"
-                      : `Validation failed${job.failureCode ? ` (${job.failureCode})` : ""}. Upload the APK again after checking the file.`}
-              </p>
+              <div>
+                <p className="font-medium">{job.filename}</p>
+                <p
+                  className={
+                    job.status === "FAILED"
+                      ? "text-destructive"
+                      : "text-muted-foreground"
+                  }
+                >
+                  {job.status === "AWAITING_UPLOAD"
+                    ? "Upload not finished. You can start it again."
+                    : job.status === "QUEUED"
+                      ? "Uploaded. Waiting for APK validation…"
+                      : job.status === "PROCESSING"
+                        ? "Validating APK in the background…"
+                        : `Validation failed${job.failureCode ? ` (${job.failureCode})` : ""}. Upload the APK again after checking the file.`}
+                </p>
+              </div>
+              {job.status === "FAILED" && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  aria-label={`Dismiss ${job.filename} upload error`}
+                  onClick={() => void dismissUploadFailure(job)}
+                >
+                  <XIcon className="size-4" aria-hidden="true" />
+                  Dismiss
+                </Button>
+              )}
             </div>
           ))}
         </div>

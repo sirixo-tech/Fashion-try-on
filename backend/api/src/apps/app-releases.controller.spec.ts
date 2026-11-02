@@ -10,6 +10,7 @@ const auth = { requireAccessUser: vi.fn() },
     list: vi.fn(),
     download: vi.fn(),
     beginUpload: vi.fn(),
+    dismissFailedUpload: vi.fn(),
     change: vi.fn(),
   },
   rbac = {
@@ -51,6 +52,34 @@ it("requires release management independently of viewing", async () => {
     }),
   ).rejects.toThrow();
   expect(releases.change).not.toHaveBeenCalled();
+});
+it("allows only release managers to dismiss their failed upload entries", async () => {
+  const controller = new AppReleasesController(
+    auth as never,
+    platform as never,
+    releases as never,
+  );
+  platform.requirePermission.mockResolvedValue(undefined);
+  releases.dismissFailedUpload.mockResolvedValue({ dismissed: true });
+  await expect(
+    controller.dismissFailedUpload(
+      request as never,
+      "019a0d39-0000-7000-8000-000000000001",
+    ),
+  ).resolves.toEqual({ dismissed: true });
+  expect(releases.dismissFailedUpload).toHaveBeenCalledWith(
+    "user",
+    "019a0d39-0000-7000-8000-000000000001",
+  );
+
+  platform.requirePermission.mockRejectedValue(new Error("denied"));
+  await expect(
+    controller.dismissFailedUpload(
+      request as never,
+      "019a0d39-0000-7000-8000-000000000001",
+    ),
+  ).rejects.toThrow("denied");
+  expect(releases.dismissFailedUpload).toHaveBeenCalledTimes(1);
 });
 it("validates Store scope and permission before fetching a download", async () => {
   rbac.requireStoreResourcePermission.mockRejectedValue(
