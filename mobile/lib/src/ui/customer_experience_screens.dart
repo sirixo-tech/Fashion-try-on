@@ -336,14 +336,6 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
     }
     final isUpi = Uri.tryParse(checkout)?.scheme == 'upi';
     Uint8List? qr;
-    try {
-      qr = await widget.experience.auth.authorizedDownload(
-        '/mobile-payments/$id/qr',
-      );
-    } catch (_) {
-      // App payment remains available if QR loading fails.
-    }
-    if (!mounted) return;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -406,26 +398,6 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                     const CustomerText(
                       'Payment time ended. Check its status before trying again.',
                       textAlign: TextAlign.center,
-                    )
-                  else if (qr != null) ...[
-                    Image.memory(
-                      qr,
-                      width: 210,
-                      height: 210,
-                      fit: BoxFit.contain,
-                      semanticLabel: tr(context, 'Payment QR code'),
-                    ),
-                    const SizedBox(height: 8),
-                    const CustomerText(
-                      'Scan with another phone before this payment expires.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ] else
-                    CustomerText(
-                      isUpi
-                          ? 'Payment QR is unavailable. You can still pay through UPI.'
-                          : 'Payment QR is unavailable. Open PhonePe checkout to continue.',
-                      textAlign: TextAlign.center,
                     ),
                   if (purchase?['status'] == 'PENDING' &&
                       !cancellingPayment &&
@@ -444,28 +416,30 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                                 horizontal: 6,
                               ),
                             ),
-                            onPressed: qr == null
-                                ? null
-                                : () async {
-                                    try {
-                                      await upiChannel.invokeMethod<bool>(
-                                        'shareQr',
-                                        {'uri': checkout, 'png': qr},
-                                      );
-                                    } catch (_) {
-                                      if (dialogContext.mounted) {
-                                        ScaffoldMessenger.of(
-                                          dialogContext,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: CustomerText(
-                                              'Payment QR could not be shared.',
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
+                            onPressed: () async {
+                              try {
+                                qr ??= await widget.experience.auth
+                                    .authorizedDownload(
+                                      '/mobile-payments/$id/qr',
+                                    );
+                                await upiChannel.invokeMethod<bool>('shareQr', {
+                                  'uri': checkout,
+                                  'png': qr,
+                                });
+                              } catch (_) {
+                                if (dialogContext.mounted) {
+                                  ScaffoldMessenger.of(
+                                    dialogContext,
+                                  ).showSnackBar(
+                                    const SnackBar(
+                                      content: CustomerText(
+                                        'Payment QR could not be shared.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
                             child: const Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [

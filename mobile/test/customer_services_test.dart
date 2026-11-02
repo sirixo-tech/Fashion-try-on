@@ -64,7 +64,7 @@ void main() {
       final links = await CustomerPublicLinks.load(api);
       expect(links['termsUrl'], endsWith('/terms'));
       expect(links['privacyUrl'], CustomerPublicLinks.privacy);
-      expect(links['supportEmail'], 'sirixollc@gmail.com');
+      expect(links['supportEmail'], 'hello@selfx.in');
       expect(links['pushAvailable'], false);
     },
   );
@@ -158,7 +158,7 @@ void main() {
       MaterialApp(home: CustomerSupportScreen(auth: auth)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('sirixollc@gmail.com'), findsOneWidget);
+    expect(find.text('hello@selfx.in'), findsOneWidget);
     String? copied;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
@@ -172,7 +172,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     });
     await tester.pumpAndSettle();
-    expect(copied, 'sirixollc@gmail.com');
+    expect(copied, 'hello@selfx.in');
     expect(find.text('Support email copied.'), findsOneWidget);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, null);

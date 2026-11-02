@@ -14,7 +14,7 @@ class CustomerPublicLinks {
     'SELFX_SUPPORT_URL',
     defaultValue: '$website/support',
   );
-  static const email = 'sirixollc@gmail.com';
+  static const email = 'hello@selfx.in';
   static bool secureUrl(String value) {
     final uri = Uri.tryParse(value);
     return uri != null &&

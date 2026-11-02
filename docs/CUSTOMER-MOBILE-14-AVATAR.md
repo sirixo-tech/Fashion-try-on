@@ -29,8 +29,10 @@ in an in-app crop screen before upload. The image can be repositioned by touch
 and zoomed with pinch gestures or a visible zoom slider; Use cropped photo
 encodes the adjusted crop before upload. Selfies use a portrait crop frame;
 full-body photos keep the selected image's aspect ratio so framing does not
-discard the body. Cropped bytes go through the existing consented avatar upload
-and server normalization path. Canceling crop performs no upload.
+discard the body. In the avatar card, full-body photos remain fully visible over
+a blurred, full-bleed copy of the photo so letterboxing does not leave blank
+bands. Cropped bytes go through the existing consented avatar upload and server
+normalization path. Canceling crop performs no upload.
 
 ## My avatar screen refinement (2026-11-01)
 

@@ -22,7 +22,7 @@ it("uses the established support contact", () => {
   render(<SupportPage />);
   expect(
     screen
-      .getAllByRole("link", { name: "sirixollc@gmail.com" })[0]!
+      .getAllByRole("link", { name: "hello@selfx.in" })[0]!
       .getAttribute("href"),
   ).toMatch(/^mailto:/);
 });

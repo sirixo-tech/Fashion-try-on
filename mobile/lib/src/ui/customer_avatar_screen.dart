@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import '../auth/customer_controller.dart';
 import '../experience/customer_media.dart';
@@ -573,6 +575,20 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
+                      if (ready && !selfie)
+                        Positioned.fill(
+                          child: ImageFiltered(
+                            imageFilter: ui.ImageFilter.blur(
+                              sigmaX: 18,
+                              sigmaY: 18,
+                            ),
+                            child: Image.memory(
+                              bytes,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: false,
+                            ),
+                          ),
+                        ),
                       if (ready)
                         Image.memory(
                           bytes,

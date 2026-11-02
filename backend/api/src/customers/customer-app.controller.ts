@@ -49,7 +49,7 @@ export function customerPublicLinks() {
   const email =
     process.env.SELFX_SUPPORT_EMAIL?.trim() ||
     process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() ||
-    "sirixollc@gmail.com";
+    "hello@selfx.in";
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email))
     throw new Error("Invalid support email");
   return {
