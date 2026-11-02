@@ -9,11 +9,16 @@ import { ApkValidator } from "./apk-validator.js";
 import { AppReleasesService } from "./app-releases.service.js";
 import {
   AppReleasesController,
+  SharedAppDownloadsController,
   StoreAppDownloadsController,
 } from "./app-releases.controller.js";
 @Module({
   imports: [AuthModule, DatabaseModule, RbacModule],
-  controllers: [AppReleasesController, StoreAppDownloadsController],
+  controllers: [
+    AppReleasesController,
+    SharedAppDownloadsController,
+    StoreAppDownloadsController,
+  ],
   providers: [
     PlatformAuthorizationService,
     StoreImpersonationService,

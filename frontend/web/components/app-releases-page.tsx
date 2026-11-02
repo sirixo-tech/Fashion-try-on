@@ -32,6 +32,7 @@ type Release = {
   versionCode: number;
   architecture: string;
   packageName: string;
+  app?: "KIOSK" | "CUSTOMER";
   filename: string;
   minSdk: number;
   sha256: string;
@@ -50,11 +51,12 @@ type ReleasePage = {
   hasMore: boolean;
 };
 export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
-  const [app, setApp] = useState<"KIOSK" | "CUSTOMER">("KIOSK");
+  const [app, setApp] = useState<"ALL" | "KIOSK" | "CUSTOMER">("ALL");
   const session = useSession(),
     token = session.accessToken;
   const [base, setBase] = useState(""),
-    [canManage, setCanManage] = useState(false);
+    [canManage, setCanManage] = useState(false),
+    [platformMode, setPlatformMode] = useState(false);
   const [page, setPage] = useState<ReleasePage>({
     data: [],
     nextCursor: null,
@@ -81,30 +83,39 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
     setError("");
     try {
       let path = "";
+      let usePlatformReleases = false;
       if (platform) {
         const access = await getCurrentPlatformAccess(token);
         const manage =
           access.isSuperadmin ||
           access.permissions.includes("APP_RELEASES_MANAGE");
-        if (
-          !manage &&
-          !access.isSuperadmin &&
-          !access.permissions.includes("APP_RELEASES_VIEW")
-        )
-          throw new Error(
-            "Platform app release viewing permission is required.",
-          );
+        usePlatformReleases =
+          manage ||
+          access.isSuperadmin ||
+          access.permissions.includes("APP_RELEASES_VIEW");
         if (revision !== loadRevision.current) return;
         setCanManage(manage);
-        path = "/api/v1/platform/app-releases";
+        path = usePlatformReleases
+          ? "/api/v1/platform/app-releases"
+          : "/api/v1/apps/downloads";
+        setPlatformMode(usePlatformReleases);
       } else {
         const access = await getCurrentMerchantStoreAccess(token);
         if (!access.store)
           throw new Error("Select an active Store with kiosk access.");
         path = `/api/v1/admin/stores/${access.store.id}/app-releases`;
+        setPlatformMode(false);
+        setCanManage(false);
       }
+      const appQuery = platform
+        ? usePlatformReleases
+          ? `&app=${app}`
+          : app === "ALL"
+            ? ""
+            : `&app=${app}`
+        : "";
       const result = await selfxApi<ReleasePage>(
-        `${path}?pageSize=12${platform && app === "CUSTOMER" ? "&app=CUSTOMER" : ""}${cursor ? `&cursor=${cursor}` : ""}`,
+        `${path}?pageSize=12${appQuery}${cursor ? `&cursor=${cursor}` : ""}`,
         { accessToken: token },
       );
       if (revision !== loadRevision.current) return;
@@ -114,6 +125,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
       if (revision !== loadRevision.current) return;
       setBase("");
       setCanManage(false);
+      setPlatformMode(false);
       setPage({ data: [], nextCursor: null, hasMore: false });
       setError(
         caught instanceof Error
@@ -212,13 +224,37 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
       setBusy(false);
     }
   }
+  async function copyDownloadLink(release: Release) {
+    if (!token || busy) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await selfxApi<{ url: string }>(
+        `${base}/${release.id}/download`,
+        { method: "POST", accessToken: token },
+      );
+      await navigator.clipboard.writeText(result.url);
+      setMessage("Secure download link copied. It is valid for 60 seconds.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not copy the download link.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <PageContainer>
       <PageHeader
         title={platform ? "Apps & Downloads" : "Download Kiosk APK"}
         description={
-          platform
-            ? "Manage kiosk and customer app releases separately. Only published customer releases appear in mobile update checks."
+          platformMode
+            ? "Manage SelfX app releases. Only published customer releases appear in mobile update checks."
+            : platform
+              ? "Download published SelfX app installers. Platform release management is restricted to authorized Platform roles."
             : "Install a published SelfX Kiosk App build that matches your Android device."
         }
         actions={
@@ -244,6 +280,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           }}
           disabled={loading || busy}
           options={[
+            { value: "ALL", label: "All apps" },
             { value: "KIOSK", label: "Kiosk app" },
             { value: "CUSTOMER", label: "Customer mobile app" },
           ]}
@@ -255,7 +292,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
         </p>
       )}
       {message && <p role="status">{message}</p>}
-      {platform && canManage && (
+      {platformMode && canManage && (
         <SectionCard
           title="Upload kiosk APK"
           description="Upload a signed standalone release APK, up to 200 MiB. Package, version, architecture and checksum are verified by SelfX."
@@ -295,9 +332,11 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
         <EmptyState
           title="No releases available"
           description={
-            platform
+            platformMode
               ? "Upload a validated APK draft to get started."
-              : "A SelfX administrator will publish kiosk APKs here when available."
+              : platform
+                ? "A SelfX administrator will publish app installers here when available."
+                : "A SelfX administrator will publish kiosk APKs here when available."
           }
         />
       ) : (
@@ -305,7 +344,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           {page.data.map((release) => (
             <SectionCard
               key={release.id}
-              title={`SelfX ${app === "CUSTOMER" ? "Mobile" : "Kiosk"} ${release.versionName}`}
+              title={`SelfX ${(release.app ?? app) === "CUSTOMER" ? "Mobile" : "Kiosk"} ${release.versionName}`}
               description={`${release.architecture} · Version code ${release.versionCode} · Android API ${release.minSdk}+`}
             >
               <div className="space-y-4">
@@ -356,6 +395,15 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
                   >
                     Download
                   </Button>
+                  {platform && !platformMode && (
+                    <Button
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => void copyDownloadLink(release)}
+                    >
+                      Copy 1-minute link
+                    </Button>
+                  )}
                   {canManage && release.status === "DRAFT" && (
                     <Button
                       disabled={busy}

@@ -245,9 +245,12 @@ package/versionCode/architecture rejects conflicting bytes. Serialize lifecycle
 changes with PostgreSQL advisory locks, optimistic revisions and a unique partial
 recommended-per-architecture index. Reject publication downgrades relative to
 currently published matching builds. Audit lifecycle mutations. Lists paginate by
-UUIDv7 id. Authenticated Store download endpoints recheck membership, status,
-kiosk permission and entitlement before issuing 60-second storage read URLs for
-published releases only; signed URLs already issued may remain usable until expiry.
+UUIDv7 id. The shared authenticated Apps & Downloads catalog exposes published
+installers to dashboard roles and issues 60-second storage read URLs for published
+files only. Platform APIs continue to enforce APP_RELEASES_VIEW/MANAGE for release
+history and lifecycle actions. Store-specific kiosk download endpoints recheck
+membership, status, kiosk permission and entitlement before issuing the same
+short-lived URLs; signed URLs already issued may remain usable until expiry.
 Platform release history includes uploader identity; Store views omit it and object
 keys. Native tools, Java and a pinned release signer must be configured on each API
 host; fail closed if unavailable. Distribution does not implement remote updates.

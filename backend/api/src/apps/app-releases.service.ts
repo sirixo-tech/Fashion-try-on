@@ -155,11 +155,14 @@ export class AppReleasesService {
     publishedOnly: boolean,
     cursor?: string,
     pageSize = 25,
-    app: ReleaseApp = "KIOSK",
+    app: ReleaseApp | "ALL" = "KIOSK",
   ) {
     const rows = await this.prisma.appRelease.findMany({
       where: {
-        packageName: releasePackage(app),
+        packageName:
+          app === "ALL"
+            ? { in: [releasePackage("KIOSK"), releasePackage("CUSTOMER")] }
+            : releasePackage(app),
         ...(publishedOnly ? { status: "PUBLISHED" as const } : {}),
         ...(cursor ? { id: { lt: cursor } } : {}),
       },
@@ -173,7 +176,40 @@ export class AppReleasesService {
       },
     });
     const hasMore = rows.length > pageSize;
-    const data = rows.slice(0, pageSize);
+    const data = rows.slice(0, pageSize).map((release) => ({
+      ...release,
+      app:
+        release.packageName === releasePackage("CUSTOMER")
+          ? ("CUSTOMER" as const)
+          : ("KIOSK" as const),
+    }));
+    return { data, hasMore, nextCursor: hasMore ? data.at(-1)!.id : null };
+  }
+  async listPublishedDownloads(
+    cursor?: string,
+    pageSize = 25,
+    app?: ReleaseApp,
+  ) {
+    const rows = await this.prisma.appRelease.findMany({
+      where: {
+        status: "PUBLISHED",
+        packageName: app
+          ? releasePackage(app)
+          : { in: [releasePackage("KIOSK"), releasePackage("CUSTOMER")] },
+        ...(cursor ? { id: { lt: cursor } } : {}),
+      },
+      orderBy: { id: "desc" },
+      take: pageSize + 1,
+      select: publicFields,
+    });
+    const hasMore = rows.length > pageSize;
+    const data = rows.slice(0, pageSize).map((release) => ({
+      ...release,
+      app:
+        release.packageName === releasePackage("CUSTOMER")
+          ? ("CUSTOMER" as const)
+          : ("KIOSK" as const),
+    }));
     return { data, hasMore, nextCursor: hasMore ? data.at(-1)!.id : null };
   }
   async change(
@@ -293,6 +329,32 @@ export class AppReleasesService {
         ...(publishedOnly
           ? { status: "PUBLISHED" as const, packageName: releasePackage(app) }
           : {}),
+      },
+    });
+    if (!release)
+      throw new ApiErrorException(
+        404,
+        "APP_RELEASE_NOT_FOUND",
+        "Release is unavailable.",
+      );
+    return {
+      url: this.storage.createReadUrl({
+        key: release.objectKey,
+        expiresInSeconds: 60,
+        responseContentType: "application/vnd.android.package-archive",
+        responseContentDisposition: `attachment; filename="${release.filename}"`,
+      }),
+      expiresInSeconds: 60,
+    };
+  }
+  async downloadPublished(id: string) {
+    const release = await this.prisma.appRelease.findFirst({
+      where: {
+        id,
+        status: "PUBLISHED",
+        packageName: {
+          in: [releasePackage("KIOSK"), releasePackage("CUSTOMER")],
+        },
       },
     });
     if (!release)

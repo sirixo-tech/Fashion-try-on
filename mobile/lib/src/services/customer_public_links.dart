@@ -6,6 +6,14 @@ class CustomerPublicLinks {
   static const support = 'https://selfx.in/contact';
   static const email = 'hello@selfx.in';
 
+  static bool secureUrl(String value) {
+    final uri = Uri.tryParse(value);
+    return uri != null &&
+        uri.scheme == 'https' &&
+        uri.host.isNotEmpty &&
+        uri.userInfo.isEmpty;
+  }
+
   static Future<Map<String, dynamic>> load(CustomerApi api) async {
     final defaults = <String, dynamic>{
       'termsUrl': terms,

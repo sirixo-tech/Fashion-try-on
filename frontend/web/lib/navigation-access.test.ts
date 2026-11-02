@@ -102,15 +102,15 @@ it("keeps Mobile Dashboard platform-usage-only without adding a sidebar item", (
     canSeeHref("/app/dashboard/mobile", { ...baseAccess, isSuperadmin: true }),
   ).toBe(true);
 });
-it("keeps Apps & Downloads platform-only and Account available to every signed-in user", () => {
+it("keeps Apps & Downloads and Account available to every signed-in user", () => {
   expect(canSeeHref("/app/account", baseAccess)).toBe(true);
   expect(
     canSeeHref("/app/apps-downloads", {
       ...baseAccess,
       hasActiveStore: true,
-      storePermissions: ["APP_RELEASES_MANAGE"],
+      storePermissions: [],
     }),
-  ).toBe(false);
+  ).toBe(true);
   expect(
     canSeeHref("/app/apps-downloads", {
       ...baseAccess,

@@ -170,12 +170,15 @@ older user journeys that displayed AI provider/model usage.
 
 ### APPS-1 / REGIONAL-1 — Release and account journeys (2026-10-21)
 
-Authorized Platform user opens Apps & Downloads, uploads a signed APK with release
-notes, reviews derived version/ABI/checksum, then confirms Publish. Set recommended
-selects the current download for that architecture. Retire stops new Store links
-but preserves release history. A replacement is a new version upload, rather than
-overwriting a previously published binary. Store operator opens Kiosks > Download
-Kiosk APK and chooses an appropriate published build for manual installation.
+Any authenticated dashboard role opens Apps & Downloads to see and download
+published SelfX app installers, or copy a short-lived secure download URL.
+Authorized Platform users can view release history; users with APP_RELEASES_MANAGE
+upload a signed APK with release notes, review derived version/ABI/checksum, then
+confirm Publish. Set recommended selects the current download for that
+architecture. Retire removes a release from new downloads but preserves history.
+A replacement is a new version upload, rather than overwriting a previously
+published binary. Store operators may also open Kiosks > Download Kiosk APK when
+their kiosk permissions and Store plan allow it.
 Every signed-in user can open Account & Regional Settings from the account menu,
 choose timezone and date/time formats, preview and Save. The same preferences load
 on the next session/device; editing them does not change Store or kiosk schedules.

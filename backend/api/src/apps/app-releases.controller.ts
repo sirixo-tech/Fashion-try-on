@@ -11,7 +11,9 @@ import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
 import { CursorPaginationQueryDto } from "../common/pagination.dto.js";
 import { AppReleasesService, MAX_APK_BYTES } from "./app-releases.service.js";
 export class ReleaseListQuery extends CursorPaginationQueryDto {
-  @IsOptional() @IsIn(["KIOSK", "CUSTOMER"]) app?: "KIOSK" | "CUSTOMER";
+  @IsOptional()
+  @IsIn(["ALL", "KIOSK", "CUSTOMER"])
+  app?: "ALL" | "KIOSK" | "CUSTOMER";
 }
 
 export class ReleaseActionDto {
@@ -50,9 +52,12 @@ export class AppReleasesController {
   @Get()
   async list(@Req() request: FastifyRequest, @Query() query: ReleaseListQuery) {
     await this.authorize(request);
-    return query.app === "CUSTOMER"
-      ? this.releases.list(false, query.cursor, query.pageSize, "CUSTOMER")
-      : this.releases.list(false, query.cursor, query.pageSize);
+    return this.releases.list(
+      false,
+      query.cursor,
+      query.pageSize,
+      query.app ?? "KIOSK",
+    );
   }
   @Post()
   async upload(@Req() request: FastifyRequest) {
@@ -174,6 +179,37 @@ export class AppReleasesController {
     return this.releases.download(id, false);
   }
 }
+
+@Controller("api/v1/apps/downloads")
+export class SharedAppDownloadsController {
+  constructor(
+    private readonly auth: AuthService,
+    private readonly releases: AppReleasesService,
+  ) {}
+
+  @Get()
+  async list(
+    @Req() request: FastifyRequest,
+    @Query() query: ReleaseListQuery,
+  ) {
+    await this.auth.requireAccessUser(request.headers.authorization);
+    return this.releases.listPublishedDownloads(
+      query.cursor,
+      query.pageSize,
+      query.app === "ALL" ? undefined : query.app,
+    );
+  }
+
+  @Post(":id/download")
+  async download(
+    @Req() request: FastifyRequest,
+    @Param("id", SelfxUuidParamPipe) id: string,
+  ) {
+    await this.auth.requireAccessUser(request.headers.authorization);
+    return this.releases.downloadPublished(id);
+  }
+}
+
 @Controller("api/v1/admin/stores/:storeId/app-releases")
 export class StoreAppDownloadsController {
   constructor(

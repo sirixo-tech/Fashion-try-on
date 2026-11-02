@@ -13,9 +13,11 @@ offers the existing demo model choices; its garment rail uses eligible Store
 products instead of demo garments. Store models use the same consented,
 temporary person-asset path as other demo models; demo garments remain blocked
 in Store sessions. Add an optional pre-upload crop step for selfie, full-body
-avatar and profile photos, with pan/zoom controls and a preview/action to accept
-the crop. Profile crops are square; selfie crops use a portrait frame, and
-full-body crops preserve the source aspect ratio. Upload the cropped image
+avatar and profile photos, with a preview/action to accept the crop. Use a
+visible crop frame that can be moved by dragging inside it and resized from its
+edge and corner handles. Show a thirds grid within the frame and dim the
+excluded area. Profile crops stay square and selfie crops keep the portrait
+ratio; full-body crops can be resized freely. Upload only the selected frame
 through the existing private-photo contracts and retain all existing consent,
 validation, ownership and retention behavior.
 
@@ -198,7 +200,7 @@ Platform Mobile Plans shows the shared INR credit price. The mobile Plans & cred
 
 Platform navigation has a separate Mobile Plans item beside Plans. Platform pricing viewers can see it and pricing managers can create or edit mobile plans. Active plans appear in the customer Plans & credits screen with price, billing period and credit amounts. Checkout is available after production PhonePe configuration is enabled. The personal free trial and Store QR sponsorship remain unchanged.
 
-Store administrators manage mobile Try-On QR codes from Integrations > Store QR. The page uses the active Store context; viewing requires `integrations.view`, while creating and revoking codes requires `integrations.manage`. Only the current QR is listed. The page displays a large reopenable QR and its copyable 8-character alphanumeric code. QR scanning and code entry start the same Store visit. Replacing a QR revokes both old credentials and opens the replacement in a dialog with Share and Download actions. Store overview remains focused on Store status and usage.
+Store administrators manage mobile Try-On QR codes from Integrations > Store QR. Store QR is hidden from platform-role navigation and requires an active Store context; platform support can access it while explicitly impersonating that Store. Viewing requires `integrations.view`, while creating and revoking codes requires `integrations.manage`. Only the current QR is listed. The page displays a large reopenable QR and its copyable 8-character alphanumeric code. QR scanning and code entry start the same Store visit. Replacing a QR revokes both old credentials and opens the replacement in a dialog with Share and Download actions. Store overview remains focused on Store status and usage.
 
 ### CUSTOMER-MOBILE-20 — Product Try-On, progress and garment saves (2026-10-29)
 
@@ -417,14 +419,17 @@ integrations and keep their existing labels.
 
 ### APPS-1 / REGIONAL-1 — Apps sidebar and account settings (2026-10-21)
 
-Platform Apps & Downloads is a top-level permission-filtered sidebar destination
-at /app/apps-downloads, separate from Platform Settings. Show release cards with
-version/code, architecture, file size, min SDK, notes, uploader (Platform only),
-upload date, checksum, state and recommended badge. Managers see upload draft,
-Publish, Set recommended and Retire; viewers see history and Download. Confirm
-lifecycle changes and surface upload, validation, stale-state and download errors.
-Keep drafts/retired releases out of the Store download page. Kiosks exposes a
-Download Kiosk APK action to /app/kiosks/downloads with paginated published builds.
+Apps & Downloads is a top-level sidebar destination for every authenticated
+dashboard role, separate from Platform Settings. Non-Platform roles see only
+published installer cards and can Download or copy a secure 60-second URL.
+Platform APP_RELEASES_VIEW users see release history; APP_RELEASES_MANAGE users
+also see upload, Publish, Set recommended and Retire. Show version/code,
+architecture, file size, min SDK, notes, upload date, checksum, state and
+recommended badge; uploader identity remains Platform-only. Confirm lifecycle
+changes and surface upload, validation, stale-state and download errors. Keep
+drafts/retired releases out of the shared download catalog. Kiosks retains its
+Store-specific Download Kiosk APK action at /app/kiosks/downloads with paginated
+published builds and its kiosk permission/plan checks.
 Account & Regional Settings is available through both shell account menus for all
 staff users at /app/account: searchable timezone suggestions, empty = device
 automatic, date/time format controls, live preview, Save, load failure Retry and

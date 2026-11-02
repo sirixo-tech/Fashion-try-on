@@ -46,12 +46,8 @@ class CustomerPhotoCropScreen extends StatefulWidget {
 
 class _CustomerPhotoCropScreenState extends State<CustomerPhotoCropScreen> {
   ui.Image? _image;
-  double _zoom = 1;
-  double _gestureZoom = 1;
-  Offset _offset = Offset.zero;
-  Offset _gestureOffset = Offset.zero;
-  Size _frameSize = Size.zero;
-  double _baseScale = 1;
+  Rect _normalizedCrop = Rect.zero;
+  _CropHandle? _activeHandle;
   bool _saving = false;
   String? _error;
 
@@ -86,73 +82,162 @@ class _CustomerPhotoCropScreenState extends State<CustomerPhotoCropScreen> {
     super.dispose();
   }
 
-  void _onScaleStart(ScaleStartDetails details) {
-    _gestureZoom = _zoom;
-    _gestureOffset = _offset;
+  Rect _initialCrop(ui.Image image) {
+    final imageRatio = image.width / image.height;
+    final outputRatio = widget.aspectRatio ?? imageRatio;
+    const margin = .06;
+    final width = outputRatio <= imageRatio
+        ? (1 - margin * 2) * outputRatio / imageRatio
+        : 1 - margin * 2;
+    final height = outputRatio <= imageRatio
+        ? 1 - margin * 2
+        : (1 - margin * 2) * imageRatio / outputRatio;
+    return Rect.fromLTWH((1 - width) / 2, (1 - height) / 2, width, height);
   }
 
-  void _onScaleUpdate(ScaleUpdateDetails details) {
-    final nextZoom = (_gestureZoom * details.scale).clamp(1.0, 5.0);
-    final image = _image;
-    if (image == null || _frameSize.isEmpty) return;
-    final scale = _baseScale * nextZoom;
-    final maxX = math.max(0.0, (image.width * scale - _frameSize.width) / 2);
-    final maxY = math.max(0.0, (image.height * scale - _frameSize.height) / 2);
-    final nextOffset = _gestureOffset + details.focalPointDelta;
+  Rect _cropInCanvas(Rect crop, Size size) => Rect.fromLTRB(
+    crop.left * size.width,
+    crop.top * size.height,
+    crop.right * size.width,
+    crop.bottom * size.height,
+  );
+
+  Rect _cropInImage(Rect crop, Size size, ui.Image image) => Rect.fromLTRB(
+    crop.left / size.width * image.width,
+    crop.top / size.height * image.height,
+    crop.right / size.width * image.width,
+    crop.bottom / size.height * image.height,
+  );
+
+  void _beginCropDrag(DragStartDetails details, Rect crop) {
+    final point = details.localPosition;
+    const hitRadius = 30.0;
+    _CropHandle? hit;
+    var nearest = hitRadius;
+    for (final handle in _CropHandle.values) {
+      if (handle == _CropHandle.move) continue;
+      final distance = (point - handle.position(crop)).distance;
+      if (distance < nearest) {
+        nearest = distance;
+        hit = handle;
+      }
+    }
+    if (hit == null && crop.contains(point)) hit = _CropHandle.move;
+    _activeHandle = hit;
+  }
+
+  void _updateCropDrag(DragUpdateDetails details, Rect crop, Size size) {
+    final handle = _activeHandle;
+    if (handle == null || size.isEmpty) return;
+    Rect next;
+    if (handle == _CropHandle.move) {
+      final left = (crop.left + details.delta.dx)
+          .clamp(0.0, size.width - crop.width)
+          .toDouble();
+      final top = (crop.top + details.delta.dy)
+          .clamp(0.0, size.height - crop.height)
+          .toDouble();
+      next = Rect.fromLTWH(left, top, crop.width, crop.height);
+    } else {
+      next = _resizeCrop(crop, details.delta, size, handle);
+    }
     setState(() {
-      _zoom = nextZoom;
-      _offset = Offset(
-        nextOffset.dx.clamp(-maxX, maxX),
-        nextOffset.dy.clamp(-maxY, maxY),
+      _normalizedCrop = Rect.fromLTRB(
+        next.left / size.width,
+        next.top / size.height,
+        next.right / size.width,
+        next.bottom / size.height,
       );
     });
   }
 
-  void _setZoom(double value) {
-    final image = _image;
-    if (image == null || _frameSize.isEmpty) return;
-    final nextZoom = value.clamp(1.0, 5.0);
-    final scale = _baseScale * nextZoom;
-    final maxX = math.max(0.0, (image.width * scale - _frameSize.width) / 2);
-    final maxY = math.max(0.0, (image.height * scale - _frameSize.height) / 2);
-    setState(() {
-      _zoom = nextZoom;
-      _offset = Offset(
-        _offset.dx.clamp(-maxX, maxX),
-        _offset.dy.clamp(-maxY, maxY),
-      );
-    });
+  Rect _resizeCrop(Rect crop, Offset delta, Size size, _CropHandle handle) {
+    final aspect = widget.aspectRatio;
+    if (aspect != null) {
+      final dx = handle.movesLeft
+          ? -delta.dx
+          : handle.movesRight
+          ? delta.dx
+          : 0.0;
+      final dy = handle.movesTop
+          ? -delta.dy * aspect
+          : handle.movesBottom
+          ? delta.dy * aspect
+          : 0.0;
+      final changeWidth = dx == 0
+          ? dy
+          : dy == 0
+          ? dx
+          : dx.abs() >= dy.abs()
+          ? dx
+          : dy;
+      final maxWidth = math.min(size.width, size.height * aspect);
+      final minWidth = math.min(72.0, maxWidth);
+      final width = (crop.width + changeWidth)
+          .clamp(minWidth, maxWidth)
+          .toDouble();
+      final height = width / aspect;
+      final left = handle.movesLeft
+          ? crop.right - width
+          : handle.movesRight
+          ? crop.left
+          : crop.center.dx - width / 2;
+      final top = handle.movesTop
+          ? crop.bottom - height
+          : handle.movesBottom
+          ? crop.top
+          : crop.center.dy - height / 2;
+      final clampedLeft = left.clamp(0.0, size.width - width).toDouble();
+      final clampedTop = top.clamp(0.0, size.height - height).toDouble();
+      return Rect.fromLTWH(clampedLeft, clampedTop, width, height);
+    }
+
+    var left = handle.movesLeft ? crop.left + delta.dx : crop.left;
+    var right = handle.movesRight ? crop.right + delta.dx : crop.right;
+    var top = handle.movesTop ? crop.top + delta.dy : crop.top;
+    var bottom = handle.movesBottom ? crop.bottom + delta.dy : crop.bottom;
+    const minSize = 72.0;
+    if (right - left < minSize) {
+      if (handle.movesLeft) {
+        left = right - minSize;
+      } else {
+        right = left + minSize;
+      }
+    }
+    if (bottom - top < minSize) {
+      if (handle.movesTop) {
+        top = bottom - minSize;
+      } else {
+        bottom = top + minSize;
+      }
+    }
+    final width = math.min(right - left, size.width);
+    final height = math.min(bottom - top, size.height);
+    left = left.clamp(0.0, size.width - width).toDouble();
+    top = top.clamp(0.0, size.height - height).toDouble();
+    return Rect.fromLTWH(left, top, width, height);
   }
 
-  void _reset() => setState(() {
-    _zoom = 1;
-    _offset = Offset.zero;
-  });
+  void _reset() => setState(() => _normalizedCrop = Rect.zero);
 
   Future<void> _useCrop() async {
     final image = _image;
-    if (image == null || _frameSize.isEmpty || _saving) return;
+    if (image == null || _saving) return;
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      final scale = _baseScale * _zoom;
-      final renderedLeft =
-          (_frameSize.width - image.width * scale) / 2 + _offset.dx;
-      final renderedTop =
-          (_frameSize.height - image.height * scale) / 2 + _offset.dy;
-      final left = (-renderedLeft / scale).clamp(0.0, image.width.toDouble());
-      final top = (-renderedTop / scale).clamp(0.0, image.height.toDouble());
-      final right = ((_frameSize.width - renderedLeft) / scale).clamp(
-        left,
-        image.width.toDouble(),
+      final canvasSize = _canvasSize;
+      if (canvasSize.isEmpty) throw StateError('Crop area is not ready');
+      final normalized = _normalizedCrop.isEmpty
+          ? _initialCrop(image)
+          : _normalizedCrop;
+      final source = _cropInImage(
+        _cropInCanvas(normalized, canvasSize),
+        canvasSize,
+        image,
       );
-      final bottom = ((_frameSize.height - renderedTop) / scale).clamp(
-        top,
-        image.height.toDouble(),
-      );
-      final source = ui.Rect.fromLTRB(left, top, right, bottom);
       final reduce = math.min(
         1.0,
         widget.maxOutputDimension / math.max(source.width, source.height),
@@ -190,6 +275,8 @@ class _CustomerPhotoCropScreenState extends State<CustomerPhotoCropScreen> {
     }
   }
 
+  Size _canvasSize = Size.zero;
+
   @override
   Widget build(BuildContext context) {
     final image = _image;
@@ -209,7 +296,7 @@ class _CustomerPhotoCropScreenState extends State<CustomerPhotoCropScreen> {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: CustomerText(
-                'Pinch to zoom and drag to adjust the photo.',
+                'Position the crop frame over the part of the photo to keep.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: CustomerColors.muted),
               ),
@@ -222,23 +309,18 @@ class _CustomerPhotoCropScreenState extends State<CustomerPhotoCropScreen> {
                           : CustomerText(_error!, textAlign: TextAlign.center)
                     : LayoutBuilder(
                         builder: (context, constraints) {
-                          final ratio =
-                              widget.aspectRatio ?? image.width / image.height;
+                          final ratio = image.width / image.height;
                           final width = math.min(
                             constraints.maxWidth,
                             constraints.maxHeight * ratio,
                           );
                           final height = width / ratio;
-                          _frameSize = Size(width, height);
-                          _baseScale = math.max(
-                            width / image.width,
-                            height / image.height,
-                          );
-                          final scale = _baseScale * _zoom;
-                          final left =
-                              (width - image.width * scale) / 2 + _offset.dx;
-                          final top =
-                              (height - image.height * scale) / 2 + _offset.dy;
+                          final size = Size(width, height);
+                          _canvasSize = size;
+                          final normalizedCrop = _normalizedCrop.isEmpty
+                              ? _initialCrop(image)
+                              : _normalizedCrop;
+                          final crop = _cropInCanvas(normalizedCrop, size);
                           return ClipRRect(
                             borderRadius: BorderRadius.circular(18),
                             child: SizedBox(
@@ -246,26 +328,26 @@ class _CustomerPhotoCropScreenState extends State<CustomerPhotoCropScreen> {
                               height: height,
                               child: GestureDetector(
                                 behavior: HitTestBehavior.opaque,
-                                onScaleStart: _onScaleStart,
-                                onScaleUpdate: _onScaleUpdate,
+                                onPanStart: _saving
+                                    ? null
+                                    : (details) =>
+                                          _beginCropDrag(details, crop),
+                                onPanUpdate: _saving
+                                    ? null
+                                    : (details) =>
+                                          _updateCropDrag(details, crop, size),
+                                onPanEnd: (_) => _activeHandle = null,
                                 child: Stack(
                                   fit: StackFit.expand,
                                   children: [
-                                    const ColoredBox(color: Colors.black),
-                                    Positioned(
-                                      left: left,
-                                      top: top,
-                                      width: image.width * scale,
-                                      height: image.height * scale,
-                                      child: RawImage(
-                                        image: image,
-                                        fit: BoxFit.fill,
-                                        filterQuality: FilterQuality.medium,
-                                      ),
+                                    RawImage(
+                                      image: image,
+                                      fit: BoxFit.fill,
+                                      filterQuality: FilterQuality.medium,
                                     ),
                                     IgnorePointer(
                                       child: CustomPaint(
-                                        painter: _CropGridPainter(),
+                                        painter: _CropGridPainter(crop),
                                       ),
                                     ),
                                   ],
@@ -279,36 +361,16 @@ class _CustomerPhotoCropScreenState extends State<CustomerPhotoCropScreen> {
             ),
             if (image != null)
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-                child: Row(
-                  children: [
-                    const Icon(Icons.zoom_out_rounded, size: 20),
-                    Expanded(
-                      child: Slider(
-                        key: const ValueKey('photo-crop-zoom'),
-                        min: 1,
-                        max: 5,
-                        divisions: 40,
-                        label: '${_zoom.toStringAsFixed(1)}×',
-                        value: _zoom,
-                        onChanged: _saving ? null : _setZoom,
-                      ),
-                    ),
-                    const Icon(Icons.zoom_in_rounded, size: 20),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 42,
-                      child: Text(
-                        '${_zoom.toStringAsFixed(1)}×',
-                        textAlign: TextAlign.end,
-                        style: const TextStyle(
-                          color: CustomerColors.muted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: CustomerText(
+                  widget.aspectRatio == null
+                      ? 'Drag inside to move · use any handle to resize'
+                      : 'Crop shape stays fixed · drag inside to move and handles to resize',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: CustomerColors.muted,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             if (_error != null && image != null)
@@ -340,24 +402,77 @@ class _CustomerPhotoCropScreenState extends State<CustomerPhotoCropScreen> {
 }
 
 class _CropGridPainter extends CustomPainter {
+  final Rect crop;
+
+  const _CropGridPainter(this.crop);
+
   @override
   void paint(Canvas canvas, Size size) {
-    final line = Paint()
-      ..color = Colors.white.withValues(alpha: .72)
-      ..strokeWidth = 1;
+    final shade = Paint()..color = Colors.black.withValues(alpha: .46);
+    final outside = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addRect(Offset.zero & size)
+      ..addRect(crop);
+    canvas.drawPath(outside, shade);
+
+    final line = Paint()..color = Colors.white.withValues(alpha: .78);
     for (var part = 1; part < 3; part++) {
-      final x = size.width * part / 3;
-      final y = size.height * part / 3;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), line);
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), line);
+      final x = crop.left + crop.width * part / 3;
+      final y = crop.top + crop.height * part / 3;
+      canvas.drawLine(Offset(x, crop.top), Offset(x, crop.bottom), line);
+      canvas.drawLine(Offset(crop.left, y), Offset(crop.right, y), line);
     }
     final border = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+    canvas.drawRect(crop, border);
+
+    final handleFill = Paint()..color = Colors.white;
+    final handleOutline = Paint()
+      ..color = CustomerColors.orange
+      ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
-    canvas.drawRect(Offset.zero & size, border);
+    for (final handle in _CropHandle.values) {
+      if (handle == _CropHandle.move) continue;
+      final center = handle.position(crop);
+      canvas.drawCircle(center, 6, handleFill);
+      canvas.drawCircle(center, 6, handleOutline);
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _CropGridPainter oldDelegate) =>
+      oldDelegate.crop != crop;
+}
+
+enum _CropHandle {
+  move,
+  topLeft,
+  top,
+  topRight,
+  right,
+  bottomRight,
+  bottom,
+  bottomLeft,
+  left;
+
+  bool get movesLeft => this == topLeft || this == left || this == bottomLeft;
+  bool get movesRight =>
+      this == topRight || this == right || this == bottomRight;
+  bool get movesTop => this == topLeft || this == top || this == topRight;
+  bool get movesBottom =>
+      this == bottomLeft || this == bottom || this == bottomRight;
+
+  Offset position(Rect rect) => switch (this) {
+    topLeft => rect.topLeft,
+    top => Offset(rect.center.dx, rect.top),
+    topRight => rect.topRight,
+    right => Offset(rect.right, rect.center.dy),
+    bottomRight => rect.bottomRight,
+    bottom => Offset(rect.center.dx, rect.bottom),
+    bottomLeft => rect.bottomLeft,
+    left => Offset(rect.left, rect.center.dy),
+    move => rect.center,
+  };
 }

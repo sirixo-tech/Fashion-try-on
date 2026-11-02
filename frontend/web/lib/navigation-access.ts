@@ -46,7 +46,6 @@ export function navigationAccess({
 
 const platformPermissionsByHref: Record<string, string[]> = {
   "/app/dashboard/mobile": ["USAGE_VIEW"],
-  "/app/apps-downloads": ["APP_RELEASES_VIEW", "APP_RELEASES_MANAGE"],
   "/app/stores": ["STORES_VIEW"],
   "/app/locations": ["STORES_VIEW"],
   "/app/analytics": ["USAGE_VIEW"],
@@ -124,6 +123,7 @@ const alwaysVisibleHrefs = new Set([
   "/app/dashboard",
   "/app/activity",
   "/app/account",
+  "/app/apps-downloads",
 ]);
 
 // Nested detail pages inherit their workspace's navigation rule. Resource-level
@@ -185,6 +185,7 @@ export function isMerchantOnlyRoute(href: string): boolean {
     "/app/analytics",
     "/app/products",
     "/app/kiosks",
+    "/app/integrations/store-qr",
     "/app/payments",
   ].some(
     (merchantRoute) =>
