@@ -33,6 +33,8 @@ class CustomerQuickTryOn extends StatefulWidget {
 
 class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
   bool working = false;
+  bool _resultDismissed = false;
+  String? _dismissedResultRunId;
   String? error;
   CustomerExperience get exp => widget.experience;
 
@@ -233,6 +235,11 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
       final result = exp.run?['result'];
       final completed = exp.run?['status'] == 'COMPLETED';
       final failed = exp.run?['status'] == 'FAILED';
+      final runId = exp.run?['id'] as String?;
+      final showResult =
+          completed &&
+          result is Json &&
+          !(_resultDismissed && _dismissedResultRunId == runId);
       final blocked =
           working || exp.busy || exp.generating || exp.hasUncertainRequest;
       return LayoutBuilder(
@@ -241,13 +248,13 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
           final models = exp.demoModels;
           final products = exp.storeMode ? exp.products : exp.demoProducts;
           return Padding(
-            padding: completed
+            padding: showResult
                 ? EdgeInsets.zero
                 : EdgeInsets.fromLTRB(16, tight ? 6 : 10, 16, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!completed) ...[
+                if (!showResult) ...[
                   CustomerText(
                     'Try-On',
                     style: Theme.of(context).textTheme.titleLarge,
@@ -257,7 +264,7 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                 Expanded(
                   child: exp.generating
                       ? CustomerGeneratingLook(experience: exp)
-                      : completed && result is Json
+                      : showResult
                       ? Stack(
                           children: [
                             Positioned.fill(
@@ -291,15 +298,38 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                                 ),
                               ),
                             ),
-                            const Positioned(
-                              top: 14,
-                              left: 16,
-                              child: CustomerText(
-                                'Your look',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.w700,
+                            Positioned(
+                              top: 4,
+                              left: 4,
+                              right: 4,
+                              child: SizedBox(
+                                height: 48,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    const CustomerText(
+                                      'Your look',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 19,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      left: 0,
+                                      child: IconButton(
+                                        tooltip: tr(context, 'Back'),
+                                        onPressed: () => setState(() {
+                                          _resultDismissed = true;
+                                          _dismissedResultRunId = runId;
+                                        }),
+                                        color: Colors.white,
+                                        icon: const Icon(
+                                          Icons.arrow_back_rounded,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -511,7 +541,7 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                     style: const TextStyle(color: Color(0xFF9A3025)),
                   ),
                 ],
-                if (!completed) ...[
+                if (!showResult) ...[
                   SizedBox(height: tight ? 8 : 14),
                   FilledButton.icon(
                     onPressed:

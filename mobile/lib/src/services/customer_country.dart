@@ -33,10 +33,15 @@ class CustomerCountrySelection extends ChangeNotifier {
   CustomerCountrySelection({
     CustomerCountryStore? store,
     List<Locale>? deviceLocales,
-  }) : store = store ?? LocalCustomerCountryStore() {
-    for (final locale in deviceLocales ?? PlatformDispatcher.instance.locales) {
-      selected = countries.findByCode(locale.countryCode);
-      if (selected != null) break;
+  }) : store = store ?? LocalCustomerCountryStore(),
+       // India is the product default; a saved manual choice still overrides it.
+       selected = countries.findByCode('IN') {
+    if (selected == null) {
+      for (final locale
+          in deviceLocales ?? PlatformDispatcher.instance.locales) {
+        selected = countries.findByCode(locale.countryCode);
+        if (selected != null) break;
+      }
     }
   }
   Future<void> initialize() => _initializing ??= _load();

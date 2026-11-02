@@ -13,23 +13,31 @@ List<Json> suggestedResultGarments(CustomerExperience experience) {
       ? experience.product
       : experience.demoProduct;
   final currentId = current?['id'];
-  final category =
-      current?['category'] ??
-      (experience.storeMode
-          ? null
-          : experience.auth.profile?.interests
-                .where((value) => value == 'WOMEN' || value == 'MEN')
-                .firstOrNull);
+  final interestCategory = experience.auth.profile?.interests
+      .where((value) => value == 'WOMEN' || value == 'MEN')
+      .firstOrNull;
+  final currentCategory = current?['category'];
+  final preferredCategory =
+      interestCategory ??
+      (currentCategory == 'WOMEN' || currentCategory == 'MEN'
+          ? currentCategory as String
+          : null);
   final type = current?['type'] ?? current?['garmentCategory'];
   final available = catalog.indexed
       .where((entry) => entry.$2['id'] != currentId)
       .toList();
-  final categoryMatches = available
-      .where((entry) => category == null || entry.$2['category'] == category)
-      .toList();
-  final indexed = categoryMatches.isNotEmpty ? categoryMatches : available;
-  if (indexed.isEmpty) return const [];
+  if (available.isEmpty) return const [];
   final currentIndex = catalog.indexWhere((item) => item['id'] == currentId);
+  int categoryPriority(Json item) {
+    if (preferredCategory == null) return 0;
+    final candidate = item['category'];
+    if (candidate == preferredCategory) return 0;
+    if (candidate == 'UNISEX' || candidate == 'ALL' || candidate == null) {
+      return 1;
+    }
+    return 2;
+  }
+
   int score(Json item) {
     final candidateType = item['type'] ?? item['garmentCategory'];
     if (type == 'TOP' && candidateType == 'BOTTOM' ||
@@ -40,14 +48,16 @@ List<Json> suggestedResultGarments(CustomerExperience experience) {
     return 2;
   }
 
-  indexed.sort((a, b) {
+  available.sort((a, b) {
+    final byCategory = categoryPriority(a.$2).compareTo(categoryPriority(b.$2));
+    if (byCategory != 0) return byCategory;
     final byType = score(a.$2).compareTo(score(b.$2));
     if (byType != 0) return byType;
     final aDistance = (a.$1 - currentIndex + catalog.length) % catalog.length;
     final bDistance = (b.$1 - currentIndex + catalog.length) % catalog.length;
     return aDistance.compareTo(bDistance);
   });
-  return indexed.map((entry) => entry.$2).toList();
+  return available.map((entry) => entry.$2).toList();
 }
 
 class CustomerResultSuggestions extends StatelessWidget {

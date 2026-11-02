@@ -108,6 +108,22 @@ class _CustomerPhotoCropScreenState extends State<CustomerPhotoCropScreen> {
     });
   }
 
+  void _setZoom(double value) {
+    final image = _image;
+    if (image == null || _frameSize.isEmpty) return;
+    final nextZoom = value.clamp(1.0, 5.0);
+    final scale = _baseScale * nextZoom;
+    final maxX = math.max(0.0, (image.width * scale - _frameSize.width) / 2);
+    final maxY = math.max(0.0, (image.height * scale - _frameSize.height) / 2);
+    setState(() {
+      _zoom = nextZoom;
+      _offset = Offset(
+        _offset.dx.clamp(-maxX, maxX),
+        _offset.dy.clamp(-maxY, maxY),
+      );
+    });
+  }
+
   void _reset() => setState(() {
     _zoom = 1;
     _offset = Offset.zero;
@@ -261,6 +277,40 @@ class _CustomerPhotoCropScreenState extends State<CustomerPhotoCropScreen> {
                       ),
               ),
             ),
+            if (image != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.zoom_out_rounded, size: 20),
+                    Expanded(
+                      child: Slider(
+                        key: const ValueKey('photo-crop-zoom'),
+                        min: 1,
+                        max: 5,
+                        divisions: 40,
+                        label: '${_zoom.toStringAsFixed(1)}×',
+                        value: _zoom,
+                        onChanged: _saving ? null : _setZoom,
+                      ),
+                    ),
+                    const Icon(Icons.zoom_in_rounded, size: 20),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 42,
+                      child: Text(
+                        '${_zoom.toStringAsFixed(1)}×',
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(
+                          color: CustomerColors.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (_error != null && image != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),

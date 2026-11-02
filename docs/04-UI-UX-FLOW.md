@@ -210,6 +210,8 @@ Home outfit cards show only the garment image and product name, without a SelfX 
 
 Keep the entire approved welcome logo readable with a soft light wash that fades into the photo. A completed mobile Try-On uses the generated image as a full-height backdrop with compact suggested garments, Download, View in Saved and New Try-On actions overlaid near the bottom. Avoid a separate white result card and avoid a redundant Save Look action because completed looks are saved automatically.
 
+The completed result header places a Back control at the left and centers “Your look.” Back returns to the Try-On inputs without clearing the completed result/session; a newly completed run becomes the displayed result.
+
 ### CUSTOMER-MOBILE-19 — Result suggestions and Try-On progress (2026-10-28)
 
 Show all relevant garments from the current personal demo or Store-visit catalog in a horizontally swipeable carousel beneath a completed Try-On result. Exclude the garment just used, prefer the selected category and complementary garment types where metadata allows. Tapping a suggestion starts a new consented Try-On immediately with that garment and the current demo model selected; saved-avatar defaults continue through the existing session flow. Do not route the customer back through model selection. Replace the Try-On tab's blank spinner state with a lightweight animation of the selected person and garment photos, real queued/processing copy, and a reduced-motion alternative; do not show a fabricated completion percentage.
