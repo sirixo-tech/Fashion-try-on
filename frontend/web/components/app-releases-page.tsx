@@ -139,6 +139,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [uploadJobs, setUploadJobs] = useState<UploadJob[]>([]);
+  const [uploadStatusUnavailable, setUploadStatusUnavailable] = useState(false);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [notes, setNotes] = useState("");
@@ -198,14 +199,21 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
         setBase(path);
         setPage(result);
         if (platform && usePlatformReleases && canManagePlatformReleases) {
-          const jobs = await selfxApi<{ data: UploadJob[] }>(
-            `${path}/uploads`,
-            { accessToken: token },
-          );
-          if (revision !== loadRevision.current) return;
-          setUploadJobs(jobs.data);
+          try {
+            const jobs = await selfxApi<{ data: UploadJob[] }>(
+              `${path}/uploads`,
+              { accessToken: token },
+            );
+            if (revision !== loadRevision.current) return;
+            setUploadJobs(jobs.data);
+            setUploadStatusUnavailable(false);
+          } catch {
+            if (revision !== loadRevision.current) return;
+            setUploadStatusUnavailable(true);
+          }
         } else {
           setUploadJobs([]);
+          setUploadStatusUnavailable(false);
         }
       } catch (caught) {
         if (revision !== loadRevision.current) return;
@@ -215,6 +223,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           setPlatformMode(false);
           setPage({ data: [], nextCursor: null, hasMore: false });
           setUploadJobs([]);
+          setUploadStatusUnavailable(false);
           setError(
             caught instanceof Error
               ? caught.message
@@ -236,17 +245,14 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
   }, [load]);
 
   useEffect(() => {
-    if (
-      !platformMode ||
-      !canManage ||
-      !uploadJobs.some((job) =>
-        ["AWAITING_UPLOAD", "QUEUED", "PROCESSING"].includes(job.status),
-      )
-    )
-      return;
+    if (!platformMode || !canManage) return;
+    const hasPendingUpload = uploadJobs.some((job) =>
+      ["AWAITING_UPLOAD", "QUEUED", "PROCESSING"].includes(job.status),
+    );
+    if (!hasPendingUpload && !uploadStatusUnavailable) return;
     const timer = window.setInterval(() => void load(true), 2500);
     return () => window.clearInterval(timer);
-  }, [platformMode, canManage, uploadJobs, load]);
+  }, [platformMode, canManage, uploadJobs, uploadStatusUnavailable, load]);
 
   const customApps = page.apps ?? [];
   const visibleUploadJobs = uploadJobs.filter(
@@ -431,6 +437,12 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
         </p>
       )}
       {message && <p role="status">{message}</p>}
+      {uploadStatusUnavailable && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Upload processing status is temporarily unavailable. Refresh to check
+          again.
+        </p>
+      )}
       {visibleUploadJobs.length > 0 && (
         <div className="space-y-2" aria-live="polite">
           {visibleUploadJobs.map((job) => (
