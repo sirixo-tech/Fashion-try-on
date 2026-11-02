@@ -186,6 +186,17 @@ export class ApkValidator {
           "APK_VALIDATOR_UNAVAILABLE",
           "APK validation tools are unavailable on this API instance.",
         );
+      if (
+        error &&
+        typeof error === "object" &&
+        (("killed" in error && error.killed === true) ||
+          ("code" in error && error.code === "ETIMEDOUT"))
+      )
+        throw new ApiErrorException(
+          503,
+          "APK_VALIDATOR_TIMEOUT",
+          "APK validation took too long. SelfX will retry it automatically.",
+        );
       throw new ApiErrorException(
         400,
         "APK_VALIDATION_FAILED",

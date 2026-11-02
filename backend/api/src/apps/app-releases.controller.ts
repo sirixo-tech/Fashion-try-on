@@ -1,5 +1,14 @@
 import { Body, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
-import { IsIn, IsInt, Min, IsOptional } from "class-validator";
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from "class-validator";
 import type { FastifyRequest } from "fastify";
 import { AuthService } from "../auth/auth.service.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
@@ -9,7 +18,7 @@ import { StoreImpersonationService } from "../stores/store-impersonation.service
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
 import { CursorPaginationQueryDto } from "../common/pagination.dto.js";
-import { AppReleasesService, MAX_APK_BYTES } from "./app-releases.service.js";
+import { AppReleasesService } from "./app-releases.service.js";
 export class ReleaseListQuery extends CursorPaginationQueryDto {
   @IsOptional()
   @IsIn(["ALL", "KIOSK", "CUSTOMER", "CUSTOM"])
@@ -20,6 +29,17 @@ export class ReleaseActionDto {
   @IsIn(["publish", "recommend", "retire"]) action!:
     "publish" | "recommend" | "retire";
   @IsInt() @Min(0) revision!: number;
+}
+
+export class BeginAppReleaseUploadDto {
+  @IsIn(["KIOSK", "CUSTOMER", "CUSTOM"])
+  app!: "KIOSK" | "CUSTOMER" | "CUSTOM";
+  @IsOptional() @IsUUID() companionAppId?: string;
+  @IsOptional() @IsString() @MaxLength(120) appName?: string;
+  @IsOptional() @IsString() @MaxLength(500) appDescription?: string;
+  @IsString() @MaxLength(255) filename!: string;
+  @IsInt() @Min(4) @Max(209715200) sizeBytes!: number;
+  @IsString() @MaxLength(4000) releaseNotes!: string;
 }
 @Controller("api/v1/platform/app-releases")
 export class AppReleasesController {
@@ -49,6 +69,38 @@ export class AppReleasesController {
       );
     return user;
   }
+  @Get("uploads")
+  async uploads(@Req() request: FastifyRequest) {
+    const user = await this.authorize(request, true);
+    return this.releases.listUploads(user.id);
+  }
+  @Post("uploads")
+  async beginUpload(
+    @Req() request: FastifyRequest,
+    @Body() input: BeginAppReleaseUploadDto,
+  ) {
+    const user = await this.authorize(request, true);
+    return this.releases.beginUpload(user.id, input);
+  }
+  @Post("uploads/:id/complete")
+  async completeUpload(
+    @Req() request: FastifyRequest,
+    @Param("id", SelfxUuidParamPipe) id: string,
+  ) {
+    const user = await this.authorize(request, true);
+    return this.releases.completeUpload(user.id, id);
+  }
+  // Keep the legacy endpoint as a clear protocol error for older clients. Large
+  // APK bytes must go directly to the signed private-storage URL.
+  @Post()
+  async upload(@Req() request: FastifyRequest): Promise<never> {
+    await this.authorize(request, true);
+    throw new ApiErrorException(
+      410,
+      "APK_UPLOAD_PROTOCOL_UPDATED",
+      "Request a secure upload URL, upload the APK directly to private storage, then complete the upload.",
+    );
+  }
   @Get()
   async list(@Req() request: FastifyRequest, @Query() query: ReleaseListQuery) {
     await this.authorize(request);
@@ -58,150 +110,6 @@ export class AppReleasesController {
       query.pageSize,
       query.app ?? "KIOSK",
     );
-  }
-  @Post()
-  async upload(@Req() request: FastifyRequest) {
-    const user = await this.authorize(request, true);
-    this.releases.beginUpload(user.id);
-    try {
-      if (!request.isMultipart())
-        throw new ApiErrorException(
-          400,
-          "APK_MULTIPART_REQUIRED",
-          "Upload an APK using multipart/form-data.",
-        );
-      let file: Buffer | undefined;
-      let releaseNotes = "";
-      let notesSeen = false;
-      let app: "KIOSK" | "CUSTOMER" | "CUSTOM" = "KIOSK";
-      let appSeen = false;
-      const customFields: Record<string, string> = {};
-      for await (const part of request.parts({
-        limits: {
-          files: 1,
-          fileSize: MAX_APK_BYTES,
-          fields: 5,
-          fieldSize: 16000,
-          parts: 6,
-        },
-      })) {
-        if (part.type === "file") {
-          if (
-            part.fieldname !== "apk" ||
-            file ||
-            !part.filename.toLowerCase().endsWith(".apk") ||
-            ![
-              "application/vnd.android.package-archive",
-              "application/octet-stream",
-              "application/zip",
-            ].includes(part.mimetype)
-          )
-            throw new ApiErrorException(
-              400,
-              "APK_INVALID_FILE",
-              "Choose one Android APK file.",
-            );
-          file = await part.toBuffer();
-          if (part.file.truncated)
-            throw new ApiErrorException(
-              413,
-              "APK_TOO_LARGE",
-              "The APK exceeds 200 MiB.",
-            );
-        } else {
-          if (
-            part.fieldname === "app" &&
-            !appSeen &&
-            ["KIOSK", "CUSTOMER", "CUSTOM"].includes(String(part.value)) &&
-            !part.valueTruncated
-          ) {
-            app = part.value as "KIOSK" | "CUSTOMER" | "CUSTOM";
-            appSeen = true;
-            continue;
-          }
-          if (
-            ["companionAppId", "appName", "description"].includes(
-              part.fieldname,
-            ) &&
-            customFields[part.fieldname] === undefined &&
-            typeof part.value === "string" &&
-            !part.valueTruncated
-          ) {
-            const maxLength = part.fieldname === "description" ? 500 : 120;
-            if (part.value.length > maxLength)
-              throw new ApiErrorException(
-                400,
-                "COMPANION_APP_DETAILS_INVALID",
-                "App details exceed the allowed length.",
-              );
-            customFields[part.fieldname] = part.value;
-            continue;
-          }
-          if (
-            part.fieldname !== "releaseNotes" ||
-            notesSeen ||
-            typeof part.value !== "string" ||
-            part.value.length > 4000 ||
-            part.valueTruncated
-          )
-            throw new ApiErrorException(
-              400,
-              "APK_INVALID_NOTES",
-              "Release notes must be at most 4,000 characters.",
-            );
-          releaseNotes = part.value;
-          notesSeen = true;
-        }
-      }
-      if (!file || file.length < 4)
-        throw new ApiErrorException(
-          400,
-          "APK_FILE_REQUIRED",
-          "Choose an APK file.",
-        );
-      if (app === "CUSTOM") {
-        const existingId = customFields.companionAppId?.trim();
-        const name = customFields.appName?.trim();
-        const description = customFields.description?.trim() ?? "";
-        if (!!existingId === !!name)
-          throw new ApiErrorException(
-            400,
-            "COMPANION_APP_DETAILS_INVALID",
-            "Select an existing custom app or provide details for a new one.",
-          );
-        return this.releases.uploadCustom(
-          user.id,
-          file,
-          releaseNotes,
-          existingId
-            ? { companionAppId: existingId }
-            : { name: name!, description },
-        );
-      }
-      if (Object.keys(customFields).length > 0)
-        throw new ApiErrorException(
-          400,
-          "APK_UPLOAD_INVALID",
-          "Custom app details can only be used with a custom APK.",
-        );
-      return this.releases.upload(user.id, file, releaseNotes, app);
-    } catch (error) {
-      if (error instanceof ApiErrorException) throw error;
-      if (
-        error &&
-        typeof error === "object" &&
-        "code" in error &&
-        String(error.code).startsWith("FST_")
-      )
-        throw new ApiErrorException(
-          400,
-          "APK_UPLOAD_INVALID",
-          "Upload one APK no larger than 200 MiB with optional release notes.",
-        );
-      throw error;
-    } finally {
-      this.releases.endUpload(user.id);
-    }
   }
   @Post(":id/action")
   async action(

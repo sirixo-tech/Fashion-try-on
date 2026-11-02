@@ -59,7 +59,59 @@ type ReleasePage = {
   nextCursor: string | null;
   hasMore: boolean;
 };
+type UploadJob = {
+  id: string;
+  status: "AWAITING_UPLOAD" | "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+  filename: string;
+  createdAt: string;
+  failureCode: string | null;
+  releaseId: string | null;
+};
+type UploadTicket = {
+  id: string;
+  url: string;
+  headers: Record<string, string>;
+};
 type UploadTarget = "KIOSK" | "CUSTOMER" | "NEW_CUSTOM" | `CUSTOM:${string}`;
+
+function putApk(
+  url: string,
+  file: File,
+  headers: Record<string, string>,
+  onProgress: (value: number) => void,
+) {
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("PUT", url);
+    request.timeout = 15 * 60_000;
+    for (const [name, value] of Object.entries(headers))
+      request.setRequestHeader(name, value);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable)
+        onProgress(
+          Math.min(100, Math.round((event.loaded / event.total) * 100)),
+        );
+    };
+    request.onload = () =>
+      request.status >= 200 && request.status < 300
+        ? resolve()
+        : reject(
+            new Error(
+              "Private storage rejected the APK upload. Check storage CORS and bucket permissions.",
+            ),
+          );
+    request.onerror = () =>
+      reject(
+        new Error(
+          "Could not reach private app storage. Check the connection and storage CORS configuration.",
+        ),
+      );
+    request.ontimeout = () =>
+      reject(new Error("APK upload timed out. Retry on a stable connection."));
+    request.onabort = () => reject(new Error("APK upload was cancelled."));
+    request.send(file);
+  });
+}
 
 function displayApp(release: Release) {
   if (release.customApp) return release.customApp.name;
@@ -86,6 +138,8 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [uploadJobs, setUploadJobs] = useState<UploadJob[]>([]);
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [notes, setNotes] = useState("");
   const [uploadTarget, setUploadTarget] = useState<UploadTarget>("KIOSK");
@@ -99,60 +153,80 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
     action: "publish" | "recommend" | "retire";
   } | null>(null);
 
-  const load = useCallback(async () => {
-    const revision = ++loadRevision.current;
-    if (!token) return;
-    setLoading(true);
-    setError("");
-    try {
-      let path = "";
-      let usePlatformReleases = false;
-      if (platform) {
-        const access = await getCurrentPlatformAccess(token);
-        const manage =
-          access.isSuperadmin ||
-          access.permissions.includes("APP_RELEASES_MANAGE");
-        usePlatformReleases =
-          manage ||
-          access.isSuperadmin ||
-          access.permissions.includes("APP_RELEASES_VIEW");
-        if (revision !== loadRevision.current) return;
-        setCanManage(manage);
-        path = usePlatformReleases
-          ? "/api/v1/platform/app-releases"
-          : "/api/v1/apps/downloads";
-        setPlatformMode(usePlatformReleases);
-      } else {
-        const access = await getCurrentMerchantStoreAccess(token);
-        if (!access.store)
-          throw new Error("Select an active Store with kiosk access.");
-        path = `/api/v1/admin/stores/${access.store.id}/app-releases`;
-        setPlatformMode(false);
-        setCanManage(false);
+  const load = useCallback(
+    async (silent = false) => {
+      const revision = ++loadRevision.current;
+      if (!token) return;
+      if (!silent) {
+        setLoading(true);
+        setError("");
       }
-      const appQuery = platform && usePlatformReleases ? "&app=ALL" : "";
-      const result = await selfxApi<ReleasePage>(
-        `${path}?pageSize=100${appQuery}${cursor ? `&cursor=${cursor}` : ""}`,
-        { accessToken: token },
-      );
-      if (revision !== loadRevision.current) return;
-      setBase(path);
-      setPage(result);
-    } catch (caught) {
-      if (revision !== loadRevision.current) return;
-      setBase("");
-      setCanManage(false);
-      setPlatformMode(false);
-      setPage({ data: [], nextCursor: null, hasMore: false });
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "App releases could not be loaded.",
-      );
-    } finally {
-      if (revision === loadRevision.current) setLoading(false);
-    }
-  }, [token, platform, cursor]);
+      try {
+        let path = "";
+        let usePlatformReleases = false;
+        let canManagePlatformReleases = false;
+        if (platform) {
+          const access = await getCurrentPlatformAccess(token);
+          const manage =
+            access.isSuperadmin ||
+            access.permissions.includes("APP_RELEASES_MANAGE");
+          canManagePlatformReleases = manage;
+          usePlatformReleases =
+            manage ||
+            access.isSuperadmin ||
+            access.permissions.includes("APP_RELEASES_VIEW");
+          if (revision !== loadRevision.current) return;
+          setCanManage(manage);
+          path = usePlatformReleases
+            ? "/api/v1/platform/app-releases"
+            : "/api/v1/apps/downloads";
+          setPlatformMode(usePlatformReleases);
+        } else {
+          const access = await getCurrentMerchantStoreAccess(token);
+          if (!access.store)
+            throw new Error("Select an active Store with kiosk access.");
+          path = `/api/v1/admin/stores/${access.store.id}/app-releases`;
+          setPlatformMode(false);
+          setCanManage(false);
+        }
+        const appQuery = platform && usePlatformReleases ? "&app=ALL" : "";
+        const result = await selfxApi<ReleasePage>(
+          `${path}?pageSize=100${appQuery}${cursor ? `&cursor=${cursor}` : ""}`,
+          { accessToken: token },
+        );
+        if (revision !== loadRevision.current) return;
+        setBase(path);
+        setPage(result);
+        if (platform && usePlatformReleases && canManagePlatformReleases) {
+          const jobs = await selfxApi<{ data: UploadJob[] }>(
+            `${path}/uploads`,
+            { accessToken: token },
+          );
+          if (revision !== loadRevision.current) return;
+          setUploadJobs(jobs.data);
+        } else {
+          setUploadJobs([]);
+        }
+      } catch (caught) {
+        if (revision !== loadRevision.current) return;
+        if (!silent) {
+          setBase("");
+          setCanManage(false);
+          setPlatformMode(false);
+          setPage({ data: [], nextCursor: null, hasMore: false });
+          setUploadJobs([]);
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "App releases could not be loaded.",
+          );
+        }
+      } finally {
+        if (revision === loadRevision.current && !silent) setLoading(false);
+      }
+    },
+    [token, platform, cursor],
+  );
 
   useEffect(() => {
     void load();
@@ -161,7 +235,23 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
     };
   }, [load]);
 
+  useEffect(() => {
+    if (
+      !platformMode ||
+      !canManage ||
+      !uploadJobs.some((job) =>
+        ["AWAITING_UPLOAD", "QUEUED", "PROCESSING"].includes(job.status),
+      )
+    )
+      return;
+    const timer = window.setInterval(() => void load(true), 2500);
+    return () => window.clearInterval(timer);
+  }, [platformMode, canManage, uploadJobs, load]);
+
   const customApps = page.apps ?? [];
+  const visibleUploadJobs = uploadJobs.filter(
+    (job) => job.status !== "COMPLETED",
+  );
 
   function openUpload() {
     setUploadTarget("KIOSK");
@@ -187,24 +277,35 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
     setError("");
     setMessage("");
     try {
-      const body = new FormData();
       const custom =
         uploadTarget === "NEW_CUSTOM" || uploadTarget.startsWith("CUSTOM:");
-      body.set("app", custom ? "CUSTOM" : uploadTarget);
-      if (uploadTarget === "NEW_CUSTOM") {
-        body.set("appName", appName);
-        body.set("description", appDescription);
-      } else if (uploadTarget.startsWith("CUSTOM:")) {
-        body.set("companionAppId", uploadTarget.slice("CUSTOM:".length));
-      }
-      body.set("releaseNotes", notes);
-      body.set("apk", file);
-      await selfxApi(base, { method: "POST", accessToken: token, body });
+      const ticket = await selfxApi<UploadTicket>(`${base}/uploads`, {
+        method: "POST",
+        accessToken: token,
+        body: JSON.stringify({
+          app: custom ? "CUSTOM" : uploadTarget,
+          ...(uploadTarget === "NEW_CUSTOM"
+            ? { appName, appDescription }
+            : uploadTarget.startsWith("CUSTOM:")
+              ? { companionAppId: uploadTarget.slice("CUSTOM:".length) }
+              : {}),
+          filename: file.name,
+          sizeBytes: file.size,
+          releaseNotes: notes,
+        }),
+      });
+      setUploadPercent(0);
+      await putApk(ticket.url, file, ticket.headers, setUploadPercent);
+      setUploadPercent(null);
+      await selfxApi(`${base}/uploads/${ticket.id}/complete`, {
+        method: "POST",
+        accessToken: token,
+      });
       setFile(null);
       setNotes("");
       if (fileInput.current) fileInput.current.value = "";
       setMessage(
-        "APK validated and saved as a draft. Review it before publishing.",
+        "APK uploaded. SelfX is validating it in the background; the draft will appear when it is ready.",
       );
       setUploadOpen(false);
       setCursor(undefined);
@@ -215,6 +316,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
         caught instanceof Error ? caught.message : "Upload failed. Try again.",
       );
     } finally {
+      setUploadPercent(null);
       setBusy(false);
     }
   }
@@ -329,6 +431,33 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
         </p>
       )}
       {message && <p role="status">{message}</p>}
+      {visibleUploadJobs.length > 0 && (
+        <div className="space-y-2" aria-live="polite">
+          {visibleUploadJobs.map((job) => (
+            <div
+              key={job.id}
+              className="rounded-lg border bg-card px-4 py-3 text-sm"
+            >
+              <p className="font-medium">{job.filename}</p>
+              <p
+                className={
+                  job.status === "FAILED"
+                    ? "text-destructive"
+                    : "text-muted-foreground"
+                }
+              >
+                {job.status === "AWAITING_UPLOAD"
+                  ? "Upload not finished. You can start it again."
+                  : job.status === "QUEUED"
+                    ? "Uploaded. Waiting for APK validation…"
+                    : job.status === "PROCESSING"
+                      ? "Validating APK in the background…"
+                      : `Validation failed${job.failureCode ? ` (${job.failureCode})` : ""}. Upload the APK again after checking the file.`}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
       {loading ? (
         <LoadingState label="Loading app releases" />
       ) : page.data.length === 0 ? (
@@ -568,9 +697,23 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              Each upload creates an immutable draft APK card. Publishing is a
-              separate step.
+              The APK uploads directly to private storage with progress. SelfX
+              validates it in the background and then adds a draft card.
             </p>
+            {uploadPercent !== null && (
+              <div className="space-y-2" role="status" aria-live="polite">
+                <div className="flex justify-between text-sm">
+                  <span>Uploading APK</span>
+                  <span>{uploadPercent}%</span>
+                </div>
+                <progress
+                  className="h-2 w-full accent-primary"
+                  max={100}
+                  value={uploadPercent}
+                  aria-label="APK upload progress"
+                />
+              </div>
+            )}
             <DialogFooter>
               <Button
                 type="button"
@@ -588,7 +731,11 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
                   (uploadTarget === "NEW_CUSTOM" && appName.trim().length < 2)
                 }
               >
-                {busy ? "Validating APK…" : "Upload APK"}
+                {uploadPercent !== null
+                  ? `Uploading APK… ${uploadPercent}%`
+                  : busy
+                    ? "Preparing secure upload…"
+                    : "Upload APK"}
               </Button>
             </DialogFooter>
           </form>

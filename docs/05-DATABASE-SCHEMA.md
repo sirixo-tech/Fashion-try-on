@@ -124,6 +124,12 @@ immutable Android package name, first-upload signer SHA-256 and creator. AppRele
 has a nullable custom_app_id FK (RESTRICT delete) for companion-app releases;
 null remains reserved for the built-in SelfX Kiosk and Customer package names.
 Index companion apps by creation time/id and releases by custom app/time/id.
+AppReleaseUpload stores owner, target app details, staged object key, expected
+file size, notes, upload/validation status, attempt count, retry availability,
+lease/expiry, failure code and resulting release FK. Index by status/availability/
+lease/creation and owner/status/creation for durable worker claiming and owner
+status polling. Staged binaries are private and are deleted when an upload
+expires or permanently fails validation.
 Package/versionCode/architecture uniqueness and per-package architecture
 recommendation constraints continue to apply. AppRelease uses UUIDv7 id, immutable package/version/code/architecture/minSDK,
 filename, object key, size, file SHA-256, signer SHA-256, release notes, uploader

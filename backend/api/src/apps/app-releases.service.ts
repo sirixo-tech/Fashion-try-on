@@ -2,8 +2,13 @@ import { createHash } from "node:crypto";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Injectable } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import {
+  Injectable,
+  Logger,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from "@nestjs/common";
+import { Prisma, type AppReleaseUpload } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
 import { PrismaService } from "../database/prisma.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
@@ -39,18 +44,436 @@ const publicFields = {
 } as const;
 
 @Injectable()
-export class AppReleasesService {
-  private uploads = new Set<string>();
+export class AppReleasesService implements OnModuleInit, OnModuleDestroy {
+  private uploadWorkerTimer?: ReturnType<typeof setInterval>;
+  private uploadWorkerRunning = false;
+  private readonly logger = new Logger(AppReleasesService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: ObjectStorageService,
     private readonly validator: ApkValidator,
   ) {}
+  onModuleInit() {
+    this.uploadWorkerTimer = setInterval(
+      () => void this.processPendingUploads(),
+      1500,
+    );
+    this.uploadWorkerTimer.unref();
+    void this.processPendingUploads();
+  }
+  onModuleDestroy() {
+    if (this.uploadWorkerTimer) clearInterval(this.uploadWorkerTimer);
+  }
+
+  async beginUpload(
+    userId: string,
+    input: {
+      app: ReleaseApp | "CUSTOM";
+      companionAppId?: string;
+      appName?: string;
+      appDescription?: string;
+      filename: string;
+      sizeBytes: number;
+      releaseNotes: string;
+    },
+  ) {
+    if (
+      !input.filename.toLowerCase().endsWith(".apk") ||
+      !Number.isSafeInteger(input.sizeBytes) ||
+      input.sizeBytes < 4 ||
+      input.sizeBytes > MAX_APK_BYTES ||
+      input.releaseNotes.length > 4000
+    )
+      throw new ApiErrorException(
+        400,
+        "APK_UPLOAD_DETAILS_INVALID",
+        "Choose an APK no larger than 200 MiB and provide valid release notes.",
+      );
+
+    const activeUploads = await this.prisma.appReleaseUpload.count({
+      where: {
+        createdById: userId,
+        status: { in: ["AWAITING_UPLOAD", "QUEUED", "PROCESSING"] },
+      },
+    });
+    if (activeUploads >= 2)
+      throw new ApiErrorException(
+        429,
+        "APK_UPLOAD_BUSY",
+        "You already have two APK uploads being processed. Wait for them to finish before starting another.",
+      );
+
+    let appName: string | null = null;
+    let appDescription = "";
+    let companionAppId: string | null = null;
+    if (input.app === "CUSTOM") {
+      if (input.companionAppId) {
+        const existing = await this.prisma.companionApp.findUnique({
+          where: { id: input.companionAppId },
+          select: { id: true },
+        });
+        if (!existing)
+          throw new ApiErrorException(
+            404,
+            "COMPANION_APP_NOT_FOUND",
+            "The selected app was not found. Refresh and try again.",
+          );
+        companionAppId = existing.id;
+      } else {
+        appName = input.appName?.trim() ?? null;
+        appDescription = input.appDescription?.trim() ?? "";
+        if (
+          !appName ||
+          appName.length < 2 ||
+          appName.length > 120 ||
+          appDescription.length > 500
+        )
+          throw new ApiErrorException(
+            400,
+            "COMPANION_APP_DETAILS_INVALID",
+            "Enter an app name (2–120 characters) and a description no longer than 500 characters.",
+          );
+      }
+    } else {
+      this.validator.configuration(input.app);
+      if (input.companionAppId || input.appName || input.appDescription)
+        throw new ApiErrorException(
+          400,
+          "APK_UPLOAD_INVALID",
+          "Custom app details can only be used with a custom APK.",
+        );
+    }
+
+    const id = createSelfxId();
+    const objectKey = `app-releases/staged/${id}/installer.apk`;
+    const expiresAt = new Date(Date.now() + 20 * 60_000);
+    const upload = await this.prisma.appReleaseUpload.create({
+      data: {
+        id,
+        createdById: userId,
+        app: input.app,
+        companionAppId,
+        appName,
+        appDescription,
+        filename: input.filename.slice(0, 255),
+        sizeBytes: input.sizeBytes,
+        releaseNotes: input.releaseNotes,
+        objectKey,
+        expiresAt,
+      },
+      select: { id: true, objectKey: true, expiresAt: true },
+    });
+    try {
+      return {
+        id: upload.id,
+        url: this.storage.createUploadUrl({
+          key: upload.objectKey,
+          contentType: "application/vnd.android.package-archive",
+          expiresInSeconds: 900,
+        }),
+        expiresAt: upload.expiresAt,
+        headers: { "Content-Type": "application/vnd.android.package-archive" },
+      };
+    } catch (error) {
+      await this.prisma.appReleaseUpload
+        .delete({ where: { id: upload.id } })
+        .catch(() => {});
+      throw error;
+    }
+  }
+
+  async completeUpload(userId: string, id: string) {
+    const upload = await this.prisma.appReleaseUpload.findFirst({
+      where: { id, createdById: userId },
+    });
+    if (!upload)
+      throw new ApiErrorException(
+        404,
+        "APP_RELEASE_UPLOAD_NOT_FOUND",
+        "Upload was not found.",
+      );
+    if (upload.status !== "AWAITING_UPLOAD") return this.uploadStatus(upload);
+    if (upload.expiresAt <= new Date())
+      throw new ApiErrorException(
+        410,
+        "APP_RELEASE_UPLOAD_EXPIRED",
+        "This upload expired. Start the upload again.",
+      );
+    const stored = await this.storage.headObject(upload.objectKey, 15000);
+    if (
+      stored.sizeBytes !== upload.sizeBytes ||
+      stored.sizeBytes > MAX_APK_BYTES
+    ) {
+      await this.prisma.appReleaseUpload.update({
+        where: { id },
+        data: { status: "FAILED", failureCode: "APK_UPLOAD_SIZE_MISMATCH" },
+      });
+      await this.deleteStagedObjectIfUnreferenced(upload.objectKey);
+      throw new ApiErrorException(
+        400,
+        "APK_UPLOAD_SIZE_MISMATCH",
+        "The uploaded APK did not match the selected file. Choose it again and retry.",
+      );
+    }
+    const queued = await this.prisma.appReleaseUpload.update({
+      where: { id },
+      data: {
+        status: "QUEUED",
+        expiresAt: new Date(Date.now() + 24 * 60 * 60_000),
+      },
+    });
+    void this.processPendingUploads();
+    return this.uploadStatus(queued);
+  }
+
+  async listUploads(userId: string) {
+    const uploads = await this.prisma.appReleaseUpload.findMany({
+      where: {
+        createdById: userId,
+        status: { in: ["AWAITING_UPLOAD", "QUEUED", "PROCESSING", "FAILED"] },
+        createdAt: { gt: new Date(Date.now() - 7 * 24 * 60 * 60_000) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    });
+    return { data: uploads.map((upload) => this.uploadStatus(upload)) };
+  }
+
+  private uploadStatus(
+    upload: Pick<
+      AppReleaseUpload,
+      "id" | "status" | "filename" | "createdAt" | "failureCode" | "releaseId"
+    >,
+  ) {
+    return {
+      id: upload.id,
+      status: upload.status,
+      filename: upload.filename,
+      createdAt: upload.createdAt,
+      failureCode: upload.failureCode,
+      releaseId: upload.releaseId,
+    };
+  }
+
+  private async processPendingUploads() {
+    if (this.uploadWorkerRunning) return;
+    this.uploadWorkerRunning = true;
+    try {
+      await this.expireUnfinishedUploads();
+      for (let i = 0; i < 2; i++) if (!(await this.processNextUpload())) break;
+    } catch {
+      this.logger.warn("APK upload processing will retry.");
+    } finally {
+      this.uploadWorkerRunning = false;
+    }
+  }
+
+  private async expireUnfinishedUploads() {
+    const now = new Date();
+    const expired = await this.prisma.appReleaseUpload.findMany({
+      where: {
+        status: { in: ["AWAITING_UPLOAD", "QUEUED", "PROCESSING"] },
+        expiresAt: { lte: now },
+      },
+      select: { id: true, objectKey: true },
+      take: 10,
+    });
+    for (const upload of expired) {
+      const updated = await this.prisma.appReleaseUpload.updateMany({
+        where: {
+          id: upload.id,
+          status: { in: ["AWAITING_UPLOAD", "QUEUED", "PROCESSING"] },
+          expiresAt: { lte: now },
+        },
+        data: { status: "FAILED", failureCode: "APP_RELEASE_UPLOAD_EXPIRED" },
+      });
+      if (updated.count > 0)
+        await this.deleteStagedObjectIfUnreferenced(upload.objectKey);
+    }
+
+    const exhausted = await this.prisma.appReleaseUpload.findMany({
+      where: {
+        status: "PROCESSING",
+        attempts: { gte: 3 },
+        leaseUntil: { lt: now },
+      },
+      select: { id: true, objectKey: true },
+      take: 10,
+    });
+    for (const upload of exhausted) {
+      const updated = await this.prisma.appReleaseUpload.updateMany({
+        where: {
+          id: upload.id,
+          status: "PROCESSING",
+          attempts: { gte: 3 },
+          leaseUntil: { lt: now },
+        },
+        data: {
+          status: "FAILED",
+          failureCode: "APK_PROCESSING_RETRY_EXHAUSTED",
+          leaseUntil: null,
+        },
+      });
+      if (updated.count > 0)
+        await this.deleteStagedObjectIfUnreferenced(upload.objectKey);
+    }
+
+    const failed = await this.prisma.appReleaseUpload.findMany({
+      where: {
+        status: "FAILED",
+        createdAt: { gt: new Date(Date.now() - 7 * 24 * 60 * 60_000) },
+      },
+      select: { objectKey: true },
+      take: 10,
+    });
+    for (const upload of failed)
+      await this.deleteStagedObjectIfUnreferenced(upload.objectKey);
+
+    const stale = await this.prisma.appReleaseUpload.findMany({
+      where: {
+        status: "FAILED",
+        createdAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60_000) },
+      },
+      select: { id: true },
+      take: 100,
+    });
+    if (stale.length > 0)
+      await this.prisma.appReleaseUpload.deleteMany({
+        where: { id: { in: stale.map(({ id }) => id) }, status: "FAILED" },
+      });
+  }
+
+  private async deleteStagedObjectIfUnreferenced(objectKey: string) {
+    const release = await this.prisma.appRelease.findFirst({
+      where: { objectKey },
+      select: { id: true },
+    });
+    if (!release) await this.storage.deleteObject(objectKey).catch(() => {});
+  }
+
+  private async processNextUpload() {
+    const lease = new Date(Date.now() + 8 * 60_000);
+    const rows = await this.prisma.$queryRaw<AppReleaseUpload[]>`
+      UPDATE app_release_uploads
+      SET status = 'PROCESSING', lease_until = ${lease}, attempts = attempts + 1, updated_at = NOW()
+      WHERE id = (
+        SELECT id FROM app_release_uploads
+        WHERE attempts < 3 AND expires_at > NOW() AND available_at <= NOW()
+          AND (status = 'QUEUED' OR (status = 'PROCESSING' AND lease_until < NOW()))
+        ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1
+      )
+      RETURNING id, created_by_id AS "createdById", app, companion_app_id AS "companionAppId",
+        app_name AS "appName", app_description AS "appDescription", filename, size_bytes AS "sizeBytes",
+        release_notes AS "releaseNotes", object_key AS "objectKey", status, attempts,
+        available_at AS "availableAt",
+        lease_until AS "leaseUntil", expires_at AS "expiresAt", failure_code AS "failureCode",
+        release_id AS "releaseId", created_at AS "createdAt", updated_at AS "updatedAt"
+    `;
+    const upload = rows[0];
+    if (!upload) return false;
+    const leaseWhere = {
+      id: upload.id,
+      status: "PROCESSING" as const,
+      leaseUntil: lease,
+    };
+    try {
+      const stored = await this.storage.headObject(upload.objectKey, 30000);
+      if (
+        stored.sizeBytes !== upload.sizeBytes ||
+        stored.sizeBytes > MAX_APK_BYTES
+      )
+        throw new ApiErrorException(
+          400,
+          "APK_UPLOAD_SIZE_MISMATCH",
+          "Uploaded APK size did not match.",
+        );
+      const buffer = await this.storage.readObject(
+        upload.objectKey,
+        MAX_APK_BYTES,
+        180000,
+      );
+      const release =
+        upload.app === "CUSTOM"
+          ? await this.uploadCustom(
+              upload.createdById,
+              buffer,
+              upload.releaseNotes,
+              upload.companionAppId
+                ? { companionAppId: upload.companionAppId }
+                : {
+                    name: upload.appName ?? "",
+                    description: upload.appDescription,
+                  },
+              upload.objectKey,
+            )
+          : await this.upload(
+              upload.createdById,
+              buffer,
+              upload.releaseNotes,
+              upload.app as ReleaseApp,
+              upload.objectKey,
+            );
+      await this.prisma.appReleaseUpload.updateMany({
+        where: leaseWhere,
+        data: {
+          status: "COMPLETED",
+          releaseId: release.id,
+          leaseUntil: null,
+          failureCode: null,
+        },
+      });
+      await this.deleteStagedObjectIfUnreferenced(upload.objectKey);
+    } catch (error) {
+      const response =
+        error instanceof ApiErrorException ? error.getResponse() : null;
+      const code =
+        response && typeof response === "object" && "error" in response
+          ? String(
+              (response.error as { code?: unknown }).code ??
+                "APK_VALIDATION_FAILED",
+            )
+          : "APK_PROCESSING_UNAVAILABLE";
+      const permanent =
+        error instanceof ApiErrorException &&
+        error.getStatus() >= 400 &&
+        error.getStatus() < 500;
+      const exhausted = upload.attempts >= 3;
+      if (permanent || exhausted) {
+        await this.prisma.appReleaseUpload.updateMany({
+          where: leaseWhere,
+          data: {
+            status: "FAILED",
+            failureCode: code.slice(0, 80),
+            leaseUntil: null,
+          },
+        });
+        await this.deleteStagedObjectIfUnreferenced(upload.objectKey);
+      } else {
+        await this.prisma.appReleaseUpload.updateMany({
+          where: leaseWhere,
+          data: {
+            status: "QUEUED",
+            failureCode: code.slice(0, 80),
+            leaseUntil: null,
+            availableAt: new Date(Date.now() + 15000),
+          },
+        });
+      }
+      this.logger.warn({
+        event: "app_release_upload_processing_failed",
+        uploadId: upload.id,
+        code,
+        attempts: upload.attempts,
+      });
+    }
+    return true;
+  }
   async upload(
     userId: string,
     buffer: Buffer,
     releaseNotes: string,
     app: ReleaseApp = "KIOSK",
+    stagedObjectKey?: string,
   ) {
     if (
       buffer.length < 4 ||
@@ -83,12 +506,13 @@ export class AppReleasesService {
       await writeFile(path, buffer, { mode: 0o600 });
       const metadata = await this.validator.inspect(path, app);
       const id = createSelfxId();
-      const objectKey = `app-releases/${id}/${sha256}.apk`;
-      await this.storage.putObject({
-        key: objectKey,
-        contentType: "application/vnd.android.package-archive",
-        body: buffer,
-      });
+      const objectKey = stagedObjectKey ?? `app-releases/${id}/${sha256}.apk`;
+      if (!stagedObjectKey)
+        await this.storage.putObject({
+          key: objectKey,
+          contentType: "application/vnd.android.package-archive",
+          body: buffer,
+        });
       try {
         return await this.prisma.$transaction(async (tx) => {
           const release = await tx.appRelease.create({
@@ -121,7 +545,8 @@ export class AppReleasesService {
           return release;
         });
       } catch (error) {
-        await this.storage.deleteObject(objectKey).catch(() => {});
+        if (!stagedObjectKey)
+          await this.storage.deleteObject(objectKey).catch(() => {});
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2002"
@@ -148,6 +573,7 @@ export class AppReleasesService {
     buffer: Buffer,
     releaseNotes: string,
     input: { companionAppId: string } | { name: string; description: string },
+    stagedObjectKey?: string,
   ) {
     if (
       buffer.length < 4 ||
@@ -252,13 +678,14 @@ export class AppReleasesService {
       }
 
       const id = createSelfxId();
-      const objectKey = `app-releases/${id}/${sha256}.apk`;
+      const objectKey = stagedObjectKey ?? `app-releases/${id}/${sha256}.apk`;
       const filename = `${companionAppSlug}-${metadata.versionCode}-${metadata.architecture.toLowerCase()}.apk`;
-      await this.storage.putObject({
-        key: objectKey,
-        contentType: "application/vnd.android.package-archive",
-        body: buffer,
-      });
+      if (!stagedObjectKey)
+        await this.storage.putObject({
+          key: objectKey,
+          contentType: "application/vnd.android.package-archive",
+          body: buffer,
+        });
       try {
         return await this.prisma.$transaction(async (tx) => {
           if (createCompanionApp)
@@ -316,7 +743,8 @@ export class AppReleasesService {
           return release;
         });
       } catch (error) {
-        await this.storage.deleteObject(objectKey).catch(() => {});
+        if (!stagedObjectKey)
+          await this.storage.deleteObject(objectKey).catch(() => {});
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2002"
@@ -337,18 +765,6 @@ export class AppReleasesService {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
-  }
-  beginUpload(userId: string) {
-    if (this.uploads.has(userId) || this.uploads.size >= 2)
-      throw new ApiErrorException(
-        429,
-        "APK_UPLOAD_BUSY",
-        "An upload is already in progress. Try again shortly.",
-      );
-    this.uploads.add(userId);
-  }
-  endUpload(userId: string) {
-    this.uploads.delete(userId);
   }
   async list(
     publishedOnly: boolean,

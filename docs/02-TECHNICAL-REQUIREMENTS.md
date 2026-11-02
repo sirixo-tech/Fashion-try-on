@@ -235,8 +235,16 @@ This supersedes earlier client-visible provider/model telemetry contracts.
 ### APPS-1 / REGIONAL-1 — Implementation boundaries (2026-10-21)
 
 APK administration uses central NestJS APIs, APP_RELEASES_VIEW/MANAGE permissions,
-private object storage and immutable release metadata. Validate uploads (200 MiB
-maximum) with Android aapt badging and apksigner signature verification. Built-in
+private object storage and immutable release metadata. Platform managers first
+create an expiring upload intent, upload directly to private object storage with
+a short-lived signed PUT URL, then complete the intent. The API verifies the
+stored object size and queues a durable database-backed validation job; workers
+claim jobs with leases and retry transient storage/tool failures. Persist upload
+status so the dashboard can poll across reloads and API restarts. Expire abandoned
+intents and delete their staged objects. The object-storage bucket must allow
+browser PUT requests from configured SelfX dashboard origins with the APK
+Content-Type header. Validate uploads (200 MiB maximum) with Android aapt badging
+and apksigner signature verification. Built-in
 SelfX apps require their configured package and pinned release-certificate
 SHA-256. A platform manager may register a companion app on its first validated
 upload; the APK package and signer SHA-256 become immutable trust anchors for

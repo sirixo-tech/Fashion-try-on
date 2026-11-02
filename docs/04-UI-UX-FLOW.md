@@ -426,7 +426,9 @@ users also see Add App, Publish, Set recommended and Retire. Add App opens a
 dialog to select SelfX Kiosk, SelfX Mobile, an existing companion app or Create a
 new app, and upload an APK with optional notes. New companion apps request a name
 and description. Do not ask users to type version metadata: show that it is read
-from the APK. Show one card per APK with app name, version/build, architecture,
+from the APK. Upload directly to private storage with a visible transfer
+percentage, then show background validation status and a clear failure state.
+Show one card per APK with app name, version/build, architecture,
 file size, minimum Android version, notes, upload date, checksum, state and
 recommended badge; uploader identity remains Platform-only. Published cards show
 Download and Copy URL (60-second link); managers can copy drafts as well.

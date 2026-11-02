@@ -27,7 +27,7 @@ export interface ObjectStorage {
     responseContentDisposition?: string;
     responseContentType?: string;
   }): string;
-  headObject(key: string): Promise<ObjectStorageHead>;
+  headObject(key: string, timeoutMs?: number): Promise<ObjectStorageHead>;
   readObject(
     key: string,
     maxBytes: number,
@@ -113,9 +113,13 @@ export class ObjectStorageService implements ObjectStorage {
     });
   }
 
-  async headObject(key: string): Promise<ObjectStorageHead> {
+  async headObject(
+    key: string,
+    timeoutMs?: number,
+  ): Promise<ObjectStorageHead> {
     const response = await fetch(this.presign("HEAD", key, 60), {
       method: "HEAD",
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     });
     if (!response.ok) {
       throwStorageUnavailable("Stored upload could not be inspected.");

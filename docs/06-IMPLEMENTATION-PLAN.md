@@ -209,15 +209,18 @@ Implement release registry/migration, platform permissions, binary inspection,
 private storage, draft/publish/recommend/retire lifecycle, Store download gates,
 sidebar/actions and user-owned regional settings with shared formatting. Verify
 real PostgreSQL migration/lifecycle, retries, stale revisions, permission denial,
-Fastify multipart, real local APK inspection, account persistence/isolation,
-timezone rollover/DST/date-only buckets, web regressions, types/lint/build and
-desktop/mobile UI. The follow-up Apps catalog adds platform-managed companion
-app registration, first APK signer pinning, manifest-derived version metadata,
-an empty-state/Add App dialog and individual APK release cards with published
-download/copy actions. Deploy migration, API and web together. Provision
-Java/Android Build Tools, object storage and configured SelfX release signer
-fingerprints before built-in uploads. No automatic kiosk updater or new kiosk
-binaries/signing keys are created here.
+direct private-storage APK upload, real local APK inspection, account
+persistence/isolation, timezone rollover/DST/date-only buckets, web regressions,
+types/lint/build and desktop/mobile UI. The follow-up Apps catalog adds
+platform-managed companion app registration, first APK signer pinning,
+manifest-derived version metadata, an empty-state/Add App dialog and individual
+APK release cards with published download/copy actions. APK uploads use expiring
+presigned storage URLs and durable database-backed validation jobs with polling;
+deploy the database migration, API and web together and configure the private
+bucket's exact dashboard-origin CORS rules. Provision Java/Android Build Tools,
+object storage and configured SelfX release signer fingerprints before built-in
+uploads. No automatic kiosk updater or new kiosk binaries/signing keys are
+created here.
 
 ### AUTH-UI-2 — Login and workspace loading polish (2026-10-21)
 
