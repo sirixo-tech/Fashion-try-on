@@ -12,8 +12,8 @@ import { CursorPaginationQueryDto } from "../common/pagination.dto.js";
 import { AppReleasesService, MAX_APK_BYTES } from "./app-releases.service.js";
 export class ReleaseListQuery extends CursorPaginationQueryDto {
   @IsOptional()
-  @IsIn(["ALL", "KIOSK", "CUSTOMER"])
-  app?: "ALL" | "KIOSK" | "CUSTOMER";
+  @IsIn(["ALL", "KIOSK", "CUSTOMER", "CUSTOM"])
+  app?: "ALL" | "KIOSK" | "CUSTOMER" | "CUSTOM";
 }
 
 export class ReleaseActionDto {
@@ -73,15 +73,16 @@ export class AppReleasesController {
       let file: Buffer | undefined;
       let releaseNotes = "";
       let notesSeen = false;
-      let app: "KIOSK" | "CUSTOMER" = "KIOSK";
+      let app: "KIOSK" | "CUSTOMER" | "CUSTOM" = "KIOSK";
       let appSeen = false;
+      const customFields: Record<string, string> = {};
       for await (const part of request.parts({
         limits: {
           files: 1,
           fileSize: MAX_APK_BYTES,
-          fields: 2,
+          fields: 5,
           fieldSize: 16000,
-          parts: 3,
+          parts: 6,
         },
       })) {
         if (part.type === "file") {
@@ -111,11 +112,29 @@ export class AppReleasesController {
           if (
             part.fieldname === "app" &&
             !appSeen &&
-            ["KIOSK", "CUSTOMER"].includes(String(part.value)) &&
+            ["KIOSK", "CUSTOMER", "CUSTOM"].includes(String(part.value)) &&
             !part.valueTruncated
           ) {
-            app = part.value as "KIOSK" | "CUSTOMER";
+            app = part.value as "KIOSK" | "CUSTOMER" | "CUSTOM";
             appSeen = true;
+            continue;
+          }
+          if (
+            ["companionAppId", "appName", "description"].includes(
+              part.fieldname,
+            ) &&
+            customFields[part.fieldname] === undefined &&
+            typeof part.value === "string" &&
+            !part.valueTruncated
+          ) {
+            const maxLength = part.fieldname === "description" ? 500 : 120;
+            if (part.value.length > maxLength)
+              throw new ApiErrorException(
+                400,
+                "COMPANION_APP_DETAILS_INVALID",
+                "App details exceed the allowed length.",
+              );
+            customFields[part.fieldname] = part.value;
             continue;
           }
           if (
@@ -140,9 +159,32 @@ export class AppReleasesController {
           "APK_FILE_REQUIRED",
           "Choose an APK file.",
         );
-      return app === "CUSTOMER"
-        ? await this.releases.upload(user.id, file, releaseNotes, app)
-        : await this.releases.upload(user.id, file, releaseNotes);
+      if (app === "CUSTOM") {
+        const existingId = customFields.companionAppId?.trim();
+        const name = customFields.appName?.trim();
+        const description = customFields.description?.trim() ?? "";
+        if (!!existingId === !!name)
+          throw new ApiErrorException(
+            400,
+            "COMPANION_APP_DETAILS_INVALID",
+            "Select an existing custom app or provide details for a new one.",
+          );
+        return this.releases.uploadCustom(
+          user.id,
+          file,
+          releaseNotes,
+          existingId
+            ? { companionAppId: existingId }
+            : { name: name!, description },
+        );
+      }
+      if (Object.keys(customFields).length > 0)
+        throw new ApiErrorException(
+          400,
+          "APK_UPLOAD_INVALID",
+          "Custom app details can only be used with a custom APK.",
+        );
+      return this.releases.upload(user.id, file, releaseNotes, app);
     } catch (error) {
       if (error instanceof ApiErrorException) throw error;
       if (
@@ -175,7 +217,13 @@ export class AppReleasesController {
     @Req() request: FastifyRequest,
     @Param("id", SelfxUuidParamPipe) id: string,
   ) {
-    await this.authorize(request);
+    const user = await this.authorize(request);
+    if (await this.releases.isPublished(id))
+      return this.releases.download(id, false);
+    await this.platform.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.appReleasesManage,
+    );
     return this.releases.download(id, false);
   }
 }
@@ -188,10 +236,7 @@ export class SharedAppDownloadsController {
   ) {}
 
   @Get()
-  async list(
-    @Req() request: FastifyRequest,
-    @Query() query: ReleaseListQuery,
-  ) {
+  async list(@Req() request: FastifyRequest, @Query() query: ReleaseListQuery) {
     await this.auth.requireAccessUser(request.headers.authorization);
     return this.releases.listPublishedDownloads(
       query.cursor,

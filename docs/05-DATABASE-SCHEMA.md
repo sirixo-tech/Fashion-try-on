@@ -119,7 +119,13 @@ Migration 20261021010000_product_colors_live_checkout adds product_stock_setting
 
 Add nullable users.regional_timezone (automatic/device when null), enum-checked
 regional_date_format AUTO/DMY/MDY/YMD and regional_time_format AUTO/H12/H24.
-AppRelease uses UUIDv7 id, immutable package/version/code/architecture/minSDK,
+CompanionApp stores a platform-managed app's display slug/name/description,
+immutable Android package name, first-upload signer SHA-256 and creator. AppRelease
+has a nullable custom_app_id FK (RESTRICT delete) for companion-app releases;
+null remains reserved for the built-in SelfX Kiosk and Customer package names.
+Index companion apps by creation time/id and releases by custom app/time/id.
+Package/versionCode/architecture uniqueness and per-package architecture
+recommendation constraints continue to apply. AppRelease uses UUIDv7 id, immutable package/version/code/architecture/minSDK,
 filename, object key, size, file SHA-256, signer SHA-256, release notes, uploader
 FK (SetNull), created/updated/published timestamps, DRAFT/PUBLISHED/RETIRED status,
 recommended flag and revision. Uniqueness covers checksum, object key and

@@ -171,10 +171,14 @@ older user journeys that displayed AI provider/model usage.
 ### APPS-1 / REGIONAL-1 — Release and account journeys (2026-10-21)
 
 Any authenticated dashboard role opens Apps & Downloads to see and download
-published SelfX app installers, or copy a short-lived secure download URL.
-Authorized Platform users can view release history; users with APP_RELEASES_MANAGE
-upload a signed APK with release notes, review derived version/ABI/checksum, then
-confirm Publish. Set recommended selects the current download for that
+published app APKs, or copy a short-lived secure download URL. Authorized
+Platform users can view release history. APP_RELEASES_MANAGE users start from an
+empty catalog with Add App, choose a built-in app or create/select a companion
+app, then upload a signed APK with optional release notes. SelfX reads version,
+build number, architecture and minimum Android version from the APK. Each APK
+appears as its own card. First companion-app upload pins its package and signer;
+future uploads must match. The manager reviews derived metadata and confirms
+Publish. Set recommended selects the current download for that app and
 architecture. Retire removes a release from new downloads but preserves history.
 A replacement is a new version upload, rather than overwriting a previously
 published binary. Store operators may also open Kiosks > Download Kiosk APK when

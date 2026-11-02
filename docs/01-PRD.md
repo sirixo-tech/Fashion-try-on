@@ -233,13 +233,18 @@ Google authentication remain visible because users explicitly configure/use them
 
 ### APPS-1 / REGIONAL-1 — Kiosk downloads and personal display preferences (2026-10-21)
 
-Platform Apps & Downloads distributes signed standalone SelfX kiosk APKs. Separate
+Platform Apps & Downloads distributes signed standalone APKs for built-in SelfX
+apps and platform-managed companion apps. The page is empty until an APK is
+uploaded; platform managers add apps and APK versions through an Add App dialog.
+Version, build number, architecture and minimum Android version come from the
+APK manifest. Each uploaded APK is shown as its own release card. Separate
 view/manage authorities control release administration. Uploads create validated
 drafts; explicit publication exposes installers in the shared Apps & Downloads
-catalog to all authenticated dashboard roles. Keep version history; recommend one
-release per architecture and retire old releases without updating installed kiosks.
-The Store-specific Kiosks download route continues to enforce kiosk permissions
-and plan access.
+catalog to all authenticated dashboard roles, with download and short-lived URL
+copy actions. Keep immutable version history; recommend one release per app and
+architecture and retire old releases without updating installed devices. The
+Store-specific Kiosks download route continues to enforce kiosk permissions and
+plan access.
 User accounts may select automatic/device or explicit timezone, date order and
 12/24-hour display. Preferences follow the user across devices, without changing
 UTC persistence, entitlement periods, operational schedules or report day buckets.

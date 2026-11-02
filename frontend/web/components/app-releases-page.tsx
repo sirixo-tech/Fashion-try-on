@@ -1,13 +1,14 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Badge,
   Button,
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
   EmptyState,
   Input,
   Label,
@@ -15,8 +16,8 @@ import {
   PageContainer,
   PageHeader,
   SectionCard,
+  SelectMenu,
   Textarea,
-  Badge,
 } from "@selfx/ui";
 import { selfxApi } from "@/lib/api";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
@@ -24,18 +25,25 @@ import { getCurrentMerchantStoreAccess } from "@/lib/current-store";
 import { useSession } from "@/lib/session";
 import { RegionalDateTime } from "@/lib/regional-settings";
 
+type AppCode = "KIOSK" | "CUSTOMER" | "CUSTOM";
+type CustomApp = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+};
 type Release = {
-  uploadedBy?: { displayName: string | null; email: string } | null;
   id: string;
   versionName: string;
   versionCode: number;
   architecture: string;
   packageName: string;
-  app?: "KIOSK" | "CUSTOMER";
+  customAppId?: string | null;
+  customApp?: CustomApp | null;
+  app?: AppCode;
   filename: string;
   minSdk: number;
   sha256: string;
-  signerSha256: string;
   sizeBytes: number;
   releaseNotes: string;
   status: "DRAFT" | "PUBLISHED" | "RETIRED";
@@ -43,39 +51,54 @@ type Release = {
   revision: number;
   createdAt: string;
   publishedAt: string | null;
+  uploadedBy?: { displayName: string | null; email: string } | null;
 };
 type ReleasePage = {
   data: Release[];
+  apps?: CustomApp[];
   nextCursor: string | null;
   hasMore: boolean;
 };
+type UploadTarget = "KIOSK" | "CUSTOMER" | "NEW_CUSTOM" | `CUSTOM:${string}`;
+
+function displayApp(release: Release) {
+  if (release.customApp) return release.customApp.name;
+  return release.app === "CUSTOMER" ||
+    release.packageName === "com.selfx.selfx_customer"
+    ? "SelfX Mobile"
+    : "SelfX Kiosk";
+}
+
 export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
-  const [uploadApp, setUploadApp] = useState<"KIOSK" | "CUSTOMER">("KIOSK");
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const session = useSession(),
-    token = session.accessToken;
-  const [base, setBase] = useState(""),
-    [canManage, setCanManage] = useState(false),
-    [platformMode, setPlatformMode] = useState(false);
+  const session = useSession();
+  const token = session.accessToken;
+  const [base, setBase] = useState("");
+  const [canManage, setCanManage] = useState(false);
+  const [platformMode, setPlatformMode] = useState(false);
   const [page, setPage] = useState<ReleasePage>({
     data: [],
     nextCursor: null,
     hasMore: false,
   });
-  const [cursor, setCursor] = useState<string | undefined>(),
-    [previous, setPrevious] = useState<Array<string | undefined>>([]);
-  const [loading, setLoading] = useState(true),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  const [file, setFile] = useState<File | null>(null),
-    [notes, setNotes] = useState("");
+  const [cursor, setCursor] = useState<string | undefined>();
+  const [previous, setPrevious] = useState<Array<string | undefined>>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [notes, setNotes] = useState("");
+  const [uploadTarget, setUploadTarget] = useState<UploadTarget>("KIOSK");
+  const [appName, setAppName] = useState("");
+  const [appDescription, setAppDescription] = useState("");
+  const [uploadOpen, setUploadOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const loadRevision = useRef(0);
   const [pending, setPending] = useState<{
     release: Release;
     action: "publish" | "recommend" | "retire";
   } | null>(null);
-  const [message, setMessage] = useState("");
+
   const load = useCallback(async () => {
     const revision = ++loadRevision.current;
     if (!token) return;
@@ -130,12 +153,26 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
       if (revision === loadRevision.current) setLoading(false);
     }
   }, [token, platform, cursor]);
+
   useEffect(() => {
     void load();
     return () => {
       loadRevision.current++;
     };
   }, [load]);
+
+  const customApps = page.apps ?? [];
+
+  function openUpload() {
+    setUploadTarget("KIOSK");
+    setAppName("");
+    setAppDescription("");
+    setFile(null);
+    setNotes("");
+    setError("");
+    setUploadOpen(true);
+  }
+
   async function upload(event: React.FormEvent) {
     event.preventDefault();
     if (!file || busy || !token) return;
@@ -151,7 +188,15 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
     setMessage("");
     try {
       const body = new FormData();
-      body.set("app", uploadApp);
+      const custom =
+        uploadTarget === "NEW_CUSTOM" || uploadTarget.startsWith("CUSTOM:");
+      body.set("app", custom ? "CUSTOM" : uploadTarget);
+      if (uploadTarget === "NEW_CUSTOM") {
+        body.set("appName", appName);
+        body.set("description", appDescription);
+      } else if (uploadTarget.startsWith("CUSTOM:")) {
+        body.set("companionAppId", uploadTarget.slice("CUSTOM:".length));
+      }
       body.set("releaseNotes", notes);
       body.set("apk", file);
       await selfxApi(base, { method: "POST", accessToken: token, body });
@@ -173,6 +218,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
       setBusy(false);
     }
   }
+
   async function act() {
     if (!pending || busy || !token) return;
     setBusy(true);
@@ -198,17 +244,26 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
       setBusy(false);
     }
   }
+
+  async function getDownloadUrl(release: Release) {
+    if (!token) throw new Error("Sign in again to download this app.");
+    const result = await selfxApi<{ url: string }>(
+      `${base}/${release.id}/download`,
+      {
+        method: "POST",
+        accessToken: token,
+      },
+    );
+    return result.url;
+  }
+
   async function download(release: Release) {
-    if (!token || busy) return;
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
-      const result = await selfxApi<{ url: string }>(
-        `${base}/${release.id}/download`,
-        { method: "POST", accessToken: token },
-      );
       const link = document.createElement("a");
-      link.href = result.url;
+      link.href = await getDownloadUrl(release);
       link.rel = "noreferrer";
       link.click();
     } catch (caught) {
@@ -219,17 +274,14 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
       setBusy(false);
     }
   }
+
   async function copyDownloadLink(release: Release) {
-    if (!token || busy) return;
+    if (busy) return;
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      const result = await selfxApi<{ url: string }>(
-        `${base}/${release.id}/download`,
-        { method: "POST", accessToken: token },
-      );
-      await navigator.clipboard.writeText(result.url);
+      await navigator.clipboard.writeText(await getDownloadUrl(release));
       setMessage("Secure download link copied. It is valid for 60 seconds.");
     } catch (caught) {
       setError(
@@ -241,25 +293,34 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
       setBusy(false);
     }
   }
+
+  const publishedVisible = (release: Release) => release.status === "PUBLISHED";
   return (
     <PageContainer>
       <PageHeader
         title={platform ? "Apps & Downloads" : "Download Kiosk APK"}
         description={
           platformMode
-            ? "Manage SelfX app releases. Only published customer releases appear in mobile update checks."
+            ? "Browse SelfX app installers. Platform roles can add and manage releases."
             : platform
-              ? "Download published SelfX app installers. Platform release management is restricted to authorized Platform roles."
+              ? "Download published SelfX app installers. Management is restricted to authorized Platform roles."
               : "Install a published SelfX Kiosk App build that matches your Android device."
         }
         actions={
-          <Button
-            variant="outline"
-            disabled={loading || busy}
-            onClick={() => void load()}
-          >
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              disabled={loading || busy}
+              onClick={() => void load()}
+            >
+              Refresh
+            </Button>
+            {platformMode && canManage && (
+              <Button disabled={loading || busy} onClick={openUpload}>
+                Add App
+              </Button>
+            )}
+          </div>
         }
       />
       {error && (
@@ -270,200 +331,128 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
       {message && <p role="status">{message}</p>}
       {loading ? (
         <LoadingState label="Loading app releases" />
+      ) : page.data.length === 0 ? (
+        <EmptyState
+          title={
+            platformMode && canManage
+              ? "No apps uploaded yet"
+              : "No published apps available"
+          }
+          description={
+            platformMode && canManage
+              ? "Add an APK to create the first app release. App version details are read from the APK."
+              : "Published app installers will appear here when available."
+          }
+        />
       ) : (
-        <div className="space-y-6">
-          {(platform
-            ? (["KIOSK", "CUSTOMER"] as const)
-            : (["KIOSK"] as const)
-          ).map((appCode) => {
-            const appReleases = page.data.filter(
-              (release) => (release.app ?? "KIOSK") === appCode,
-            );
-            const published = appReleases.filter(
-              (release) => release.status === "PUBLISHED",
-            );
-            const appName =
-              appCode === "CUSTOMER" ? "SelfX Mobile" : "SelfX Kiosk";
-            return (
-              <SectionCard
-                key={appCode}
-                title={appName}
-                description={
-                  appCode === "CUSTOMER"
-                    ? "SelfX customer mobile app for Android."
-                    : "SelfX kiosk app for Android devices."
-                }
-                actions={
-                  platformMode && canManage ? (
-                    <Button
-                      onClick={() => {
-                        setUploadApp(appCode);
-                        setUploadOpen(true);
-                        setError("");
-                        setFile(null);
-                        setNotes("");
-                      }}
-                      disabled={busy}
-                    >
-                      {published.length ? "Replace current" : "Upload APK"}
-                    </Button>
-                  ) : undefined
-                }
-              >
-                <div className="space-y-4">
-                  {published.length > 0 && (
-                    <div className="flex flex-wrap gap-2 text-sm">
-                      <span className="text-muted-foreground">
-                        Published builds:
-                      </span>
-                      {published.map((release) => (
-                        <Badge key={release.id} variant="outline">
-                          {release.architecture} · {release.versionName}
-                          {release.recommended ? " · Recommended" : ""}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                  {appReleases.length === 0 ? (
-                    <EmptyState
-                      title={
-                        platformMode && canManage
-                          ? "No build uploaded"
-                          : "No published build available"
-                      }
-                      description={
-                        platformMode && canManage
-                          ? "Upload the first APK build for this app."
-                          : "A SelfX administrator will publish an installer here when available."
-                      }
-                    />
-                  ) : (
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      {appReleases.map((release) => (
-                        <SectionCard
-                          key={release.id}
-                          title={`Version ${release.versionName}`}
-                          description={`${release.architecture} · Version code ${release.versionCode} · Android API ${release.minSdk}+`}
-                        >
-                          <div className="space-y-4">
-                            <div className="flex flex-wrap gap-2">
-                              <Badge variant="outline">{release.status}</Badge>
-                              {release.recommended && (
-                                <Badge>
-                                  Recommended for {release.architecture}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="break-all text-sm">
-                              {release.filename}
-                            </p>
-                            <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                              <div>
-                                <dt className="text-muted-foreground">
-                                  File size
-                                </dt>
-                                <dd>
-                                  {(release.sizeBytes / 1024 / 1024).toFixed(1)}{" "}
-                                  MiB
-                                </dd>
-                              </div>
-                              <div>
-                                <dt className="text-muted-foreground">
-                                  Uploaded
-                                </dt>
-                                <dd>
-                                  <RegionalDateTime value={release.createdAt} />
-                                </dd>
-                              </div>
-                              {platform && release.uploadedBy && (
-                                <div>
-                                  <dt className="text-muted-foreground">
-                                    Uploaded by
-                                  </dt>
-                                  <dd className="break-all">
-                                    {release.uploadedBy.displayName ||
-                                      release.uploadedBy.email}
-                                  </dd>
-                                </div>
-                              )}
-                            </dl>
-                            <div>
-                              <p className="text-xs text-muted-foreground">
-                                SHA-256 checksum
-                              </p>
-                              <code className="break-all text-xs">
-                                {release.sha256}
-                              </code>
-                            </div>
-                            {release.releaseNotes && (
-                              <p className="whitespace-pre-wrap text-sm">
-                                {release.releaseNotes}
-                              </p>
-                            )}
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                variant="outline"
-                                disabled={busy}
-                                onClick={() => void download(release)}
-                              >
-                                Download
-                              </Button>
-                              {platform && !platformMode && (
-                                <Button
-                                  variant="outline"
-                                  disabled={busy}
-                                  onClick={() => void copyDownloadLink(release)}
-                                >
-                                  Copy 1-minute link
-                                </Button>
-                              )}
-                              {canManage && release.status === "DRAFT" && (
-                                <Button
-                                  disabled={busy}
-                                  onClick={() =>
-                                    setPending({ release, action: "publish" })
-                                  }
-                                >
-                                  Publish
-                                </Button>
-                              )}
-                              {canManage &&
-                                release.status === "PUBLISHED" &&
-                                !release.recommended && (
-                                  <Button
-                                    variant="outline"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      setPending({
-                                        release,
-                                        action: "recommend",
-                                      })
-                                    }
-                                  >
-                                    Set recommended
-                                  </Button>
-                                )}
-                              {canManage && release.status !== "RETIRED" && (
-                                <Button
-                                  variant="destructive"
-                                  disabled={busy}
-                                  onClick={() =>
-                                    setPending({ release, action: "retire" })
-                                  }
-                                >
-                                  Retire
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </SectionCard>
-                      ))}
-                    </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {page.data.map((release) => (
+            <SectionCard
+              key={release.id}
+              title={`${displayApp(release)} · ${release.versionName}`}
+              description={`${release.architecture} · Build ${release.versionCode} · Android API ${release.minSdk}+`}
+            >
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">{release.status}</Badge>
+                  {release.recommended && (
+                    <Badge>Recommended · {release.architecture}</Badge>
                   )}
                 </div>
-              </SectionCard>
-            );
-          })}
+                <p className="break-all text-sm">{release.filename}</p>
+                <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-muted-foreground">File size</dt>
+                    <dd>{(release.sizeBytes / 1024 / 1024).toFixed(1)} MiB</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Uploaded</dt>
+                    <dd>
+                      <RegionalDateTime value={release.createdAt} />
+                    </dd>
+                  </div>
+                  {platformMode && release.uploadedBy && (
+                    <div>
+                      <dt className="text-muted-foreground">Uploaded by</dt>
+                      <dd className="break-all">
+                        {release.uploadedBy.displayName ||
+                          release.uploadedBy.email}
+                      </dd>
+                    </div>
+                  )}
+                  {release.customApp && (
+                    <div>
+                      <dt className="text-muted-foreground">Package</dt>
+                      <dd className="break-all">{release.packageName}</dd>
+                    </div>
+                  )}
+                </dl>
+                {release.releaseNotes && (
+                  <p className="whitespace-pre-wrap text-sm">
+                    {release.releaseNotes}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {(publishedVisible(release) || canManage) && (
+                    <>
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void download(release)}
+                      >
+                        Download
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void copyDownloadLink(release)}
+                      >
+                        Copy URL
+                      </Button>
+                    </>
+                  )}
+                  {canManage && release.status === "DRAFT" && (
+                    <Button
+                      disabled={busy}
+                      onClick={() => setPending({ release, action: "publish" })}
+                    >
+                      Publish
+                    </Button>
+                  )}
+                  {canManage &&
+                    release.status === "PUBLISHED" &&
+                    !release.recommended && (
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() =>
+                          setPending({ release, action: "recommend" })
+                        }
+                      >
+                        Set recommended
+                      </Button>
+                    )}
+                  {canManage && release.status !== "RETIRED" && (
+                    <Button
+                      variant="destructive"
+                      disabled={busy}
+                      onClick={() => setPending({ release, action: "retire" })}
+                    >
+                      Retire
+                    </Button>
+                  )}
+                </div>
+                {platformMode && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      SHA-256 checksum
+                    </p>
+                    <code className="break-all text-xs">{release.sha256}</code>
+                  </div>
+                )}
+              </div>
+            </SectionCard>
+          ))}
         </div>
       )}
       {(previous.length > 0 || page.hasMore) && (
@@ -492,9 +481,10 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
         </div>
       )}
       <p className="text-sm text-muted-foreground">
-        Installing a download is manual. Uploading or publishing does not update
-        installed kiosks automatically.
+        Installing a download is manual. Publishing does not update installed
+        devices automatically.
       </p>
+
       <Dialog
         open={uploadOpen}
         onOpenChange={(open) => {
@@ -503,18 +493,58 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {uploadApp === "CUSTOMER"
-                ? "Upload SelfX Mobile APK"
-                : "Upload SelfX Kiosk APK"}
-            </DialogTitle>
+            <DialogTitle>Add App APK</DialogTitle>
             <DialogDescription>
-              Uploading creates a new immutable draft release. The current
-              published builds remain available until the new release is
-              published.
+              Upload a signed APK. SelfX reads the app version, build number,
+              supported architecture and minimum Android version directly from
+              the file.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={upload} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="app-target">App</Label>
+              <SelectMenu
+                id="app-target"
+                ariaLabel="App"
+                value={uploadTarget}
+                disabled={busy}
+                onChange={(value) => setUploadTarget(value as UploadTarget)}
+                options={[
+                  { value: "KIOSK", label: "SelfX Kiosk" },
+                  { value: "CUSTOMER", label: "SelfX Mobile" },
+                  ...customApps.map((app) => ({
+                    value: `CUSTOM:${app.id}`,
+                    label: app.name,
+                  })),
+                  { value: "NEW_CUSTOM", label: "Create a new app" },
+                ]}
+              />
+            </div>
+            {uploadTarget === "NEW_CUSTOM" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="app-name">App name</Label>
+                  <Input
+                    id="app-name"
+                    value={appName}
+                    maxLength={120}
+                    required
+                    disabled={busy}
+                    onChange={(event) => setAppName(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="app-description">Description</Label>
+                  <Textarea
+                    id="app-description"
+                    value={appDescription}
+                    maxLength={500}
+                    disabled={busy}
+                    onChange={(event) => setAppDescription(event.target.value)}
+                  />
+                </div>
+              </>
+            )}
             <div className="space-y-2">
               <Label htmlFor="release-apk">APK file</Label>
               <Input
@@ -537,6 +567,10 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
                 onChange={(event) => setNotes(event.target.value)}
               />
             </div>
+            <p className="text-sm text-muted-foreground">
+              Each upload creates an immutable draft APK card. Publishing is a
+              separate step.
+            </p>
             <DialogFooter>
               <Button
                 type="button"
@@ -546,8 +580,15 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={busy || !file}>
-                {busy ? "Processing…" : "Upload draft"}
+              <Button
+                type="submit"
+                disabled={
+                  busy ||
+                  !file ||
+                  (uploadTarget === "NEW_CUSTOM" && appName.trim().length < 2)
+                }
+              >
+                {busy ? "Validating APK…" : "Upload APK"}
               </Button>
             </DialogFooter>
           </form>
@@ -563,14 +604,14 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           <DialogHeader>
             <DialogTitle>
               {pending
-                ? `${pending.action.charAt(0).toUpperCase() + pending.action.slice(1)} release?`
+                ? `${pending.action[0]!.toUpperCase()}${pending.action.slice(1)} release?`
                 : "Change release"}
             </DialogTitle>
             <DialogDescription>
               {pending?.action === "publish"
-                ? "This APK will become available to eligible Stores."
+                ? "This APK will become available in the shared app downloads catalog."
                 : pending?.action === "retire"
-                  ? "This release will no longer be available for new Store downloads. Installed kiosks are unchanged."
+                  ? "This release will no longer be available for new downloads. Installed apps are unchanged."
                   : "This becomes the recommended download for this architecture."}
             </DialogDescription>
           </DialogHeader>

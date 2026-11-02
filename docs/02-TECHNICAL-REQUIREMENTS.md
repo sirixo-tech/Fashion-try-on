@@ -236,21 +236,25 @@ This supersedes earlier client-visible provider/model telemetry contracts.
 
 APK administration uses central NestJS APIs, APP_RELEASES_VIEW/MANAGE permissions,
 private object storage and immutable release metadata. Validate uploads (200 MiB
-maximum) with Android aapt badging and apksigner signature verification. Require
-the configured package and pinned release-certificate SHA-256; derive version,
-minimum SDK and ABI from the APK, never client claims. Bound inspector execution,
-clean temporary files, reject split/debuggable/unsupported-ABI packages and keep
-new objects as drafts. Identical SHA-256 retries return the same release. Unique
+maximum) with Android aapt badging and apksigner signature verification. Built-in
+SelfX apps require their configured package and pinned release-certificate
+SHA-256. A platform manager may register a companion app on its first validated
+upload; the APK package and signer SHA-256 become immutable trust anchors for
+later versions. Derive version, build number, minimum SDK and ABI from the APK,
+never client claims. Bound inspector execution, clean temporary files, reject
+split/debuggable/unsupported-ABI packages and keep new objects as drafts.
+Identical SHA-256 retries return the same release. Unique
 package/versionCode/architecture rejects conflicting bytes. Serialize lifecycle
 changes with PostgreSQL advisory locks, optimistic revisions and a unique partial
-recommended-per-architecture index. Reject publication downgrades relative to
-currently published matching builds. Audit lifecycle mutations. Lists paginate by
-UUIDv7 id. The shared authenticated Apps & Downloads catalog exposes published
-installers to dashboard roles and issues 60-second storage read URLs for published
-files only. Platform APIs continue to enforce APP_RELEASES_VIEW/MANAGE for release
-history and lifecycle actions. Platform release listings identify Kiosk versus
-Customer app; Upload or Replace always creates a new draft and never overwrites a
-published release. Store-specific kiosk download endpoints recheck
+recommended-per-app-and-architecture index. Reject publication downgrades
+relative to currently published matching builds. Audit lifecycle mutations.
+Lists paginate by UUIDv7 id. The shared authenticated Apps & Downloads catalog
+exposes published installers to dashboard roles and issues 60-second storage
+read URLs for published files only. Platform APIs continue to enforce
+APP_RELEASES_VIEW/MANAGE for release history and lifecycle actions. The platform
+page begins empty, creates app records from successful first APK uploads, and
+shows one card per immutable APK release; APK version metadata is not manually
+entered. Store-specific kiosk download endpoints recheck
 membership, status, kiosk permission and entitlement before issuing the same
 short-lived URLs; signed URLs already issued may remain usable until expiry.
 Platform release history includes uploader identity; Store views omit it and object

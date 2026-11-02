@@ -420,17 +420,20 @@ integrations and keep their existing labels.
 ### APPS-1 / REGIONAL-1 — Apps sidebar and account settings (2026-10-21)
 
 Apps & Downloads is a top-level sidebar destination for every authenticated
-dashboard role, separate from Platform Settings. Non-Platform roles see only
-published installer cards and can Download or copy a secure 60-second URL.
-Platform APP_RELEASES_VIEW users see release history; APP_RELEASES_MANAGE users
-also see upload, Publish, Set recommended and Retire. Show version/code,
-architecture, file size, min SDK, notes, upload date, checksum, state and
-recommended badge; uploader identity remains Platform-only. Confirm lifecycle
-changes and surface upload, validation, stale-state and download errors. Keep
-drafts/retired releases out of the shared download catalog. The platform page
-groups releases into SelfX Kiosk and SelfX Mobile cards, each with its own Upload
-or Replace current action. Replace uploads a new immutable draft; the current
-published version remains available until that draft is explicitly published.
+dashboard role, separate from Platform Settings. An empty catalog shows no app
+placeholders. Platform APP_RELEASES_VIEW users see release cards; APP_RELEASES_MANAGE
+users also see Add App, Publish, Set recommended and Retire. Add App opens a
+dialog to select SelfX Kiosk, SelfX Mobile, an existing companion app or Create a
+new app, and upload an APK with optional notes. New companion apps request a name
+and description. Do not ask users to type version metadata: show that it is read
+from the APK. Show one card per APK with app name, version/build, architecture,
+file size, minimum Android version, notes, upload date, checksum, state and
+recommended badge; uploader identity remains Platform-only. Published cards show
+Download and Copy URL (60-second link); managers can copy drafts as well.
+Confirm lifecycle changes and surface upload, validation, stale-state and
+download errors. Keep drafts/retired releases out of the shared download catalog.
+The Store Kiosks download page remains scoped to published kiosk APKs and its
+existing permission/plan checks.
 Kiosks retains its Store-specific Download Kiosk APK action at /app/kiosks/downloads with paginated
 published builds and its kiosk permission/plan checks.
 Account & Regional Settings is available through both shell account menus for all

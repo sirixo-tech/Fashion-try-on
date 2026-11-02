@@ -482,6 +482,7 @@ model User {
   regionalDateFormat String       @default("AUTO") @map("regional_date_format") @db.VarChar(16)
   regionalTimeFormat String       @default("AUTO") @map("regional_time_format") @db.VarChar(8)
   appReleases        AppRelease[]
+  companionAppsCreated CompanionApp[]
 
   @@map("users")
 }
@@ -492,8 +493,27 @@ enum AppReleaseStatus {
   RETIRED
 }
 
+model CompanionApp {
+  id           String       @id @db.Uuid
+  slug         String       @unique @db.VarChar(100)
+  name         String       @db.VarChar(120)
+  description  String       @default("") @db.VarChar(500)
+  packageName  String       @unique @map("package_name") @db.VarChar(160)
+  signerSha256 String       @map("signer_sha256") @db.Char(64)
+  createdById  String?      @map("created_by_id") @db.Uuid
+  createdBy    User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  releases     AppRelease[]
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([createdAt, id])
+  @@map("companion_apps")
+}
+
 model AppRelease {
   id           String           @id @db.Uuid
+  customAppId  String?          @map("custom_app_id") @db.Uuid
+  customApp    CompanionApp?    @relation(fields: [customAppId], references: [id], onDelete: Restrict)
   packageName  String           @map("package_name") @db.VarChar(160)
   versionName  String           @map("version_name") @db.VarChar(120)
   versionCode  Int              @map("version_code")

@@ -17,6 +17,10 @@ import {
 export const MAX_APK_BYTES = 200 * 1024 * 1024;
 const publicFields = {
   id: true,
+  customAppId: true,
+  customApp: {
+    select: { id: true, slug: true, name: true, description: true },
+  },
   packageName: true,
   versionName: true,
   versionCode: true,
@@ -139,6 +143,201 @@ export class AppReleasesService {
       await rm(directory, { recursive: true, force: true });
     }
   }
+  async uploadCustom(
+    userId: string,
+    buffer: Buffer,
+    releaseNotes: string,
+    input: { companionAppId: string } | { name: string; description: string },
+  ) {
+    if (
+      buffer.length < 4 ||
+      buffer.length > MAX_APK_BYTES ||
+      buffer.readUInt32LE(0) !== 0x04034b50
+    )
+      throw new ApiErrorException(
+        400,
+        "APK_INVALID_FILE",
+        "Choose an APK file no larger than 200 MiB.",
+      );
+    if (
+      "name" in input &&
+      (input.name.trim().length < 2 ||
+        input.name.trim().length > 120 ||
+        input.description.trim().length > 500)
+    )
+      throw new ApiErrorException(
+        400,
+        "COMPANION_APP_DETAILS_INVALID",
+        "Enter an app name (2–120 characters) and a description no longer than 500 characters.",
+      );
+
+    const directory = await mkdtemp(join(tmpdir(), "selfx-apk-"));
+    try {
+      const path = join(directory, "release.apk");
+      await writeFile(path, buffer, { mode: 0o600 });
+      const registered =
+        "companionAppId" in input
+          ? await this.prisma.companionApp.findUnique({
+              where: { id: input.companionAppId },
+            })
+          : null;
+      if ("companionAppId" in input && !registered)
+        throw new ApiErrorException(
+          404,
+          "COMPANION_APP_NOT_FOUND",
+          "The selected app was not found. Refresh and try again.",
+        );
+      const metadata = await this.validator.inspectCustom(
+        path,
+        registered?.packageName,
+        registered?.signerSha256,
+      );
+      const builtInPackage = [
+        releasePackage("KIOSK"),
+        releasePackage("CUSTOMER"),
+      ].includes(metadata.packageName);
+      if (builtInPackage)
+        throw new ApiErrorException(
+          409,
+          "COMPANION_APP_BUILTIN_PACKAGE",
+          "This APK belongs to a built-in SelfX app. Choose that app in the selector.",
+        );
+
+      let companionAppId = registered?.id ?? createSelfxId();
+      let companionAppSlug = registered?.slug ?? "";
+      let companionAppName = registered?.name ?? "";
+      let companionAppDescription = registered?.description ?? "";
+      const createCompanionApp = !registered;
+      if (!registered) {
+        const existingPackage = await this.prisma.companionApp.findUnique({
+          where: { packageName: metadata.packageName },
+        });
+        if (existingPackage)
+          throw new ApiErrorException(
+            409,
+            "COMPANION_APP_ALREADY_EXISTS",
+            "This APK package is already registered. Select its existing app to upload another release.",
+          );
+        const requested = input as { name: string; description: string };
+        const normalizedName = requested.name.trim();
+        const slugBase =
+          normalizedName
+            .toLowerCase()
+            .normalize("NFKD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "")
+            .slice(0, 80) || "app";
+        const suffix = createHash("sha256")
+          .update(metadata.packageName)
+          .digest("hex")
+          .slice(0, 10);
+        companionAppSlug = `${slugBase}-${suffix}`;
+        companionAppName = normalizedName;
+        companionAppDescription = requested.description.trim();
+      }
+
+      const sha256 = createHash("sha256").update(buffer).digest("hex");
+      const duplicate = await this.prisma.appRelease.findUnique({
+        where: { sha256 },
+        select: publicFields,
+      });
+      if (duplicate) {
+        if (duplicate.customAppId === companionAppId) return duplicate;
+        throw new ApiErrorException(
+          409,
+          "APK_ALREADY_ASSIGNED",
+          "This APK has already been uploaded for another app.",
+        );
+      }
+
+      const id = createSelfxId();
+      const objectKey = `app-releases/${id}/${sha256}.apk`;
+      const filename = `${companionAppSlug}-${metadata.versionCode}-${metadata.architecture.toLowerCase()}.apk`;
+      await this.storage.putObject({
+        key: objectKey,
+        contentType: "application/vnd.android.package-archive",
+        body: buffer,
+      });
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          if (createCompanionApp)
+            await tx.companionApp.create({
+              data: {
+                id: companionAppId,
+                slug: companionAppSlug,
+                name: companionAppName,
+                description: companionAppDescription,
+                packageName: metadata.packageName,
+                signerSha256: metadata.signerSha256,
+                createdById: userId,
+              },
+            });
+          const release = await tx.appRelease.create({
+            data: {
+              id,
+              ...metadata,
+              customAppId: companionAppId,
+              sha256,
+              objectKey,
+              filename,
+              sizeBytes: buffer.length,
+              uploadedById: userId,
+              releaseNotes,
+            },
+            select: publicFields,
+          });
+          if (createCompanionApp)
+            await tx.auditLog.create({
+              data: {
+                id: createSelfxId(),
+                actorUserId: userId,
+                action: "COMPANION_APP_CREATED",
+                resourceType: "companion_app",
+                resourceId: companionAppId,
+                metadata: { packageName: metadata.packageName },
+              },
+            });
+          await tx.auditLog.create({
+            data: {
+              id: createSelfxId(),
+              actorUserId: userId,
+              action: "APP_RELEASE_UPLOADED",
+              resourceType: "app_release",
+              resourceId: id,
+              metadata: {
+                appId: companionAppId,
+                sha256,
+                versionCode: metadata.versionCode,
+                architecture: metadata.architecture,
+              },
+            },
+          });
+          return release;
+        });
+      } catch (error) {
+        await this.storage.deleteObject(objectKey).catch(() => {});
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          const sameBinary = await this.prisma.appRelease.findUnique({
+            where: { sha256 },
+            select: publicFields,
+          });
+          if (sameBinary?.customAppId === companionAppId) return sameBinary;
+          throw new ApiErrorException(
+            409,
+            "APP_RELEASE_VERSION_CONFLICT",
+            "This version code and architecture already exist for the selected app. Build a new version code.",
+          );
+        }
+        throw error;
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
   beginUpload(userId: string) {
     if (this.uploads.has(userId) || this.uploads.size >= 2)
       throw new ApiErrorException(
@@ -155,14 +354,25 @@ export class AppReleasesService {
     publishedOnly: boolean,
     cursor?: string,
     pageSize = 25,
-    app: ReleaseApp | "ALL" = "KIOSK",
+    app: ReleaseApp | "CUSTOM" | "ALL" = "KIOSK",
   ) {
     const rows = await this.prisma.appRelease.findMany({
       where: {
-        packageName:
-          app === "ALL"
-            ? { in: [releasePackage("KIOSK"), releasePackage("CUSTOMER")] }
-            : releasePackage(app),
+        ...(app === "ALL"
+          ? {
+              OR: [
+                {
+                  packageName: {
+                    in: [releasePackage("KIOSK"), releasePackage("CUSTOMER")],
+                  },
+                  customAppId: null,
+                },
+                { customAppId: { not: null } },
+              ],
+            }
+          : app === "CUSTOM"
+            ? { customAppId: { not: null } }
+            : { packageName: releasePackage(app), customAppId: null }),
         ...(publishedOnly ? { status: "PUBLISHED" as const } : {}),
         ...(cursor ? { id: { lt: cursor } } : {}),
       },
@@ -178,24 +388,49 @@ export class AppReleasesService {
     const hasMore = rows.length > pageSize;
     const data = rows.slice(0, pageSize).map((release) => ({
       ...release,
-      app:
-        release.packageName === releasePackage("CUSTOMER")
+      app: release.customAppId
+        ? ("CUSTOM" as const)
+        : release.packageName === releasePackage("CUSTOMER")
           ? ("CUSTOMER" as const)
           : ("KIOSK" as const),
     }));
-    return { data, hasMore, nextCursor: hasMore ? data.at(-1)!.id : null };
+    const apps =
+      !publishedOnly && (app === "ALL" || app === "CUSTOM")
+        ? await this.prisma.companionApp.findMany({
+            select: { id: true, slug: true, name: true, description: true },
+            orderBy: { name: "asc" },
+          })
+        : undefined;
+    return {
+      data,
+      apps,
+      hasMore,
+      nextCursor: hasMore ? data.at(-1)!.id : null,
+    };
   }
   async listPublishedDownloads(
     cursor?: string,
     pageSize = 25,
-    app?: ReleaseApp,
+    app?: ReleaseApp | "CUSTOM",
   ) {
     const rows = await this.prisma.appRelease.findMany({
       where: {
         status: "PUBLISHED",
-        packageName: app
-          ? releasePackage(app)
-          : { in: [releasePackage("KIOSK"), releasePackage("CUSTOMER")] },
+        ...(app === "CUSTOM"
+          ? { customAppId: { not: null } }
+          : app
+            ? { packageName: releasePackage(app), customAppId: null }
+            : {
+                OR: [
+                  {
+                    packageName: {
+                      in: [releasePackage("KIOSK"), releasePackage("CUSTOMER")],
+                    },
+                    customAppId: null,
+                  },
+                  { customAppId: { not: null } },
+                ],
+              }),
         ...(cursor ? { id: { lt: cursor } } : {}),
       },
       orderBy: { id: "desc" },
@@ -205,8 +440,9 @@ export class AppReleasesService {
     const hasMore = rows.length > pageSize;
     const data = rows.slice(0, pageSize).map((release) => ({
       ...release,
-      app:
-        release.packageName === releasePackage("CUSTOMER")
+      app: release.customAppId
+        ? ("CUSTOM" as const)
+        : release.packageName === releasePackage("CUSTOMER")
           ? ("CUSTOMER" as const)
           : ("KIOSK" as const),
     }));
@@ -246,13 +482,23 @@ export class AppReleasesService {
             "This action is unavailable for the current release state.",
           );
         if (action === "publish") {
-          const app =
+          const registeredApp = release.customAppId
+            ? await tx.companionApp.findUnique({
+                where: { id: release.customAppId },
+              })
+            : null;
+          const app: ReleaseApp =
             release.packageName === releasePackage("CUSTOMER")
               ? "CUSTOMER"
               : "KIOSK";
+          const trustedPackage =
+            registeredApp?.packageName ?? releasePackage(app);
+          const trustedSigner =
+            registeredApp?.signerSha256 ??
+            this.validator.configuration(app).signer;
           if (
-            release.packageName !== releasePackage(app) ||
-            release.signerSha256 !== this.validator.configuration(app).signer
+            release.packageName !== trustedPackage ||
+            release.signerSha256 !== trustedSigner
           )
             throw new ApiErrorException(
               409,
@@ -347,14 +593,27 @@ export class AppReleasesService {
       expiresInSeconds: 60,
     };
   }
+  async isPublished(id: string) {
+    const release = await this.prisma.appRelease.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+    return release?.status === "PUBLISHED";
+  }
   async downloadPublished(id: string) {
     const release = await this.prisma.appRelease.findFirst({
       where: {
         id,
         status: "PUBLISHED",
-        packageName: {
-          in: [releasePackage("KIOSK"), releasePackage("CUSTOMER")],
-        },
+        OR: [
+          {
+            packageName: {
+              in: [releasePackage("KIOSK"), releasePackage("CUSTOMER")],
+            },
+            customAppId: null,
+          },
+          { customAppId: { not: null } },
+        ],
       },
     });
     if (!release)

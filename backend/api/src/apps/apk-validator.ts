@@ -16,6 +16,34 @@ export function parseApkMetadata(
   expectedPackage: string,
   trustedSigner: string,
 ) {
+  return parseApkMetadataWithTrust(
+    badging,
+    certificates,
+    expectedPackage,
+    trustedSigner,
+  );
+}
+
+export function parseCustomApkMetadata(
+  badging: string,
+  certificates: string,
+  expectedPackage?: string,
+  trustedSigner?: string,
+) {
+  return parseApkMetadataWithTrust(
+    badging,
+    certificates,
+    expectedPackage,
+    trustedSigner,
+  );
+}
+
+function parseApkMetadataWithTrust(
+  badging: string,
+  certificates: string,
+  expectedPackage?: string,
+  trustedSigner?: string,
+) {
   const packageLine = /^package:.*$/m.exec(badging)?.[0] ?? "";
   const name = /\bname='([^']+)'/.exec(packageLine)?.[1];
   const versionName = /\bversionName='([^']+)'/.exec(packageLine)?.[1];
@@ -30,7 +58,10 @@ export function parseApkMetadata(
     ),
   ].map((m) => m[1]!.replaceAll(":", "").toLowerCase());
   if (
-    name !== expectedPackage ||
+    !name ||
+    !/^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/.test(name) ||
+    name.length > 160 ||
+    (expectedPackage !== undefined && name !== expectedPackage) ||
     !versionName ||
     versionName.length > 120 ||
     !Number.isSafeInteger(versionCode) ||
@@ -42,14 +73,15 @@ export function parseApkMetadata(
       (abi) => !["armeabi-v7a", "arm64-v8a", "x86_64"].includes(abi!),
     ) ||
     signerDigests.length !== 1 ||
-    signerDigests[0] !== trustedSigner.toLowerCase() ||
+    (trustedSigner !== undefined &&
+      signerDigests[0] !== trustedSigner.toLowerCase()) ||
     /^application-debuggable/m.test(badging) ||
     /\bsplit='/.test(packageLine)
   ) {
     throw new ApiErrorException(
       400,
       "APK_VALIDATION_FAILED",
-      "Upload a standalone SelfX release APK signed by the configured certificate for this app.",
+      "Upload a valid standalone APK signed with the trusted certificate for this app.",
     );
   }
   const architecture =
@@ -100,27 +132,46 @@ export class ApkValidator {
   }
   async inspect(path: string, app: ReleaseApp = "KIOSK") {
     const config = this.configuration(app);
+    return this.inspectWithTrust(path, config.packageName, config.signer);
+  }
+  async inspectCustom(
+    path: string,
+    expectedPackage?: string,
+    trustedSigner?: string,
+  ) {
+    return this.inspectWithTrust(path, expectedPackage, trustedSigner);
+  }
+  private async inspectWithTrust(
+    path: string,
+    expectedPackage?: string,
+    trustedSigner?: string,
+  ) {
+    const aapt = process.env.SELFX_APK_AAPT_PATH;
+    const jar = process.env.SELFX_APK_SIGNER_JAR_PATH;
+    if (!aapt || !jar)
+      throw new ApiErrorException(
+        503,
+        "APK_VALIDATOR_NOT_CONFIGURED",
+        "Configure the APK inspection tools before uploading.",
+      );
+    const java = process.env.SELFX_APK_JAVA_PATH || "java";
     try {
       const options = {
         timeout: 60000,
         maxBuffer: 2 * 1024 * 1024,
         windowsHide: true,
       };
-      const badging = await run(
-        config.aapt,
-        ["dump", "badging", path],
-        options,
-      );
+      const badging = await run(aapt, ["dump", "badging", path], options);
       const certificates = await run(
-        config.java,
-        ["-jar", config.jar, "verify", "--print-certs", path],
+        java,
+        ["-jar", jar, "verify", "--print-certs", path],
         options,
       );
-      return parseApkMetadata(
+      return parseCustomApkMetadata(
         badging.stdout,
         certificates.stdout,
-        config.packageName,
-        config.signer,
+        expectedPackage,
+        trustedSigner,
       );
     } catch (error) {
       if (error instanceof ApiErrorException) throw error;
