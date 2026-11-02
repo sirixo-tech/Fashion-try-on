@@ -13,6 +13,7 @@ import { PrismaService } from "../database/prisma.service.js";
 import {
   PLATFORM_PERMISSIONS,
   PLATFORM_PERMISSION_REGISTRY,
+  platformPermissionsWithViewImplied,
   type PlatformPermission,
   permissionsForPlatformRole,
 } from "./platform-permissions.js";
@@ -33,16 +34,17 @@ export class PlatformAuthorizationService {
   ): Promise<boolean> {
     if (!(Object.values(PLATFORM_PERMISSIONS) as string[]).includes(permission))
       return false;
-    if (
-      permission !== PLATFORM_PERMISSIONS.storeImpersonation &&
-      (await this.isImpersonating(userId))
-    )
+    const impersonating = await this.isImpersonating(userId);
+    if (permission !== PLATFORM_PERMISSIONS.storeImpersonation && impersonating)
       return false;
-    await this.ensurePlatformPermissionCatalog();
-    if ((await this.staticPermissionsForUser(userId)).includes(permission)) {
-      return true;
-    }
+    if (!impersonating)
+      return (await this.allPlatformPermissionsForUser(userId)).includes(
+        permission,
+      );
 
+    await this.ensurePlatformPermissionCatalog();
+    if ((await this.staticPermissionsForUser(userId)).includes(permission))
+      return true;
     const dynamicAssignment =
       await this.prisma.platformUserAccessRole.findFirst({
         where: {
@@ -55,7 +57,6 @@ export class PlatformAuthorizationService {
         },
         select: { id: true },
       });
-
     return Boolean(dynamicAssignment);
   }
 
@@ -132,7 +133,7 @@ export class PlatformAuthorizationService {
         permissions: { select: { permission: { select: { code: true } } } },
       },
     });
-    return [
+    return platformPermissionsWithViewImplied([
       ...new Set(
         assignments.flatMap((assignment) => {
           if (assignment.role === "SELFX_SUPER_ADMIN")
@@ -149,9 +150,7 @@ export class PlatformAuthorizationService {
             : [...permissionsForPlatformRole(assignment.role)];
         }),
       ),
-    ].filter((code): code is PlatformPermission =>
-      (Object.values(PLATFORM_PERMISSIONS) as string[]).includes(code),
-    );
+    ]);
   }
 
   async allPlatformPermissionsForUser(
@@ -176,16 +175,14 @@ export class PlatformAuthorizationService {
           },
         },
       });
-    return [
+    return platformPermissionsWithViewImplied([
       ...new Set([
         ...(await this.staticPermissionsForUser(userId)),
         ...dynamicAssignments.flatMap((assignment) =>
           assignment.role.permissions.map((entry) => entry.permission.code),
         ),
       ]),
-    ].filter((code): code is PlatformPermission =>
-      (Object.values(PLATFORM_PERMISSIONS) as string[]).includes(code),
-    );
+    ]);
   }
 
   async requirePermission(

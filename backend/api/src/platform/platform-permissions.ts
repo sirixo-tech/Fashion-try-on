@@ -282,6 +282,23 @@ export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition
     },
   ] as const;
 
+export function platformPermissionsWithViewImplied(
+  permissionCodes: readonly string[],
+): PlatformPermission[] {
+  const codes = new Set(permissionCodes);
+  for (const permission of PLATFORM_PERMISSION_REGISTRY) {
+    if (permission.action === "view" || !codes.has(permission.code)) continue;
+    const viewPermission = PLATFORM_PERMISSION_REGISTRY.find(
+      (candidate) =>
+        candidate.module === permission.module && candidate.action === "view",
+    );
+    if (viewPermission) codes.add(viewPermission.code);
+  }
+  return [...codes].filter((code): code is PlatformPermission =>
+    (Object.values(PLATFORM_PERMISSIONS) as string[]).includes(code),
+  );
+}
+
 const SUPER_ADMIN_PERMISSIONS = Object.values(PLATFORM_PERMISSIONS);
 
 const STAFF_ADMIN_PERMISSIONS: readonly PlatformPermission[] =

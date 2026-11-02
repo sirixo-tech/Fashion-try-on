@@ -278,6 +278,7 @@ function RolePermissionsEditor({
     label: string;
     description: string | null;
     module: string;
+    action: string;
   }[];
   canEdit: boolean;
   assignable: string[];
@@ -298,19 +299,59 @@ function RolePermissionsEditor({
     canEdit &&
     !required.includes(code) &&
     (assignable.includes(code) || (storeScope && codes.includes(code)));
-  const groups = useMemo(() => {
+  const sensitiveCodes = new Set([
+    "ORGANIZATION_APPLICATION_APPROVE",
+    "ORGANIZATION_APPLICATION_REJECT",
+    "ORGANIZATION_ACTIVATE",
+    "ORGANIZATION_SUSPEND",
+    "STORES_DEACTIVATE",
+    "PERMISSIONS_MANAGE",
+    "PLATFORM_ROLES_MANAGE",
+    "PLATFORM_USERS_MANAGE",
+    "STORE_ROLES_MANAGE",
+    "STORE_IMPERSONATION",
+    "users.deactivate",
+    "roles.delete",
+    "kiosks.revoke",
+    "tryon.garment_preview",
+  ]);
+  const permissionGroups = useMemo(() => {
     const result = new Map<string, typeof permissions>();
-    for (const permission of permissions.filter((p) =>
-      `${p.label} ${p.code} ${p.description}`
+    for (const permission of permissions) {
+      if (sensitiveCodes.has(permission.code)) continue;
+      const group =
+        permission.code === "products.manage"
+          ? "Products & stock"
+          : permission.module;
+      result.set(group, [...(result.get(group) ?? []), permission]);
+    }
+    const query = search.trim().toLowerCase();
+    return [...result]
+      .map(([name, entries]) => {
+        const view = entries.filter(
+          (entry) =>
+            entry.action === "view" ||
+            entry.code === "ORGANIZATION_APPLICATION_REVIEW" ||
+            entry.code === "PERMISSIONS_VIEW",
+        );
+        const manage = entries.filter((entry) => !view.includes(entry));
+        return { name, entries, view, manage };
+      })
+      .filter(
+        ({ name, entries }) =>
+          !query ||
+          `${name} ${entries.map((entry) => `${entry.label} ${entry.code} ${entry.description}`).join(" ")}`
+            .toLowerCase()
+            .includes(query),
+      );
+  }, [permissions, search]);
+  const sensitivePermissions = permissions.filter(
+    (permission) =>
+      sensitiveCodes.has(permission.code) &&
+      `${permission.label} ${permission.code} ${permission.description}`
         .toLowerCase()
         .includes(search.toLowerCase()),
-    ))
-      result.set(permission.module, [
-        ...(result.get(permission.module) ?? []),
-        permission,
-      ]);
-    return [...result];
-  }, [permissions, search]);
+  );
   const initial = role.permissions.map((p) => p.code);
   const dirty =
     codes.length !== initial.length ||
@@ -322,6 +363,30 @@ function RolePermissionsEditor({
         ? current.filter((value) => value !== code)
         : [...current, code],
     );
+  }
+  function setGroup(
+    group: (typeof permissionGroups)[number],
+    mode: "view" | "manage",
+    enabled: boolean,
+  ) {
+    const target = mode === "view" ? group.view : group.manage;
+    const changes = target.filter((permission) => editable(permission.code));
+    const viewCodes = group.view.map((permission) => permission.code);
+    setCodes((current) => {
+      let next = new Set(current);
+      if (mode === "view" && !enabled) {
+        for (const permission of [...group.view, ...group.manage])
+          if (editable(permission.code)) next.delete(permission.code);
+      } else if (mode === "view") {
+        for (const permission of changes) next.add(permission.code);
+      } else if (enabled) {
+        for (const permission of changes) next.add(permission.code);
+        for (const code of viewCodes) if (editable(code)) next.add(code);
+      } else {
+        for (const permission of changes) next.delete(permission.code);
+      }
+      return [...next];
+    });
   }
   return (
     <Card
@@ -365,11 +430,18 @@ function RolePermissionsEditor({
                 disabled={busy}
                 onClick={() =>
                   setCodes((current) => [
-                    ...new Set([...current, ...assignable]),
+                    ...new Set([
+                      ...current,
+                      ...permissionGroups.flatMap((group) =>
+                        [...group.view, ...group.manage]
+                          .filter((permission) => editable(permission.code))
+                          .map((permission) => permission.code),
+                      ),
+                    ]),
                   ])
                 }
               >
-                Select all
+                Select routine access
               </Button>
               <Button
                 variant="outline"
@@ -387,12 +459,88 @@ function RolePermissionsEditor({
             </>
           )}
         </div>
-        {groups.length === 0 && <p>No permissions match this search.</p>}
-        {groups.map(([module, entries]) => (
-          <section key={module} className="space-y-3 rounded-lg border p-4">
-            <h3 className="font-medium">{module}</h3>
+        {permissionGroups.length === 0 && sensitivePermissions.length === 0 && (
+          <p>No permissions match this search.</p>
+        )}
+        {permissionGroups.map((group) => (
+          <section key={group.name} className="space-y-3 rounded-lg border p-4">
+            <h3 className="font-medium">{group.name}</h3>
             <div className="grid gap-3 md:grid-cols-2">
-              {entries.map((permission) => (
+              {group.view.length > 0 && (
+                <div className="flex gap-3 rounded-lg border p-3 text-sm">
+                  <Checkbox
+                    id={`permission-${role.id}-${group.name}-view`}
+                    checked={group.view.some((permission) =>
+                      codes.includes(permission.code),
+                    )}
+                    disabled={
+                      busy ||
+                      !group.view.some((permission) =>
+                        editable(permission.code),
+                      )
+                    }
+                    onCheckedChange={(checked) =>
+                      setGroup(group, "view", checked === true)
+                    }
+                  />
+                  <span className="min-w-0">
+                    <Label
+                      htmlFor={`permission-${role.id}-${group.name}-view`}
+                      className="block font-medium leading-normal"
+                    >
+                      View
+                    </Label>
+                    <span className="block text-xs text-muted-foreground">
+                      View this section and its records.
+                    </span>
+                  </span>
+                </div>
+              )}
+              {group.manage.length > 0 && (
+                <div className="flex gap-3 rounded-lg border p-3 text-sm">
+                  <Checkbox
+                    id={`permission-${role.id}-${group.name}-manage`}
+                    checked={group.manage.every((permission) =>
+                      codes.includes(permission.code),
+                    )}
+                    disabled={
+                      busy ||
+                      !group.manage.some((permission) =>
+                        editable(permission.code),
+                      )
+                    }
+                    onCheckedChange={(checked) =>
+                      setGroup(group, "manage", checked === true)
+                    }
+                  />
+                  <span className="min-w-0">
+                    <Label
+                      htmlFor={`permission-${role.id}-${group.name}-manage`}
+                      className="block font-medium leading-normal"
+                    >
+                      Manage
+                    </Label>
+                    <span className="block text-xs text-muted-foreground">
+                      View this section and manage its available actions.
+                    </span>
+                  </span>
+                </div>
+              )}
+            </div>
+            {group.entries.some((permission) =>
+              required.includes(permission.code),
+            ) && (
+              <p className="text-xs text-muted-foreground">
+                Required permissions for Store administration remain selected.
+              </p>
+            )}
+          </section>
+        ))}
+        {sensitivePermissions.length > 0 && (
+          <section className="space-y-3 rounded-lg border border-destructive/30 p-4">
+            <h3 className="font-medium">Sensitive actions and capabilities</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              {sensitivePermissions.map((permission) => (
                 <div
                   key={permission.code}
                   className="flex gap-3 rounded-lg border p-3 text-sm"
@@ -433,7 +581,7 @@ function RolePermissionsEditor({
               ))}
             </div>
           </section>
-        ))}
+        )}
         {canEdit && (
           <div className="flex justify-end">
             <Button

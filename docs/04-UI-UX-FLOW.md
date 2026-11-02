@@ -427,8 +427,11 @@ also see upload, Publish, Set recommended and Retire. Show version/code,
 architecture, file size, min SDK, notes, upload date, checksum, state and
 recommended badge; uploader identity remains Platform-only. Confirm lifecycle
 changes and surface upload, validation, stale-state and download errors. Keep
-drafts/retired releases out of the shared download catalog. Kiosks retains its
-Store-specific Download Kiosk APK action at /app/kiosks/downloads with paginated
+drafts/retired releases out of the shared download catalog. The platform page
+groups releases into SelfX Kiosk and SelfX Mobile cards, each with its own Upload
+or Replace current action. Replace uploads a new immutable draft; the current
+published version remains available until that draft is explicitly published.
+Kiosks retains its Store-specific Download Kiosk APK action at /app/kiosks/downloads with paginated
 published builds and its kiosk permission/plan checks.
 Account & Regional Settings is available through both shell account menus for all
 staff users at /app/account: searchable timezone suggestions, empty = device
@@ -445,6 +448,11 @@ Settings when none of its children is permitted. Platform users retain Stores
 after Dashboard, Plans after the operational groups, Developer / API and their
 separate Platform Settings group with Payment Gateways. This supersedes the
 PAYMENTS-1D top-level Payment Settings placement.
+
+Sidebar parent groups such as Integrations are labels, not destination pages.
+Opening a parent group URL directly redirects to its first permitted child; if
+the user has no permitted child, redirect to the Dashboard. Child routes retain
+their own permission checks.
 
 ### AUTH-UI-2A — Desktop login viewport fit (2026-10-21)
 
@@ -514,8 +522,12 @@ Store visibility and separate verification-panel requirements.
 Keep the five-role registry on the left and the selected role's permission panel
 on the right, stacking on mobile. Remove Store search, Store selector, pagination
 and Manage Store permission limit. Keep a clear orange selected border and small
-Platform/Store labels. The permission search bar, grouped checkboxes, Select all,
-Clear, required/read-only states and Save permissions remain. Explicitly state
+Platform/Store labels. Routine permissions are grouped into View and Manage
+controls; Manage includes View access and the routine actions for that section.
+High-impact actions such as Store approval/suspension, deactivation,
+impersonation and protected access management remain separate explicit controls.
+Keep the permission search, Select routine access, Clear, required/read-only
+states and Save permissions. Explicitly state
 that Store role saves apply across all Stores while membership and plans still
 restrict data/features. Merchant viewers cannot edit global roles or see global
 assigned-user counts. Preserve failed drafts and stale-save guidance. This

@@ -28,6 +28,7 @@ import {
 } from "./role-policy.js";
 import {
   STORE_PERMISSION_REGISTRY,
+  storePermissionsWithViewImplied,
   type StorePermissionCode,
 } from "./store-permissions.js";
 import {
@@ -578,7 +579,9 @@ export class StoreRbacService {
       );
       const permissions =
         store?.status === OrganizationStatus.ACTIVE && role
-          ? role.permissions.map((entry) => entry.permission.code).sort()
+          ? storePermissionsWithViewImplied(
+              role.permissions.map((entry) => entry.permission.code),
+            ).sort()
           : [];
       return {
         storeId,
@@ -667,7 +670,7 @@ export class StoreRbacService {
       };
     }
     const definitions = await readGlobalStoreRoles(this.prisma);
-    const permissions = [
+    const permissions = storePermissionsWithViewImplied([
       ...new Set(
         membership.roleAssignments.flatMap((assignment) =>
           (
@@ -677,7 +680,7 @@ export class StoreRbacService {
           ).map((entry) => entry.permission.code),
         ),
       ),
-    ].sort();
+    ]).sort();
     return {
       storeId,
       permissions,

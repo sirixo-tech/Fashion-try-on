@@ -228,6 +228,25 @@ export const STORE_PERMISSION_SET = new Set<string>(
   STORE_PERMISSION_REGISTRY.map((permission) => permission.code),
 );
 
+export function storePermissionsWithViewImplied(
+  permissionCodes: readonly string[],
+): StorePermissionCode[] {
+  const codes = new Set(permissionCodes);
+  for (const permission of STORE_PERMISSION_REGISTRY) {
+    if (permission.action === "view" || !codes.has(permission.code)) continue;
+    const viewPermission = STORE_PERMISSION_REGISTRY.find(
+      (candidate) =>
+        candidate.module === permission.module && candidate.action === "view",
+    );
+    if (viewPermission) codes.add(viewPermission.code);
+  }
+  if (codes.has(STORE_PERMISSION_CODES.productsManage))
+    codes.add(STORE_PERMISSION_CODES.storesView);
+  return [...codes].filter((code): code is StorePermissionCode =>
+    STORE_PERMISSION_SET.has(code),
+  );
+}
+
 export function isStorePermissionCode(
   code: string,
 ): code is StorePermissionCode {

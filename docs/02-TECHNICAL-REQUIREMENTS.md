@@ -248,7 +248,9 @@ currently published matching builds. Audit lifecycle mutations. Lists paginate b
 UUIDv7 id. The shared authenticated Apps & Downloads catalog exposes published
 installers to dashboard roles and issues 60-second storage read URLs for published
 files only. Platform APIs continue to enforce APP_RELEASES_VIEW/MANAGE for release
-history and lifecycle actions. Store-specific kiosk download endpoints recheck
+history and lifecycle actions. Platform release listings identify Kiosk versus
+Customer app; Upload or Replace always creates a new draft and never overwrites a
+published release. Store-specific kiosk download endpoints recheck
 membership, status, kiosk permission and entitlement before issuing the same
 short-lived URLs; signed URLs already issued may remain usable until expiry.
 Platform release history includes uploader identity; Store views omit it and object
@@ -322,7 +324,11 @@ effective permissions. Legacy mutation endpoints reject changes; tenant role IDs
 remain for membership/FK compatibility. Plan gates remain independent. Global
 assigned-user counts are distinct users per role and visible only to authorized
 Platform viewers. Merchant role viewers receive read-only definitions without
-cross-Store counts. This supersedes ROLES-1 per-Store editing and ceiling behavior.
+cross-Store counts. Runtime permission resolution implies the module's read
+permission whenever a routine manage permission is granted; Store product
+management also grants Store read access. Role storage continues to use the
+existing permission codes, with no schema migration. This supersedes ROLES-1
+per-Store editing and ceiling behavior.
 
 ### PAYMENTS-1I — Shared secret-field presentation
 
