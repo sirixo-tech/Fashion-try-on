@@ -20,5 +20,5 @@ fi
 
 "$java_path" -version
 "$aapt_path" version
-unzip -tq "$apksigner_jar_path"
+"$java_path" -jar "$apksigner_jar_path" --version
 echo "APK inspection tools are present and ready."
