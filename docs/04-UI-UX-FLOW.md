@@ -179,7 +179,7 @@ be retried immediately.
 
 The mobile purchase dialog titles UPI checkouts "UPI payment" and shows the
 server-generated amount and expiry countdown without rendering the QR. On
-Android, Share QR and Share payment link sit side by side, followed by the
+Android, Share QR and Share as link sit side by side, followed by the
 primary Pay through UPI action and Leave payment. The QR is fetched only when
 the customer chooses Share QR. The existing provider-confirmed credit grant
 and pending payment checks remain unchanged.
@@ -3622,7 +3622,7 @@ Do not:
 This document is sufficient to guide detailed Figma/design work and implementation planning while leaving exact visual styling and component composition to the approved SelfX design system.
 # Mobile payments (2026-10-29)
 
-CUSTOMER-MOBILE-18 presents installed UPI app icons as the main mobile payment choice. Share QR and Share payment link are secondary actions; the QR is not displayed inline, and the link is the expiring UPI URI for that order, not a permanent hosted checkout link. Returning to SelfX or pressing Check payment asks the backend to verify status. Credits appear only after confirmed payment.
+CUSTOMER-MOBILE-18 presents installed UPI app icons as the main mobile payment choice. Share QR and Share as link are secondary actions; the QR is not displayed inline, and the link is the expiring UPI URI for that order, not a permanent hosted checkout link. Returning to SelfX or pressing Check payment asks the backend to verify status. Credits appear only after confirmed payment.
 
 Platform Settings has a Mobile Payments page for the SelfX PhonePe account. The customer Plans & credits page shows active plans and a Choose plan action only when production checkout is enabled. PhonePe's hosted checkout offers UPI app and QR modes. Returning to SelfX or pressing Check payment queries the backend; credits appear only after verified confirmation. Pending state is recoverable on reopening Plans & credits. Monthly plans require a new payment after expiry and do not auto-renew.
 

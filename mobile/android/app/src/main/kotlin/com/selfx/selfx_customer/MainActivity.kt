@@ -110,7 +110,7 @@ class MainActivity : FlutterActivity() {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, "SelfX payment link (expires soon): $raw")
                         }
-                        startActivity(Intent.createChooser(share, "Share payment link"))
+                        startActivity(Intent.createChooser(share, "Share as link"))
                         result.success(true)
                     } catch (_: Exception) {
                         result.error("PAYMENT_LINK_SHARE_FAILED", "The payment link could not be shared.", null)

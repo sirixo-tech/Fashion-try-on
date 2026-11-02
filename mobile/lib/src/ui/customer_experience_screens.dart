@@ -488,7 +488,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                                 Icon(Icons.link_rounded, size: 21),
                                 SizedBox(height: 4),
                                 CustomerText(
-                                  'Share payment link',
+                                  'Share as link',
                                   textAlign: TextAlign.center,
                                   maxLines: 2,
                                 ),
