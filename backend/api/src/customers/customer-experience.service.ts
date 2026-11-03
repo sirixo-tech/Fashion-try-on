@@ -407,20 +407,6 @@ export class CustomerExperienceService
       declaredContentType: mimeType,
       maxBytes: 16 * 1024 * 1024,
     });
-    const count = await this.db.tryOnAsset.count({
-      where: {
-        session: { customerId: customer.id },
-        purpose: { not: "RESULT" },
-        deletedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-    });
-    if (count >= 64)
-      fail(
-        "CUSTOMER_UPLOAD_LIMIT",
-        "Delete an older photo before uploading another one.",
-        429,
-      );
     const storageKey = `customer-mobile/inputs/${customer.id}/${session.id}/${createSelfxId()}`;
     const storageInput = {
       sessionId,
