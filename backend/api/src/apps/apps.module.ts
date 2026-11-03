@@ -11,6 +11,7 @@ import {
   AppReleasesController,
   SharedAppDownloadsController,
   StoreAppDownloadsController,
+  PublicAppReleaseDownloadController,
 } from "./app-releases.controller.js";
 @Module({
   imports: [AuthModule, DatabaseModule, RbacModule],
@@ -18,6 +19,7 @@ import {
     AppReleasesController,
     SharedAppDownloadsController,
     StoreAppDownloadsController,
+    PublicAppReleaseDownloadController,
   ],
   providers: [
     PlatformAuthorizationService,

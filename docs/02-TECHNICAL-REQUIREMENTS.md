@@ -257,14 +257,26 @@ changes with PostgreSQL advisory locks, optimistic revisions and a unique partia
 recommended-per-app-and-architecture index. Reject publication downgrades
 relative to currently published matching builds. Audit lifecycle mutations.
 Lists paginate by UUIDv7 id. The shared authenticated Apps & Downloads catalog
-exposes published installers to dashboard roles and issues 60-second storage
-read URLs for published files only. Platform APIs continue to enforce
+exposes published installers to dashboard roles. Each published release
+receives an opaque, release-scoped SelfX download URL valid for at least 24
+hours. The public short-link route checks that the release is still published
+and the link has not expired, then redirects directly to a fresh 24-hour
+private-storage download URL. Publishing a newer build for the same package and
+architecture revokes the prior short link; retiring a release also revokes it.
+Drafts remain available only to authorized Platform managers through a 24-hour
+signed storage URL. Storage signing must serialize the exact AWS SigV4 canonical
+query string returned to the client so spaces remain `%20` and signatures are
+not changed by `+` normalization. Platform APIs continue to enforce
 APP_RELEASES_VIEW/MANAGE for release history and lifecycle actions. The platform
 page begins empty, creates app records from successful first APK uploads, and
 shows one card per immutable APK release; APK version metadata is not manually
-entered. Store-specific kiosk download endpoints recheck
-membership, status, kiosk permission and entitlement before issuing the same
-short-lived URLs; signed URLs already issued may remain usable until expiry.
+entered. Store-specific kiosk download endpoints recheck membership, status,
+kiosk permission and entitlement before returning the release-scoped SelfX
+short link.
+Build SelfX Mobile release APKs with `mobile/tool/build_release.ps1` so the
+Android build number advances automatically; the API continues to derive the
+published version name, build number, architecture, minimum SDK, size and
+checksum from the signed APK itself.
 Platform release history includes uploader identity; Store views omit it and object
 keys. Native tools, Java and a pinned release signer must be configured on each API
 host; fail closed if unavailable. Distribution does not implement remote updates.

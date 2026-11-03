@@ -28,10 +28,7 @@ export function resolveApiRewriteDestination(
     return `${normalized}${apiPathPrefix}/:path*`;
   }
 
-  if (
-    env.NODE_ENV === "production" &&
-    !hasExplicitPublicApiBaseUrl(env)
-  ) {
+  if (env.NODE_ENV === "production" && !hasExplicitPublicApiBaseUrl(env)) {
     throw new Error(
       "SELFX_API_UPSTREAM_URL is required for production same-origin API proxying.",
     );
@@ -48,6 +45,10 @@ export function apiRewriteConfig(env: NodeJS.ProcessEnv = process.env) {
           source: `${apiPathPrefix}/:path*`,
           destination,
         },
+        {
+          source: "/d/:token",
+          destination: `${normalizeApiUpstreamUrl(env.SELFX_API_UPSTREAM_URL!)}/d/:token`,
+        },
       ]
     : [];
 }
@@ -55,11 +56,13 @@ export function apiRewriteConfig(env: NodeJS.ProcessEnv = process.env) {
 function hasExplicitPublicApiBaseUrl(env: NodeJS.ProcessEnv): boolean {
   return Boolean(
     env.NEXT_PUBLIC_API_URL?.trim() ||
-      env.NEXT_PUBLIC_SELFX_API_BASE_URL?.trim(),
+    env.NEXT_PUBLIC_SELFX_API_BASE_URL?.trim(),
   );
 }
 
 function isLocalhostUrl(value: string): boolean {
   const hostname = new URL(value).hostname.toLowerCase();
-  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  return (
+    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+  );
 }

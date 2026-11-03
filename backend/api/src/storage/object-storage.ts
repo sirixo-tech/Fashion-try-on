@@ -27,6 +27,12 @@ export interface ObjectStorage {
     responseContentDisposition?: string;
     responseContentType?: string;
   }): string;
+  createAppReleaseReadUrl(input: {
+    key: string;
+    expiresInSeconds: number;
+    responseContentDisposition?: string;
+    responseContentType?: string;
+  }): string;
   headObject(key: string, timeoutMs?: number): Promise<ObjectStorageHead>;
   readObject(
     key: string,
@@ -113,6 +119,24 @@ export class ObjectStorageService implements ObjectStorage {
     });
   }
 
+  createAppReleaseReadUrl(input: {
+    key: string;
+    expiresInSeconds: number;
+    responseContentDisposition?: string;
+    responseContentType?: string;
+  }): string {
+    return this.presign(
+      "GET",
+      input.key,
+      input.expiresInSeconds,
+      {
+        responseContentDisposition: input.responseContentDisposition,
+        responseContentType: input.responseContentType,
+      },
+      7 * 24 * 60 * 60,
+    );
+  }
+
   async headObject(
     key: string,
     timeoutMs?: number,
@@ -166,6 +190,7 @@ export class ObjectStorageService implements ObjectStorage {
       responseContentDisposition?: string;
       responseContentType?: string;
     },
+    maxExpiresInSeconds = 900,
   ): string {
     const config = requireConfiguredStorage(this.config);
     const now = new Date();
@@ -177,7 +202,9 @@ export class ObjectStorageService implements ObjectStorage {
       "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
       "X-Amz-Credential": `${config.accessKeyId}/${credentialScope}`,
       "X-Amz-Date": amzDate,
-      "X-Amz-Expires": String(Math.max(1, Math.min(expiresInSeconds, 900))),
+      "X-Amz-Expires": String(
+        Math.max(1, Math.min(expiresInSeconds, maxExpiresInSeconds)),
+      ),
       "X-Amz-SignedHeaders": "host",
     });
     if (responseHeaders?.responseContentDisposition) {
@@ -209,7 +236,7 @@ export class ObjectStorageService implements ObjectStorage {
       stringToSign,
     );
     query.set("X-Amz-Signature", signature);
-    url.search = query.toString();
+    url.search = canonicalQuery(query);
     return url.toString();
   }
 }
@@ -261,14 +288,9 @@ function requireConfiguredStorage(
 
 function objectUrl(config: Required<ObjectStorageConfig>, key: string): URL {
   const endpoint = config.endpoint.replace(/\/+$/, "");
-  const encodedKey = key
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/");
+  const encodedKey = key.split("/").map(awsEncode).join("/");
   if (config.urlStyle === "path") {
-    return new URL(
-      `${endpoint}/${encodeURIComponent(config.bucket)}/${encodedKey}`,
-    );
+    return new URL(`${endpoint}/${awsEncode(config.bucket)}/${encodedKey}`);
   }
   const url = new URL(`${endpoint}/${encodedKey}`);
   url.hostname = `${config.bucket}.${url.hostname}`;
@@ -277,12 +299,21 @@ function objectUrl(config: Required<ObjectStorageConfig>, key: string): URL {
 
 function canonicalQuery(params: URLSearchParams): string {
   return [...params.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(
-      ([key, value]) =>
-        `${encodeURIComponent(key)}=${encodeURIComponent(value).replace(/%2F/g, "%2F")}`,
+    .map(([key, value]) => [awsEncode(key), awsEncode(value)] as const)
+    .sort(([leftKey, leftValue], [rightKey, rightValue]) =>
+      leftKey === rightKey
+        ? leftValue.localeCompare(rightValue)
+        : leftKey.localeCompare(rightKey),
     )
+    .map(([key, value]) => `${key}=${value}`)
     .join("&");
+}
+
+function awsEncode(value: string): string {
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
 }
 
 function toAmzDate(date: Date): string {

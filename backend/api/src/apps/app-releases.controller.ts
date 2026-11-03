@@ -7,6 +7,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
 } from "@nestjs/common";
 import {
   IsIn,
@@ -18,7 +19,7 @@ import {
   MaxLength,
   Min,
 } from "class-validator";
-import type { FastifyRequest } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { AuthService } from "../auth/auth.service.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
@@ -151,6 +152,14 @@ export class AppReleasesController {
     );
     return this.releases.download(id, false);
   }
+  @Post(":id/share-link")
+  async shareLink(
+    @Req() request: FastifyRequest,
+    @Param("id", SelfxUuidParamPipe) id: string,
+  ) {
+    await this.authorize(request);
+    return this.releases.shareLink(id);
+  }
 }
 
 @Controller("api/v1/apps/downloads")
@@ -177,6 +186,15 @@ export class SharedAppDownloadsController {
   ) {
     await this.auth.requireAccessUser(request.headers.authorization);
     return this.releases.downloadPublished(id);
+  }
+
+  @Post(":id/share-link")
+  async shareLink(
+    @Req() request: FastifyRequest,
+    @Param("id", SelfxUuidParamPipe) id: string,
+  ) {
+    await this.auth.requireAccessUser(request.headers.authorization);
+    return this.releases.shareLink(id);
   }
 }
 
@@ -235,5 +253,26 @@ export class StoreAppDownloadsController {
   ) {
     await this.authorize(request, storeId);
     return this.releases.download(id, true);
+  }
+}
+
+@Controller("d")
+export class PublicAppReleaseDownloadController {
+  constructor(private readonly releases: AppReleasesService) {}
+
+  @Get(":token")
+  async download(
+    @Param("token") token: string,
+    @Res() reply: FastifyReply,
+  ) {
+    if (!/^[A-Za-z0-9_-]{12}$/.test(token))
+      throw new ApiErrorException(
+        404,
+        "APP_RELEASE_LINK_NOT_FOUND",
+        "This APK download link was not found.",
+      );
+    const url = await this.releases.resolveShortDownload(token);
+    reply.header("Cache-Control", "private, no-store");
+    return reply.redirect(url, 302);
   }
 }

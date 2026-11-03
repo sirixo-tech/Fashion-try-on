@@ -478,12 +478,12 @@ model User {
   shopifyLinkSessionsApproved   ShopifyLinkSession[]                @relation("ShopifyLinkSessionApprovedByUser")
   wooCommerceLinksApproved      WooCommerceLinkSession[]            @relation("WooCommerceLinkSessionApprovedByUser")
 
-  regionalTimezone   String?      @map("regional_timezone") @db.VarChar(64)
-  regionalDateFormat String       @default("AUTO") @map("regional_date_format") @db.VarChar(16)
-  regionalTimeFormat String       @default("AUTO") @map("regional_time_format") @db.VarChar(8)
-  appReleases        AppRelease[]
+  regionalTimezone     String?            @map("regional_timezone") @db.VarChar(64)
+  regionalDateFormat   String             @default("AUTO") @map("regional_date_format") @db.VarChar(16)
+  regionalTimeFormat   String             @default("AUTO") @map("regional_time_format") @db.VarChar(8)
+  appReleases          AppRelease[]
   companionAppsCreated CompanionApp[]
-  appReleaseUploads AppReleaseUpload[]
+  appReleaseUploads    AppReleaseUpload[]
 
   @@map("users")
 }
@@ -505,47 +505,49 @@ enum AppReleaseUploadStatus {
 }
 
 model CompanionApp {
-  id           String       @id @db.Uuid
-  slug         String       @unique @db.VarChar(100)
-  name         String       @db.VarChar(120)
-  description  String       @default("") @db.VarChar(500)
-  packageName  String       @unique @map("package_name") @db.VarChar(160)
-  signerSha256 String       @map("signer_sha256") @db.Char(64)
-  createdById  String?      @map("created_by_id") @db.Uuid
-  createdBy    User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  id           String             @id @db.Uuid
+  slug         String             @unique @db.VarChar(100)
+  name         String             @db.VarChar(120)
+  description  String             @default("") @db.VarChar(500)
+  packageName  String             @unique @map("package_name") @db.VarChar(160)
+  signerSha256 String             @map("signer_sha256") @db.Char(64)
+  createdById  String?            @map("created_by_id") @db.Uuid
+  createdBy    User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
   releases     AppRelease[]
   uploads      AppReleaseUpload[]
-  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([createdAt, id])
   @@map("companion_apps")
 }
 
 model AppRelease {
-  id           String           @id @db.Uuid
-  customAppId  String?          @map("custom_app_id") @db.Uuid
-  customApp    CompanionApp?    @relation(fields: [customAppId], references: [id], onDelete: Restrict)
-  packageName  String           @map("package_name") @db.VarChar(160)
-  versionName  String           @map("version_name") @db.VarChar(120)
-  versionCode  Int              @map("version_code")
-  architecture String           @db.VarChar(32)
-  minSdk       Int              @map("min_sdk")
-  sizeBytes    Int              @map("size_bytes")
-  sha256       String           @unique @db.Char(64)
-  signerSha256 String           @map("signer_sha256") @db.Char(64)
-  objectKey    String           @unique @map("object_key")
-  filename     String           @db.VarChar(200)
-  releaseNotes String           @default("") @map("release_notes") @db.VarChar(4000)
-  status       AppReleaseStatus @default(DRAFT)
-  recommended  Boolean          @default(false)
-  revision     Int              @default(0)
-  uploadedById String?          @map("uploaded_by_id") @db.Uuid
-  uploadedBy   User?            @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
-  uploadJobs   AppReleaseUpload[]
-  publishedAt  DateTime?        @map("published_at") @db.Timestamptz(3)
-  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                     String             @id @db.Uuid
+  customAppId            String?            @map("custom_app_id") @db.Uuid
+  customApp              CompanionApp?      @relation(fields: [customAppId], references: [id], onDelete: Restrict)
+  packageName            String             @map("package_name") @db.VarChar(160)
+  versionName            String             @map("version_name") @db.VarChar(120)
+  versionCode            Int                @map("version_code")
+  architecture           String             @db.VarChar(32)
+  minSdk                 Int                @map("min_sdk")
+  sizeBytes              Int                @map("size_bytes")
+  sha256                 String             @unique @db.Char(64)
+  signerSha256           String             @map("signer_sha256") @db.Char(64)
+  objectKey              String             @unique @map("object_key")
+  filename               String             @db.VarChar(200)
+  downloadToken          String?            @unique @map("download_token") @db.VarChar(16)
+  downloadTokenExpiresAt DateTime?          @map("download_token_expires_at") @db.Timestamptz(3)
+  releaseNotes           String             @default("") @map("release_notes") @db.VarChar(4000)
+  status                 AppReleaseStatus   @default(DRAFT)
+  recommended            Boolean            @default(false)
+  revision               Int                @default(0)
+  uploadedById           String?            @map("uploaded_by_id") @db.Uuid
+  uploadedBy             User?              @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadJobs             AppReleaseUpload[]
+  publishedAt            DateTime?          @map("published_at") @db.Timestamptz(3)
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@unique([packageName, versionCode, architecture])
   @@index([status, createdAt, id])
@@ -553,28 +555,28 @@ model AppRelease {
 }
 
 model AppReleaseUpload {
-  id             String                  @id @db.Uuid
-  createdById    String                  @map("created_by_id") @db.Uuid
-  createdBy      User                    @relation(fields: [createdById], references: [id], onDelete: Cascade)
-  app            String                  @db.VarChar(16)
-  companionAppId String?                 @map("companion_app_id") @db.Uuid
-  companionApp   CompanionApp?           @relation(fields: [companionAppId], references: [id], onDelete: Restrict)
-  appName        String?                 @map("app_name") @db.VarChar(120)
-  appDescription String                  @default("") @map("app_description") @db.VarChar(500)
-  filename       String                  @db.VarChar(255)
-  sizeBytes      Int                     @map("size_bytes")
-  releaseNotes   String                  @default("") @map("release_notes") @db.VarChar(4000)
-  objectKey      String                  @unique @map("object_key")
+  id             String                 @id @db.Uuid
+  createdById    String                 @map("created_by_id") @db.Uuid
+  createdBy      User                   @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  app            String                 @db.VarChar(16)
+  companionAppId String?                @map("companion_app_id") @db.Uuid
+  companionApp   CompanionApp?          @relation(fields: [companionAppId], references: [id], onDelete: Restrict)
+  appName        String?                @map("app_name") @db.VarChar(120)
+  appDescription String                 @default("") @map("app_description") @db.VarChar(500)
+  filename       String                 @db.VarChar(255)
+  sizeBytes      Int                    @map("size_bytes")
+  releaseNotes   String                 @default("") @map("release_notes") @db.VarChar(4000)
+  objectKey      String                 @unique @map("object_key")
   status         AppReleaseUploadStatus @default(AWAITING_UPLOAD)
-  attempts       Int                     @default(0)
-  availableAt    DateTime                @default(now()) @map("available_at") @db.Timestamptz(3)
-  leaseUntil     DateTime?               @map("lease_until") @db.Timestamptz(3)
-  expiresAt      DateTime                @map("expires_at") @db.Timestamptz(3)
-  failureCode    String?                 @map("failure_code") @db.VarChar(80)
-  releaseId      String?                 @map("release_id") @db.Uuid
-  release        AppRelease?             @relation(fields: [releaseId], references: [id], onDelete: SetNull)
-  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  attempts       Int                    @default(0)
+  availableAt    DateTime               @default(now()) @map("available_at") @db.Timestamptz(3)
+  leaseUntil     DateTime?              @map("lease_until") @db.Timestamptz(3)
+  expiresAt      DateTime               @map("expires_at") @db.Timestamptz(3)
+  failureCode    String?                @map("failure_code") @db.VarChar(80)
+  releaseId      String?                @map("release_id") @db.Uuid
+  release        AppRelease?            @relation(fields: [releaseId], references: [id], onDelete: SetNull)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([status, leaseUntil, createdAt])
   @@index([createdById, status, createdAt])

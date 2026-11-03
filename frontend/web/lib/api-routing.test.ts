@@ -18,6 +18,10 @@ describe("Next API rewrite routing", () => {
         source: "/api/v1/:path*",
         destination: "https://selfxapi.example.com/api/v1/:path*",
       },
+      {
+        source: "/d/:token",
+        destination: "https://selfxapi.example.com/d/:token",
+      },
     ]);
   });
 

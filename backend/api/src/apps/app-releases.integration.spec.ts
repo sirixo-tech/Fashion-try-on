@@ -74,7 +74,9 @@ describe.skipIf(!url)("app releases and preferences with PostgreSQL", () => {
     expect(listing.data.find((row) => row.id === first)).not.toHaveProperty(
       "uploadedBy",
     );
-    expect((await service.download(first, true)).expiresInSeconds).toBe(60);
+    expect(
+      (await service.download(first, true)).expiresInSeconds,
+    ).toBeGreaterThan(60 * 60 * 23);
     await service.change(id, first, "recommend", 1);
   });
   it("atomically replaces the recommended architecture release", async () => {

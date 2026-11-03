@@ -131,7 +131,8 @@ lease/creation and owner/status/creation for durable worker claiming and owner
 status polling. Staged binaries are private and are deleted when an upload
 expires or permanently fails validation.
 Package/versionCode/architecture uniqueness and per-package architecture
-recommendation constraints continue to apply. AppRelease uses UUIDv7 id, immutable package/version/code/architecture/minSDK,
+recommendation constraints continue to apply. AppRelease stores a unique opaque
+download token and expiry for its release-scoped public APK link. AppRelease uses UUIDv7 id, immutable package/version/code/architecture/minSDK,
 filename, object key, size, file SHA-256, signer SHA-256, release notes, uploader
 FK (SetNull), created/updated/published timestamps, DRAFT/PUBLISHED/RETIRED status,
 recommended flag and revision. Uniqueness covers checksum, object key and

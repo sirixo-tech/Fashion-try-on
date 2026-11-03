@@ -440,7 +440,10 @@ visible until they finish or fail.
 Show one card per APK with app name, version/build, architecture,
 file size, minimum Android version, notes, upload date, checksum, state and
 recommended badge; uploader identity remains Platform-only. Published cards show
-Download and Copy URL (60-second link); managers can copy drafts as well.
+Download and Copy URL. The copied SelfX short link starts the APK download
+directly, remains valid for at least 24 hours, and is revoked when a newer build
+for the same package and architecture is published. Drafts remain downloadable
+to authorized managers, but are not given public short links.
 Confirm lifecycle changes and surface upload, validation, stale-state and
 download errors. Keep drafts/retired releases out of the shared download catalog.
 The Store Kiosks download page remains scoped to published kiosk APKs and its

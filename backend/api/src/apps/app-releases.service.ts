@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -42,6 +42,11 @@ const publicFields = {
   createdAt: true,
   publishedAt: true,
 } as const;
+const APK_DOWNLOAD_LINK_TTL_SECONDS = 24 * 60 * 60;
+
+function createDownloadToken(): string {
+  return randomBytes(9).toString("base64url");
+}
 
 @Injectable()
 export class AppReleasesService implements OnModuleInit, OnModuleDestroy {
@@ -965,11 +970,34 @@ export class AppReleasesService implements OnModuleInit, OnModuleDestroy {
             },
             data: { recommended: false, revision: { increment: 1 } },
           });
+        if (action === "publish")
+          await tx.appRelease.updateMany({
+            where: {
+              packageName: release.packageName,
+              architecture: release.architecture,
+              status: "PUBLISHED",
+              id: { not: release.id },
+              downloadToken: { not: null },
+            },
+            data: { downloadToken: null, downloadTokenExpiresAt: null },
+          });
         const data =
           action === "publish"
-            ? { status: "PUBLISHED" as const, publishedAt: new Date() }
+            ? {
+                status: "PUBLISHED" as const,
+                publishedAt: new Date(),
+                downloadToken: createDownloadToken(),
+                downloadTokenExpiresAt: new Date(
+                  Date.now() + APK_DOWNLOAD_LINK_TTL_SECONDS * 1000,
+                ),
+              }
             : action === "retire"
-              ? { status: "RETIRED" as const, recommended: false }
+              ? {
+                  status: "RETIRED" as const,
+                  recommended: false,
+                  downloadToken: null,
+                  downloadTokenExpiresAt: null,
+                }
               : { recommended: true };
         const result = await tx.appRelease.update({
           where: { id },
@@ -1019,15 +1047,9 @@ export class AppReleasesService implements OnModuleInit, OnModuleDestroy {
         "APP_RELEASE_NOT_FOUND",
         "Release is unavailable.",
       );
-    return {
-      url: this.storage.createReadUrl({
-        key: release.objectKey,
-        expiresInSeconds: 60,
-        responseContentType: "application/vnd.android.package-archive",
-        responseContentDisposition: `attachment; filename="${release.filename}"`,
-      }),
-      expiresInSeconds: 60,
-    };
+    return release.status === "PUBLISHED"
+      ? this.shortDownloadLink(release)
+      : this.signedDownload(release);
   }
   async isPublished(id: string) {
     const release = await this.prisma.appRelease.findUnique({
@@ -1058,14 +1080,111 @@ export class AppReleasesService implements OnModuleInit, OnModuleDestroy {
         "APP_RELEASE_NOT_FOUND",
         "Release is unavailable.",
       );
+    return this.shortDownloadLink(release);
+  }
+  async shareLink(id: string) {
+    const release = await this.prisma.appRelease.findFirst({
+      where: { id, status: "PUBLISHED" },
+    });
+    if (!release)
+      throw new ApiErrorException(
+        404,
+        "APP_RELEASE_NOT_FOUND",
+        "Published release is unavailable.",
+      );
+    return this.shortDownloadLink(release, true);
+  }
+  async resolveShortDownload(token: string): Promise<string> {
+    const now = new Date();
+    const release = await this.prisma.appRelease.findFirst({
+      where: {
+        downloadToken: token,
+        status: "PUBLISHED",
+        downloadTokenExpiresAt: { gt: now },
+      },
+      select: {
+        objectKey: true,
+        filename: true,
+      },
+    });
+    if (!release)
+      throw new ApiErrorException(
+        410,
+        "APP_RELEASE_LINK_EXPIRED",
+        "This APK link has expired or was replaced. Copy the latest link from Apps & Downloads.",
+      );
+    return this.storage.createAppReleaseReadUrl({
+      key: release.objectKey,
+      expiresInSeconds: APK_DOWNLOAD_LINK_TTL_SECONDS,
+      responseContentType: "application/vnd.android.package-archive",
+      responseContentDisposition: `attachment; filename="${release.filename}"`,
+    });
+  }
+  private async shortDownloadLink(
+    release: {
+      id: string;
+      downloadToken: string | null;
+      downloadTokenExpiresAt: Date | null;
+    },
+    renew = false,
+  ) {
+    const now = new Date();
+    let token = release.downloadToken;
+    let expiresAt = release.downloadTokenExpiresAt;
+    if (renew || !token || !expiresAt || expiresAt <= now) {
+      token = createDownloadToken();
+      expiresAt = new Date(
+        now.getTime() + APK_DOWNLOAD_LINK_TTL_SECONDS * 1000,
+      );
+      const updated = await this.prisma.appRelease.updateMany({
+        where: {
+          id: release.id,
+          status: "PUBLISHED",
+          downloadToken: release.downloadToken,
+          downloadTokenExpiresAt: release.downloadTokenExpiresAt,
+        },
+        data: { downloadToken: token, downloadTokenExpiresAt: expiresAt },
+      });
+      if (!updated.count) {
+        const current = await this.prisma.appRelease.findFirst({
+          where: {
+            id: release.id,
+            status: "PUBLISHED",
+            downloadTokenExpiresAt: { gt: now },
+          },
+          select: { downloadToken: true, downloadTokenExpiresAt: true },
+        });
+        if (!current?.downloadToken || !current.downloadTokenExpiresAt)
+          throw new ApiErrorException(
+            409,
+            "APP_RELEASE_LINK_UNAVAILABLE",
+            "A fresh APK link could not be created. Refresh and try again.",
+          );
+        token = current.downloadToken;
+        expiresAt = current.downloadTokenExpiresAt;
+      }
+    }
+    const configuredBase = process.env.SELFX_API_BASE_URL?.trim();
+    const base = configuredBase?.replace(/\/+$/, "");
+    const url = base ? `${base}/d/${token}` : `/d/${token}`;
     return {
-      url: this.storage.createReadUrl({
+      url,
+      expiresAt,
+      expiresInSeconds: Math.max(
+        0,
+        Math.floor((expiresAt.getTime() - now.getTime()) / 1000),
+      ),
+    };
+  }
+  private signedDownload(release: { objectKey: string; filename: string }) {
+    return {
+      url: this.storage.createAppReleaseReadUrl({
         key: release.objectKey,
-        expiresInSeconds: 60,
+        expiresInSeconds: APK_DOWNLOAD_LINK_TTL_SECONDS,
         responseContentType: "application/vnd.android.package-archive",
         responseContentDisposition: `attachment; filename="${release.filename}"`,
       }),
-      expiresInSeconds: 60,
+      expiresInSeconds: APK_DOWNLOAD_LINK_TTL_SECONDS,
     };
   }
   async customerUpdate(versionCode: number, architecture: string, sdk: number) {

@@ -19,7 +19,7 @@ import {
   SelectMenu,
   Textarea,
 } from "@selfx/ui";
-import { selfxApi } from "@/lib/api";
+import { selfxApi, selfxApiUrl } from "@/lib/api";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
 import { getCurrentMerchantStoreAccess } from "@/lib/current-store";
 import { useSession } from "@/lib/session";
@@ -425,7 +425,16 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
         accessToken: token,
       },
     );
-    return result.url;
+    return result.url.startsWith("/") ? selfxApiUrl(result.url) : result.url;
+  }
+
+  async function createShareUrl(release: Release) {
+    if (!token) throw new Error("Sign in again to share this app.");
+    const result = await selfxApi<{ url: string }>(
+      `${base}/${release.id}/share-link`,
+      { method: "POST", accessToken: token },
+    );
+    return result.url.startsWith("/") ? selfxApiUrl(result.url) : result.url;
   }
 
   async function download(release: Release) {
@@ -452,8 +461,8 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
     setError("");
     setMessage("");
     try {
-      await navigator.clipboard.writeText(await getDownloadUrl(release));
-      setMessage("Secure download link copied. It is valid for 60 seconds.");
+      await navigator.clipboard.writeText(await createShareUrl(release));
+      setMessage("APK download link copied. It is valid for 24 hours.");
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -630,13 +639,15 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
                       >
                         Download
                       </Button>
-                      <Button
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => void copyDownloadLink(release)}
-                      >
-                        Copy URL
-                      </Button>
+                      {publishedVisible(release) && (
+                        <Button
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => void copyDownloadLink(release)}
+                        >
+                          Copy URL
+                        </Button>
+                      )}
                     </>
                   )}
                   {canManage && release.status === "DRAFT" && (

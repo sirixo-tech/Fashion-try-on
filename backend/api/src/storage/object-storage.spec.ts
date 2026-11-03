@@ -19,7 +19,6 @@ describe("ObjectStorageService", () => {
     vi.unstubAllEnvs();
   });
 
-
   it("signs virtual-host URLs by default for reads and writes", () => {
     vi.stubEnv("OBJECT_STORAGE_URL_STYLE", "");
     const storage = new ObjectStorageService();
@@ -44,6 +43,24 @@ describe("ObjectStorageService", () => {
     }
     expect(readUrl.searchParams.get("X-Amz-Signature")).not.toBe(
       uploadUrl.searchParams.get("X-Amz-Signature"),
+    );
+    expect(readUrl.searchParams.getAll("X-Amz-Signature")).toHaveLength(1);
+  });
+
+  it("allows app release links to be signed for at least 24 hours", () => {
+    const url = new URL(
+      new ObjectStorageService().createAppReleaseReadUrl({
+        key: "app-releases/release/installer.apk",
+        expiresInSeconds: 24 * 60 * 60,
+        responseContentType: "application/vnd.android.package-archive",
+        responseContentDisposition: 'attachment; filename="selfx.apk"',
+      }),
+    );
+
+    expect(url.searchParams.get("X-Amz-Expires")).toBe("86400");
+    expect(url.searchParams.getAll("X-Amz-Signature")).toHaveLength(1);
+    expect(url.searchParams.get("response-content-type")).toBe(
+      "application/vnd.android.package-archive",
     );
   });
 
