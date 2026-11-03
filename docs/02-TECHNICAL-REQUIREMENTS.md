@@ -262,7 +262,11 @@ receives an opaque, release-scoped SelfX download URL valid for at least 24
 hours. The public short-link route checks that the release is still published
 and the link has not expired, then redirects directly to a fresh 24-hour
 private-storage download URL. Publishing a newer build for the same package and
-architecture revokes the prior short link; retiring a release also revokes it.
+architecture revokes the prior short link; retiring or deleting a release also
+revokes it. Manager-only deletion removes a built-in APK release and its upload
+records, or a companion app with all its APK releases, upload records and
+private storage objects. Preserve immutable audit records and reject deletion
+while an associated upload is awaiting transfer or validation.
 Drafts remain available only to authorized Platform managers through a 24-hour
 signed storage URL. Storage signing must serialize the exact AWS SigV4 canonical
 query string returned to the client so spaces remain `%20` and signatures are

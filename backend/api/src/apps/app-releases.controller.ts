@@ -92,6 +92,22 @@ export class AppReleasesController {
     const user = await this.authorize(request, true);
     return this.releases.dismissFailedUpload(user.id, id);
   }
+  @Delete("apps/:id")
+  async deleteCompanionApp(
+    @Req() request: FastifyRequest,
+    @Param("id", SelfxUuidParamPipe) id: string,
+  ) {
+    const user = await this.authorize(request, true);
+    return this.releases.deleteCompanionApp(user.id, id);
+  }
+  @Delete(":id")
+  async deleteRelease(
+    @Req() request: FastifyRequest,
+    @Param("id", SelfxUuidParamPipe) id: string,
+  ) {
+    const user = await this.authorize(request, true);
+    return this.releases.deleteRelease(user.id, id);
+  }
   @Post("uploads")
   async beginUpload(
     @Req() request: FastifyRequest,

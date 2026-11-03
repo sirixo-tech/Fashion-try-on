@@ -71,7 +71,8 @@ export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition
       module: "platform.apps",
       action: "manage",
       label: "Manage App Releases",
-      description: "Upload, publish, recommend and retire kiosk APK releases.",
+      description:
+        "Upload, publish, recommend and permanently delete APK releases or companion apps.",
       applicability: "PLATFORM_ONLY",
     },
     {

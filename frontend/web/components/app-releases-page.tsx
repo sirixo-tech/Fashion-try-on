@@ -18,13 +18,13 @@ import {
   SectionCard,
   SelectMenu,
   Textarea,
+  useToast,
 } from "@selfx/ui";
 import { selfxApi, selfxApiUrl } from "@/lib/api";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
 import { getCurrentMerchantStoreAccess } from "@/lib/current-store";
 import { useSession } from "@/lib/session";
 import { RegionalDateTime } from "@/lib/regional-settings";
-import { XIcon } from "lucide-react";
 
 type AppCode = "KIOSK" | "CUSTOMER" | "CUSTOM";
 type CustomApp = {
@@ -74,6 +74,7 @@ type UploadTicket = {
   headers: Record<string, string>;
 };
 type UploadTarget = "KIOSK" | "CUSTOMER" | "NEW_CUSTOM" | `CUSTOM:${string}`;
+const notifiedUploadFailuresKey = "selfx:app-release-failure-toasts";
 
 function putApk(
   url: string,
@@ -122,8 +123,52 @@ function displayApp(release: Release) {
     : "SelfX Kiosk";
 }
 
+function notifyUploadFailures(
+  jobs: UploadJob[],
+  showToast: ReturnType<typeof useToast>["showToast"],
+) {
+  let notified = new Set<string>();
+  try {
+    const stored = window.sessionStorage.getItem(notifiedUploadFailuresKey);
+    const parsed: unknown = stored ? JSON.parse(stored) : [];
+    if (Array.isArray(parsed))
+      notified = new Set(
+        parsed.filter((value): value is string => typeof value === "string"),
+      );
+  } catch {
+    // A blocked session store should not prevent upload failure feedback.
+  }
+
+  const newFailures = jobs.filter(
+    (job) => job.status === "FAILED" && !notified.has(job.id),
+  );
+  const grouped = new Map<string, UploadJob>();
+  for (const job of newFailures) {
+    const key = `${job.filename}\u0000${job.failureCode ?? ""}`;
+    if (!grouped.has(key)) grouped.set(key, job);
+  }
+  for (const job of grouped.values()) {
+    showToast({
+      title: "APK validation failed",
+      description: `${job.filename}${job.failureCode ? ` (${job.failureCode})` : ""}. Upload it again after checking the file.`,
+      variant: "error",
+    });
+  }
+
+  for (const job of jobs) if (job.status === "FAILED") notified.add(job.id);
+  try {
+    window.sessionStorage.setItem(
+      notifiedUploadFailuresKey,
+      JSON.stringify([...notified].slice(-100)),
+    );
+  } catch {
+    // In-memory toast behavior still works when session storage is unavailable.
+  }
+}
+
 export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
   const session = useSession();
+  const { showToast } = useToast();
   const token = session.accessToken;
   const [base, setBase] = useState("");
   const [canManage, setCanManage] = useState(false);
@@ -153,8 +198,28 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
   const loadRevision = useRef(0);
   const [pending, setPending] = useState<{
     release: Release;
-    action: "publish" | "recommend" | "retire";
+    action: "publish" | "recommend" | "delete_release" | "delete_app";
   } | null>(null);
+
+  useEffect(() => {
+    if (!error) return;
+    showToast({
+      title: "Apps & Downloads",
+      description: error,
+      variant: "error",
+    });
+    setError("");
+  }, [error, showToast]);
+
+  useEffect(() => {
+    if (!message) return;
+    showToast({
+      title: "Apps & Downloads",
+      description: message,
+      variant: "success",
+    });
+    setMessage("");
+  }, [message, showToast]);
 
   const load = useCallback(
     async (silent = false) => {
@@ -208,6 +273,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
             );
             if (revision !== loadRevision.current) return;
             setUploadJobs(jobs.data);
+            notifyUploadFailures(jobs.data, showToast);
             setUploadStatusUnavailable(false);
           } catch {
             if (revision !== loadRevision.current) return;
@@ -236,7 +302,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
         if (revision === loadRevision.current && !silent) setLoading(false);
       }
     },
-    [token, platform, cursor],
+    [token, platform, cursor, showToast],
   );
 
   useEffect(() => {
@@ -257,18 +323,9 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
   }, [platformMode, canManage, uploadJobs, uploadStatusUnavailable, load]);
 
   const customApps = page.apps ?? [];
-  const visibleUploadJobs = uploadJobs.filter((job, index, all) => {
-    if (job.status === "COMPLETED") return false;
-    if (job.status !== "FAILED") return true;
-    return (
-      all.findIndex(
-        (candidate) =>
-          candidate.status === "FAILED" &&
-          candidate.filename === job.filename &&
-          candidate.failureCode === job.failureCode,
-      ) === index
-    );
-  });
+  const visibleUploadJobs = uploadJobs.filter(
+    (job) => job.status !== "COMPLETED" && job.status !== "FAILED",
+  );
 
   function openUpload() {
     setUploadTarget("KIOSK");
@@ -357,52 +414,33 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
     }
   }
 
-  async function dismissUploadFailure(job: UploadJob) {
-    if (!token || job.status !== "FAILED") return;
-    const matching = uploadJobs.filter(
-      (candidate) =>
-        candidate.status === "FAILED" &&
-        candidate.filename === job.filename &&
-        candidate.failureCode === job.failureCode,
-    );
-    const ids = new Set(matching.map(({ id }) => id));
-    setBusy(true);
-    setError("");
-    try {
-      await Promise.all(
-        matching.map(({ id }) =>
-          selfxApi(`${base}/uploads/${id}`, {
-            method: "DELETE",
-            accessToken: token,
-          }),
-        ),
-      );
-      setUploadJobs((current) => current.filter(({ id }) => !ids.has(id)));
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Upload error could not be dismissed.",
-      );
-      await load(true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function act() {
     if (!pending || busy || !token) return;
     setBusy(true);
     setError("");
     try {
-      await selfxApi(`${base}/${pending.release.id}/action`, {
-        accessToken: token,
-        method: "POST",
-        body: JSON.stringify({
-          action: pending.action,
-          revision: pending.release.revision,
-        }),
-      });
+      if (pending.action === "delete_app") {
+        const appId = pending.release.customAppId;
+        if (!appId) throw new Error("This companion app could not be found.");
+        await selfxApi(`${base}/apps/${appId}`, {
+          accessToken: token,
+          method: "DELETE",
+        });
+      } else if (pending.action === "delete_release") {
+        await selfxApi(`${base}/${pending.release.id}`, {
+          accessToken: token,
+          method: "DELETE",
+        });
+      } else {
+        await selfxApi(`${base}/${pending.release.id}/action`, {
+          accessToken: token,
+          method: "POST",
+          body: JSON.stringify({
+            action: pending.action,
+            revision: pending.release.revision,
+          }),
+        });
+      }
       setPending(null);
       await load();
     } catch (caught) {
@@ -503,12 +541,6 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           </div>
         }
       />
-      {error && (
-        <p role="alert" className="text-destructive">
-          {error}
-        </p>
-      )}
-      {message && <p role="status">{message}</p>}
       {uploadStatusUnavailable && (
         <p role="status" className="text-sm text-muted-foreground">
           Upload processing status is temporarily unavailable. Refresh to check
@@ -520,7 +552,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           {visibleUploadJobs.map((job) => (
             <div
               key={job.id}
-              className="flex items-start justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-sm"
+              className="rounded-lg border bg-card px-4 py-3 text-sm"
             >
               <div>
                 <p className="font-medium">{job.filename}</p>
@@ -535,24 +567,9 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
                     ? "Upload not finished. You can start it again."
                     : job.status === "QUEUED"
                       ? "Uploaded. Waiting for APK validation…"
-                      : job.status === "PROCESSING"
-                        ? "Validating APK in the background…"
-                        : `Validation failed${job.failureCode ? ` (${job.failureCode})` : ""}. Upload the APK again after checking the file.`}
+                      : "Validating APK in the background…"}
                 </p>
               </div>
-              {job.status === "FAILED" && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  aria-label={`Dismiss ${job.filename} upload error`}
-                  onClick={() => void dismissUploadFailure(job)}
-                >
-                  <XIcon className="size-4" aria-hidden="true" />
-                  Dismiss
-                </Button>
-              )}
             </div>
           ))}
         </div>
@@ -671,13 +688,20 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
                         Set recommended
                       </Button>
                     )}
-                  {canManage && release.status !== "RETIRED" && (
+                  {canManage && (
                     <Button
                       variant="destructive"
                       disabled={busy}
-                      onClick={() => setPending({ release, action: "retire" })}
+                      onClick={() =>
+                        setPending({
+                          release,
+                          action: release.customAppId
+                            ? "delete_app"
+                            : "delete_release",
+                        })
+                      }
                     >
-                      Retire
+                      Delete {release.customAppId ? "app" : "release"}
                     </Button>
                   )}
                 </div>
@@ -864,16 +888,22 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {pending
-                ? `${pending.action[0]!.toUpperCase()}${pending.action.slice(1)} release?`
-                : "Change release"}
+              {pending?.action === "delete_app"
+                ? `Delete ${pending.release.customApp?.name ?? "app"} and all history?`
+                : pending?.action === "delete_release"
+                  ? "Delete this APK release?"
+                  : pending
+                    ? `${pending.action[0]!.toUpperCase()}${pending.action.slice(1)} release?`
+                    : "Change release"}
             </DialogTitle>
             <DialogDescription>
               {pending?.action === "publish"
                 ? "This APK will become available in the shared app downloads catalog."
-                : pending?.action === "retire"
-                  ? "This release will no longer be available for new downloads. Installed apps are unchanged."
-                  : "This becomes the recommended download for this architecture."}
+                : pending?.action === "delete_app"
+                  ? "This permanently deletes the app, every APK release, upload history and stored APK files. Existing installs are unchanged. The audit record of this deletion is retained."
+                  : pending?.action === "delete_release"
+                    ? "This permanently deletes this APK release, its upload history and stored APK file. Other releases and installed apps are unchanged. The audit record of this deletion is retained."
+                    : "This becomes the recommended download for this architecture."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -884,8 +914,17 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
             >
               Cancel
             </Button>
-            <Button disabled={busy} onClick={() => void act()}>
-              {busy ? "Saving…" : "Confirm"}
+            <Button
+              variant={
+                pending?.action === "delete_app" ||
+                pending?.action === "delete_release"
+                  ? "destructive"
+                  : "default"
+              }
+              disabled={busy}
+              onClick={() => void act()}
+            >
+              {busy ? "Deleting…" : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>

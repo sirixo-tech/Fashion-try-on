@@ -264,6 +264,137 @@ export class AppReleasesService implements OnModuleInit, OnModuleDestroy {
     return { dismissed: deleted.count > 0 };
   }
 
+  async deleteRelease(userId: string, id: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(2101021)`;
+      const release = await tx.appRelease.findUnique({ where: { id } });
+      if (!release)
+        throw new ApiErrorException(
+          404,
+          "APP_RELEASE_NOT_FOUND",
+          "Release was not found.",
+        );
+
+      const uploads = await tx.appReleaseUpload.findMany({
+        where: { releaseId: id },
+        select: { id: true, objectKey: true, status: true },
+      });
+      if (
+        uploads.some(({ status }) =>
+          ["AWAITING_UPLOAD", "QUEUED", "PROCESSING"].includes(status),
+        )
+      )
+        throw new ApiErrorException(
+          409,
+          "APP_RELEASE_DELETE_BUSY",
+          "This APK is still being validated. Try deleting it again when validation finishes.",
+        );
+
+      await this.deleteAppReleaseObjects([
+        release.objectKey,
+        ...uploads.map(({ objectKey }) => objectKey),
+      ]);
+      await tx.appReleaseUpload.deleteMany({ where: { releaseId: id } });
+      await tx.appRelease.delete({ where: { id } });
+      await tx.auditLog.create({
+        data: {
+          id: createSelfxId(),
+          actorUserId: userId,
+          action: "APP_RELEASE_DELETED",
+          resourceType: "app_release",
+          resourceId: id,
+          metadata: {
+            packageName: release.packageName,
+            versionCode: release.versionCode,
+            architecture: release.architecture,
+          },
+        },
+      });
+      return { deleted: true };
+    });
+  }
+
+  async deleteCompanionApp(userId: string, id: string) {
+    return this.prisma.$transaction(async (tx) => {
+      // The parent row lock prevents a concurrent upload intent from attaching
+      // new staged files while the app and its release history are removed.
+      const apps = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM companion_apps WHERE id = ${id}::uuid FOR UPDATE
+      `;
+      if (apps.length === 0)
+        throw new ApiErrorException(
+          404,
+          "COMPANION_APP_NOT_FOUND",
+          "App was not found.",
+        );
+
+      const [app, releases, uploads] = await Promise.all([
+        tx.companionApp.findUnique({ where: { id } }),
+        tx.appRelease.findMany({
+          where: { customAppId: id },
+          select: { id: true, objectKey: true },
+        }),
+        tx.appReleaseUpload.findMany({
+          where: { companionAppId: id },
+          select: { id: true, objectKey: true, status: true },
+        }),
+      ]);
+      if (!app)
+        throw new ApiErrorException(
+          404,
+          "COMPANION_APP_NOT_FOUND",
+          "App was not found.",
+        );
+      if (
+        uploads.some(({ status }) =>
+          ["AWAITING_UPLOAD", "QUEUED", "PROCESSING"].includes(status),
+        )
+      )
+        throw new ApiErrorException(
+          409,
+          "COMPANION_APP_DELETE_BUSY",
+          "This app has APKs still being validated. Try deleting it again when validation finishes.",
+        );
+
+      await this.deleteAppReleaseObjects([
+        ...releases.map(({ objectKey }) => objectKey),
+        ...uploads.map(({ objectKey }) => objectKey),
+      ]);
+      await tx.appReleaseUpload.deleteMany({ where: { companionAppId: id } });
+      await tx.appRelease.deleteMany({ where: { customAppId: id } });
+      await tx.companionApp.delete({ where: { id } });
+      await tx.auditLog.create({
+        data: {
+          id: createSelfxId(),
+          actorUserId: userId,
+          action: "COMPANION_APP_DELETED",
+          resourceType: "companion_app",
+          resourceId: id,
+          metadata: {
+            packageName: app.packageName,
+            releaseCount: releases.length,
+            uploadCount: uploads.length,
+          },
+        },
+      });
+      return { deleted: true };
+    });
+  }
+
+  private async deleteAppReleaseObjects(keys: string[]) {
+    try {
+      await Promise.all(
+        [...new Set(keys)].map((key) => this.storage.deleteObject(key)),
+      );
+    } catch {
+      throw new ApiErrorException(
+        503,
+        "APP_RELEASE_STORAGE_DELETE_FAILED",
+        "The APK files could not be deleted from private storage. No release records were removed; retry the deletion.",
+      );
+    }
+  }
+
   private uploadStatus(
     upload: Pick<
       AppReleaseUpload,

@@ -424,7 +424,7 @@ integrations and keep their existing labels.
 Apps & Downloads is a top-level sidebar destination for every authenticated
 dashboard role, separate from Platform Settings. An empty catalog shows no app
 placeholders. Platform APP_RELEASES_VIEW users see release cards; APP_RELEASES_MANAGE
-users also see Add App, Publish, Set recommended and Retire. Add App opens a
+users also see Add App, Publish, Set recommended and Delete. Add App opens a
 dialog to select SelfX Kiosk, SelfX Mobile, an existing companion app or Create a
 new app, and upload an APK with optional notes. New companion apps request a name
 and description. Do not ask users to type version metadata: show that it is read
@@ -445,7 +445,12 @@ directly, remains valid for at least 24 hours, and is revoked when a newer build
 for the same package and architecture is published. Drafts remain downloadable
 to authorized managers, but are not given public short links.
 Confirm lifecycle changes and surface upload, validation, stale-state and
-download errors. Keep drafts/retired releases out of the shared download catalog.
+download errors. Delete on a built-in app card removes only that APK release;
+Delete on a companion app removes the app, all APK releases, upload history and
+stored APK files. The confirmation must make the deletion scope clear, note that
+installed apps are unchanged, and retain an audit record. Block deletion while
+that app has an upload awaiting transfer or validation. Keep drafts/retired
+releases out of the shared download catalog.
 The Store Kiosks download page remains scoped to published kiosk APKs and its
 existing permission/plan checks.
 Kiosks retains its Store-specific Download Kiosk APK action at /app/kiosks/downloads with paginated
