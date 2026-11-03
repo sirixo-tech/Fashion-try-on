@@ -37,6 +37,7 @@ const release = {
   recommended: true,
   revision: 1,
   createdAt: "2026-10-21T00:00:00Z",
+  uploadedAt: "2026-10-21T00:00:00Z",
 };
 beforeEach(() => {
   vi.resetAllMocks();

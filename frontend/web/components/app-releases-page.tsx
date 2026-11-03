@@ -51,6 +51,7 @@ type Release = {
   recommended: boolean;
   revision: number;
   createdAt: string;
+  uploadedAt: string;
   publishedAt: string | null;
   uploadedBy?: { displayName: string | null; email: string } | null;
 };
@@ -613,7 +614,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
                   <div>
                     <dt className="text-muted-foreground">Uploaded</dt>
                     <dd>
-                      <RegionalDateTime value={release.createdAt} />
+                      <RegionalDateTime value={release.uploadedAt} />
                     </dd>
                   </div>
                   {platformMode && release.uploadedBy && (

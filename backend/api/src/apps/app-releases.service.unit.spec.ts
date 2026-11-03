@@ -47,3 +47,47 @@ it("does not dismiss another user's failed upload", async () => {
     service.dismissFailedUpload("other-user", "upload"),
   ).rejects.toBeInstanceOf(ApiErrorException);
 });
+
+it("refreshes the upload timestamp when the same APK is uploaded again", async () => {
+  const existing = {
+    id: "release",
+    packageName: "com.selfx.kiosk",
+    uploadedAt: new Date("2026-11-02T10:00:00.000Z"),
+  };
+  const updated = {
+    ...existing,
+    uploadedAt: new Date("2026-11-03T10:00:00.000Z"),
+  };
+  const appRelease = {
+    findUnique: vi.fn().mockResolvedValue(existing),
+    update: vi.fn().mockResolvedValue(updated),
+  };
+  const service = serviceWith({ appRelease }, {});
+  const uploadedAt = new Date("2026-11-03T10:00:00.000Z");
+  vi.useFakeTimers();
+  vi.setSystemTime(uploadedAt);
+
+  try {
+    await expect(
+      service.upload(
+        "user",
+        Buffer.concat([
+          Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+          Buffer.from("same-apk"),
+        ]),
+        "",
+        "KIOSK",
+      ),
+    ).resolves.toEqual(updated);
+  } finally {
+    vi.useRealTimers();
+  }
+
+  expect(appRelease.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { id: "release" },
+      data: { uploadedAt, uploadedById: "user" },
+      select: expect.any(Object),
+    }),
+  );
+});

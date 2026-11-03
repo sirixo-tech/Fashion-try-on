@@ -40,6 +40,7 @@ const publicFields = {
   recommended: true,
   revision: true,
   createdAt: true,
+  uploadedAt: true,
   publishedAt: true,
 } as const;
 const APK_DOWNLOAD_LINK_TTL_SECONDS = 24 * 60 * 60;
@@ -653,7 +654,7 @@ export class AppReleasesService implements OnModuleInit, OnModuleDestroy {
           "APK_WRONG_APP",
           "This APK belongs to the other SelfX app.",
         );
-      return existing;
+      return this.refreshDuplicateUpload(userId, existing.id);
     }
     this.validator.configuration(app);
     const directory = await mkdtemp(join(tmpdir(), "selfx-apk-"));
@@ -825,7 +826,8 @@ export class AppReleasesService implements OnModuleInit, OnModuleDestroy {
         select: publicFields,
       });
       if (duplicate) {
-        if (duplicate.customAppId === companionAppId) return duplicate;
+        if (duplicate.customAppId === companionAppId)
+          return this.refreshDuplicateUpload(userId, duplicate.id);
         throw new ApiErrorException(
           409,
           "APK_ALREADY_ASSIGNED",
@@ -922,6 +924,15 @@ export class AppReleasesService implements OnModuleInit, OnModuleDestroy {
       await rm(directory, { recursive: true, force: true });
     }
   }
+
+  private refreshDuplicateUpload(userId: string, releaseId: string) {
+    return this.prisma.appRelease.update({
+      where: { id: releaseId },
+      data: { uploadedAt: new Date(), uploadedById: userId },
+      select: publicFields,
+    });
+  }
+
   async list(
     publishedOnly: boolean,
     cursor?: string,
