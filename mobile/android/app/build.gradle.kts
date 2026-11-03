@@ -15,10 +15,11 @@ val releaseKeys = Properties().apply {
 }
 val hasReleaseKeys = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
     .all { !releaseKeys.getProperty(it).isNullOrBlank() }
+val playTargetSdk = 36
 
 android {
     namespace = "com.selfx.selfx_customer"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = maxOf(flutter.compileSdkVersion, playTargetSdk)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -32,7 +33,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = playTargetSdk
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

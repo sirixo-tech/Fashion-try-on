@@ -36,6 +36,7 @@ import { DeveloperApiConsoleService } from "./developer-api-console.service.js";
 import {
   AdminDeveloperApiUsageQueryDto,
   AdminDeveloperApiUsageResponseDto,
+  AdminDeveloperApiOverviewResponseDto,
   AdminDeveloperWebhookDeliveryListQueryDto,
   AdminDeveloperWebhookDeliveryListResponseDto,
   AdminDeveloperWebhookEndpointDto,
@@ -58,6 +59,22 @@ export class DeveloperApiConsoleController {
     private readonly console: DeveloperApiConsoleService,
     private readonly webhooks: PublicApiWebhookService,
   ) {}
+
+  @Get("overview")
+  @ApiOperation({ summary: "Read platform-wide Developer API overview" })
+  @ApiOkResponse({ type: AdminDeveloperApiOverviewResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  async overview(
+    @Req() request: FastifyRequest,
+    @Query() query: AdminDeveloperApiUsageQueryDto,
+  ): Promise<AdminDeveloperApiOverviewResponseDto> {
+    await this.requireDeveloperPermission(request, [
+      PLATFORM_PERMISSIONS.developerApiView,
+      PLATFORM_PERMISSIONS.developerApiManage,
+    ]);
+    return this.console.platformOverview(query);
+  }
 
   @Get("usage")
   @ApiOperation({ summary: "Read Developer API usage summary" })

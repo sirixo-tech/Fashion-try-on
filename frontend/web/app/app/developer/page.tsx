@@ -57,6 +57,7 @@ import {
   revokeDeveloperApiKey,
   updateDeveloperApiWebhook,
   type DeveloperApiCatalogSource,
+  type DeveloperApiDailyUsage,
   type DeveloperApiKey,
   type DeveloperApiKeyEnvironment,
   type DeveloperApiKeyScope,
@@ -67,6 +68,7 @@ import {
   type DeveloperApiWebhookEvent,
 } from "@/lib/developer-api";
 import { useSession } from "@/lib/session";
+import { DeveloperApiPlatformDashboard } from "@/components/developer-api-platform-dashboard";
 import { listStores, type AdminStore } from "@/lib/stores";
 import {
   getCurrentMerchantStoreAccess,
@@ -158,6 +160,7 @@ export default function DeveloperPage() {
     useState<CurrentStoreAccess | null>(null);
   const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState("");
+  const [platformOverviewMode, setPlatformOverviewMode] = useState(true);
   const [keys, setKeys] = useState<DeveloperApiKey[]>([]);
   const [usage, setUsage] = useState<DeveloperApiUsageSummary | null>(null);
   const [usageRange, setUsageRange] =
@@ -270,6 +273,11 @@ export default function DeveloperPage() {
     if (!accessToken) {
       return;
     }
+    if (hasPlatformDeveloperAccess && platformOverviewMode) {
+      setKeys([]);
+      setLoading(false);
+      return;
+    }
     if (
       !hasPlatformDeveloperAccess &&
       (!selectedStoreId || !canViewSelectedDeveloperApi)
@@ -297,12 +305,20 @@ export default function DeveloperPage() {
     accessToken,
     canViewSelectedDeveloperApi,
     hasPlatformDeveloperAccess,
+    platformOverviewMode,
     storeScoped,
     selectedStoreId,
   ]);
 
   const loadConsole = useCallback(async () => {
     if (!accessToken) {
+      return;
+    }
+    if (hasPlatformDeveloperAccess && platformOverviewMode) {
+      setUsage(null);
+      setWebhooks([]);
+      setDeliveries([]);
+      setLoadingConsole(false);
       return;
     }
     if (
@@ -351,6 +367,7 @@ export default function DeveloperPage() {
     accessToken,
     canViewSelectedDeveloperApi,
     hasPlatformDeveloperAccess,
+    platformOverviewMode,
     selectedStoreId,
     storeScoped,
     usageCatalogSource,
@@ -572,9 +589,21 @@ export default function DeveloperPage() {
       <PageContainer>
         <PageHeader
           title="Developer / API"
-          description="Developer / API access is available only to authorized Platform users."
+          description="Your Store needs the Public API plan feature and a Developer API view or manage permission to access this page."
         />
       </PageContainer>
+    );
+  }
+
+  if (hasPlatformDeveloperAccess && platformOverviewMode) {
+    return (
+      <DeveloperApiPlatformDashboard
+        accessToken={accessToken}
+        onSelectStore={(storeId) => {
+          setSelectedStoreId(storeId);
+          setPlatformOverviewMode(false);
+        }}
+      />
     );
   }
 
@@ -583,9 +612,21 @@ export default function DeveloperPage() {
       <PageHeader
         eyebrow="Developer"
         title="Developer / API"
-        description="Create Store API keys, track Public API activity and manage webhook endpoints from one console."
+        description={
+          hasPlatformDeveloperAccess
+            ? `Detailed API keys, usage and webhooks for ${selectedStoreName || "the selected Store"}.`
+            : "Manage API keys, track Public API usage and configure webhooks for your Store."
+        }
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {hasPlatformDeveloperAccess ? (
+              <Button
+                variant="outline"
+                onClick={() => setPlatformOverviewMode(true)}
+              >
+                Platform overview
+              </Button>
+            ) : null}
             <Button variant="outline" onClick={() => void refreshAll()}>
               <RefreshCwIcon aria-hidden="true" />
               Refresh
@@ -738,6 +779,7 @@ export default function DeveloperPage() {
                     value={usage?.totals.downloadsCompleted ?? 0}
                   />
                 </div>
+                <DailyUsageChart rows={usage?.dailyUsage ?? []} />
                 <div className="grid gap-4 xl:grid-cols-2">
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold">Catalog Sources</h3>
@@ -1370,6 +1412,55 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
         {label}
       </div>
       <div className="mt-1 text-2xl font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function DailyUsageChart({ rows }: { rows: DeveloperApiDailyUsage[] }) {
+  const max = Math.max(1, ...rows.map((row) => row.runsCreated));
+  return (
+    <div className="rounded-lg border bg-background p-4">
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold">Daily API activity</h3>
+        <p className="text-xs text-muted-foreground">
+          Try-On requests by day. The range and product filters above apply.
+        </p>
+      </div>
+      {rows.length ? (
+        <div className="overflow-x-auto">
+          <div className="flex h-32 min-w-[480px] items-end gap-1 border-b px-1">
+            {rows.map((row) => (
+              <div
+                key={row.date}
+                className="group flex h-full min-w-0 flex-1 flex-col justify-end"
+                title={`${row.date}: ${row.runsCreated} requests, ${row.generatedLooks} generated`}
+              >
+                <div
+                  className="w-full rounded-t bg-primary/80 group-hover:bg-primary"
+                  style={{
+                    height: row.runsCreated
+                      ? Math.max(4, Math.round((row.runsCreated / max) * 104))
+                      : 0,
+                  }}
+                />
+                <span className="mt-2 h-4 truncate text-center text-[9px] text-muted-foreground">
+                  {rows.length <= 10 || row.date.endsWith("-01")
+                    ? new Intl.DateTimeFormat(undefined, {
+                        month: "numeric",
+                        day: "numeric",
+                        timeZone: "UTC",
+                      }).format(new Date(`${row.date}T00:00:00Z`))
+                    : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No API activity in this period.
+        </div>
+      )}
     </div>
   );
 }

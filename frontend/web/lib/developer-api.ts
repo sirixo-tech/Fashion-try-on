@@ -102,6 +102,43 @@ export type DeveloperApiUsageSummary = {
     generatedLooks: number;
     downloadsCompleted: number;
   }>;
+  dailyUsage: DeveloperApiDailyUsage[];
+};
+
+export type DeveloperApiDailyUsage = {
+  date: string;
+  runsCreated: number;
+  completedRuns: number;
+  failedRuns: number;
+  generatedLooks: number;
+};
+
+export type DeveloperApiPlatformOverview = {
+  range: {
+    preset: DeveloperApiUsageRangePreset;
+    from: string;
+    to: string;
+  };
+  totalKeys: number;
+  activeKeys: number;
+  storesUsingApi: number;
+  runsCreated: number;
+  completedRuns: number;
+  failedRuns: number;
+  generatedLooks: number;
+  downloadsCompleted: number;
+  activeWebhooks: number;
+  dailyUsage: DeveloperApiDailyUsage[];
+  topStores: Array<{
+    storeId: string;
+    storeName: string;
+    activeKeys: number;
+    runsCreated: number;
+    completedRuns: number;
+    failedRuns: number;
+    lastActivityAt: string | null;
+  }>;
+  revenueStatus: "NOT_ATTRIBUTED";
 };
 
 export type DeveloperApiWebhookDelivery = {
@@ -238,6 +275,17 @@ export function getDeveloperApiUsageSummary(
   const query = params.toString();
   return selfxApi<DeveloperApiUsageSummary>(
     `${input.storeScoped ? "/api/v1/store/developer/usage" : "/api/v1/admin/developer/usage"}${query ? `?${query}` : ""}`,
+    { accessToken },
+  );
+}
+
+export function getDeveloperApiPlatformOverview(
+  accessToken: string,
+  range: DeveloperApiUsageRangePreset = "30d",
+): Promise<DeveloperApiPlatformOverview> {
+  const params = new URLSearchParams({ range });
+  return selfxApi<DeveloperApiPlatformOverview>(
+    `/api/v1/admin/developer/overview?${params.toString()}`,
     { accessToken },
   );
 }

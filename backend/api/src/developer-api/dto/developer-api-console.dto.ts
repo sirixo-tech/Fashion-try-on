@@ -96,6 +96,23 @@ export class AdminDeveloperApiUsageScopeDto {
   keyPrefix!: string | null;
 }
 
+export class DeveloperApiDailyUsageRowDto {
+  @ApiProperty({ example: "2026-11-03" })
+  date!: string;
+
+  @ApiProperty()
+  runsCreated!: number;
+
+  @ApiProperty()
+  completedRuns!: number;
+
+  @ApiProperty()
+  failedRuns!: number;
+
+  @ApiProperty()
+  generatedLooks!: number;
+}
+
 export class AdminDeveloperApiUsageResponseDto {
   @ApiProperty({ type: PublicApiUsageRangeDto })
   range!: PublicApiUsageRangeDto;
@@ -111,6 +128,73 @@ export class AdminDeveloperApiUsageResponseDto {
 
   @ApiProperty({ type: [PublicApiProductUsageRowDto] })
   productUsage!: PublicApiProductUsageRowDto[];
+
+  @ApiProperty({ type: [DeveloperApiDailyUsageRowDto] })
+  dailyUsage!: DeveloperApiDailyUsageRowDto[];
+}
+
+export class AdminDeveloperApiOverviewStoreDto {
+  @ApiProperty()
+  storeId!: string;
+
+  @ApiProperty()
+  storeName!: string;
+
+  @ApiProperty()
+  activeKeys!: number;
+
+  @ApiProperty()
+  runsCreated!: number;
+
+  @ApiProperty()
+  completedRuns!: number;
+
+  @ApiProperty()
+  failedRuns!: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  lastActivityAt!: string | null;
+}
+
+export class AdminDeveloperApiOverviewResponseDto {
+  @ApiProperty({ type: PublicApiUsageRangeDto })
+  range!: PublicApiUsageRangeDto;
+
+  @ApiProperty()
+  totalKeys!: number;
+
+  @ApiProperty()
+  activeKeys!: number;
+
+  @ApiProperty()
+  storesUsingApi!: number;
+
+  @ApiProperty()
+  runsCreated!: number;
+
+  @ApiProperty()
+  completedRuns!: number;
+
+  @ApiProperty()
+  failedRuns!: number;
+
+  @ApiProperty()
+  generatedLooks!: number;
+
+  @ApiProperty()
+  downloadsCompleted!: number;
+
+  @ApiProperty()
+  activeWebhooks!: number;
+
+  @ApiProperty({ type: [DeveloperApiDailyUsageRowDto] })
+  dailyUsage!: DeveloperApiDailyUsageRowDto[];
+
+  @ApiProperty({ type: [AdminDeveloperApiOverviewStoreDto] })
+  topStores!: AdminDeveloperApiOverviewStoreDto[];
+
+  @ApiProperty({ example: "NOT_ATTRIBUTED" })
+  revenueStatus!: "NOT_ATTRIBUTED";
 }
 
 export class AdminDeveloperWebhookListQueryDto {

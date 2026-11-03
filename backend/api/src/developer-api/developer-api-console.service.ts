@@ -11,6 +11,8 @@ import { PUBLIC_API_USAGE_EVENTS } from "../usage/usage-event.service.js";
 import {
   type AdminDeveloperApiUsageQueryDto,
   type AdminDeveloperApiUsageResponseDto,
+  type AdminDeveloperApiOverviewResponseDto,
+  type DeveloperApiDailyUsageRowDto,
   type AdminDeveloperWebhookDeliveryDto,
   type AdminDeveloperWebhookDeliveryListQueryDto,
   type AdminDeveloperWebhookDeliveryListResponseDto,
@@ -75,6 +77,7 @@ export class DeveloperApiConsoleService {
       downloadsCompleted,
       scope,
       referenceRuns,
+      dailyUsage,
     ] = await Promise.all([
       this.countRuns(baseWhere),
       this.countRuns({ ...baseWhere, status: "QUEUED" }),
@@ -85,6 +88,7 @@ export class DeveloperApiConsoleService {
       this.countDownloads(query, range),
       this.usageScope(query),
       this.referenceRuns(baseWhere),
+      this.dailyUsage(query, range),
     ]);
     const referenceDownloads = await this.referenceDownloads(
       query,
@@ -119,6 +123,154 @@ export class DeveloperApiConsoleService {
       },
       catalogSourceUsage,
       productUsage,
+      dailyUsage,
+    };
+  }
+
+  async platformOverview(
+    query: AdminDeveloperApiUsageQueryDto,
+  ): Promise<AdminDeveloperApiOverviewResponseDto> {
+    const range = resolveRange(query);
+    const activeKeyWhere: Prisma.ApiKeyWhereInput = {
+      status: "ACTIVE",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    };
+    const runWhere: Prisma.KioskTryOnRunWhereInput = {
+      apiKeyId: { not: null },
+      createdAt: { gte: range.from, lte: range.to },
+    };
+    const [
+      totalKeys,
+      activeKeys,
+      keyStores,
+      runGroups,
+      activeWebhooks,
+      downloads,
+      dailyUsage,
+    ] = await Promise.all([
+      this.prisma.apiKey.count(),
+      this.prisma.apiKey.count({ where: activeKeyWhere }),
+      this.prisma.apiKey.groupBy({
+        by: ["organizationId"],
+        where: activeKeyWhere,
+        _count: { id: true },
+      }),
+      this.prisma.kioskTryOnRun.groupBy({
+        by: ["organizationId", "status"],
+        where: runWhere,
+        _count: { id: true },
+        _max: { createdAt: true },
+      }),
+      this.prisma.webhookEndpoint.count({ where: { status: "ACTIVE" } }),
+      this.prisma.usageEvent.aggregate({
+        where: {
+          channel: "PUBLIC_API",
+          eventName: PUBLIC_API_USAGE_EVENTS.downloadCompleted,
+          occurredAt: { gte: range.from, lte: range.to },
+        },
+        _sum: { quantity: true },
+      }),
+      this.dailyUsage({}, range),
+    ]);
+
+    const storeIds = [
+      ...new Set([
+        ...keyStores.map((row) => row.organizationId),
+        ...runGroups.flatMap((row) =>
+          row.organizationId ? [row.organizationId] : [],
+        ),
+      ]),
+    ];
+    const stores = storeIds.length
+      ? await this.prisma.organization.findMany({
+          where: { id: { in: storeIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const names = new Map(stores.map((store) => [store.id, store.name]));
+    const keysByStore = new Map(
+      keyStores.map((row) => [row.organizationId, row._count.id]),
+    );
+    const runsByStore = new Map<
+      string,
+      {
+        runsCreated: number;
+        completedRuns: number;
+        failedRuns: number;
+        lastActivityAt: Date | null;
+      }
+    >();
+    for (const row of runGroups) {
+      if (!row.organizationId) continue;
+      const current = runsByStore.get(row.organizationId) ?? {
+        runsCreated: 0,
+        completedRuns: 0,
+        failedRuns: 0,
+        lastActivityAt: null,
+      };
+      const count = row._count.id;
+      current.runsCreated += count;
+      if (row.status === "COMPLETED") current.completedRuns += count;
+      if (row.status === "FAILED") current.failedRuns += count;
+      if (
+        row._max.createdAt &&
+        (!current.lastActivityAt || row._max.createdAt > current.lastActivityAt)
+      ) {
+        current.lastActivityAt = row._max.createdAt;
+      }
+      runsByStore.set(row.organizationId, current);
+    }
+
+    const topStores = storeIds
+      .map((storeId) => {
+        const usage = runsByStore.get(storeId);
+        return {
+          storeId,
+          storeName: names.get(storeId) ?? "Store",
+          activeKeys: keysByStore.get(storeId) ?? 0,
+          runsCreated: usage?.runsCreated ?? 0,
+          completedRuns: usage?.completedRuns ?? 0,
+          failedRuns: usage?.failedRuns ?? 0,
+          lastActivityAt: usage?.lastActivityAt?.toISOString() ?? null,
+        };
+      })
+      .sort(
+        (left, right) =>
+          right.runsCreated - left.runsCreated ||
+          right.activeKeys - left.activeKeys ||
+          left.storeName.localeCompare(right.storeName),
+      )
+      .slice(0, 20);
+    const allRunTotals = runGroups.reduce(
+      (current, row) => ({
+        runsCreated: current.runsCreated + row._count.id,
+        completedRuns:
+          current.completedRuns +
+          (row.status === "COMPLETED" ? row._count.id : 0),
+        failedRuns:
+          current.failedRuns + (row.status === "FAILED" ? row._count.id : 0),
+      }),
+      { runsCreated: 0, completedRuns: 0, failedRuns: 0 },
+    );
+    return {
+      range: {
+        preset: range.preset,
+        from: range.from.toISOString(),
+        to: range.to.toISOString(),
+      },
+      totalKeys,
+      activeKeys,
+      storesUsingApi: keyStores.length,
+      ...allRunTotals,
+      generatedLooks: await this.countRuns({
+        ...runWhere,
+        resultAssetId: { not: null },
+      }),
+      downloadsCompleted: downloads._sum.quantity ?? 0,
+      activeWebhooks,
+      dailyUsage,
+      topStores,
+      revenueStatus: "NOT_ATTRIBUTED",
     };
   }
 
@@ -248,6 +400,78 @@ export class DeveloperApiConsoleService {
       },
       orderBy: [{ createdAt: "desc" }],
     });
+  }
+
+  private async dailyUsage(
+    query: Pick<
+      AdminDeveloperApiUsageQueryDto,
+      "storeId" | "apiKeyId" | "catalogSource" | "productQuery"
+    >,
+    range: ResolvedUsageRange,
+  ): Promise<DeveloperApiDailyUsageRowDto[]> {
+    const filters: Prisma.Sql[] = [
+      Prisma.sql`"api_key_id" IS NOT NULL`,
+      Prisma.sql`"created_at" >= ${range.from}`,
+      Prisma.sql`"created_at" <= ${range.to}`,
+    ];
+    if (query.storeId) {
+      filters.push(Prisma.sql`"organization_id" = ${query.storeId}`);
+    }
+    if (query.apiKeyId) {
+      filters.push(Prisma.sql`"api_key_id" = ${query.apiKeyId}`);
+    }
+    if (query.catalogSource) {
+      filters.push(Prisma.sql`"catalog_source" = ${query.catalogSource}`);
+    }
+    const productQuery = query.productQuery?.trim();
+    if (productQuery) {
+      const pattern = `%${productQuery}%`;
+      filters.push(Prisma.sql`(
+        "external_product_id" ILIKE ${pattern} OR
+        "external_variant_id" ILIKE ${pattern} OR
+        "external_sku" ILIKE ${pattern} OR
+        "external_product_name" ILIKE ${pattern}
+      )`);
+    }
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        date: string;
+        runsCreated: number;
+        completedRuns: number;
+        failedRuns: number;
+        generatedLooks: number;
+      }>
+    >(Prisma.sql`
+      SELECT
+        date_trunc('day', "created_at" AT TIME ZONE 'UTC')::date::text AS "date",
+        COUNT(*)::int AS "runsCreated",
+        COUNT(*) FILTER (WHERE "status" = 'COMPLETED')::int AS "completedRuns",
+        COUNT(*) FILTER (WHERE "status" = 'FAILED')::int AS "failedRuns",
+        COUNT(*) FILTER (WHERE "result_asset_id" IS NOT NULL)::int AS "generatedLooks"
+      FROM "kiosk_try_on_runs"
+      WHERE ${Prisma.join(filters, " AND ")}
+      GROUP BY 1
+      ORDER BY 1
+    `);
+    const byDate = new Map(rows.map((row) => [row.date, row]));
+    const seeded: DeveloperApiDailyUsageRowDto[] = [];
+    const day = new Date(range.from);
+    day.setUTCHours(0, 0, 0, 0);
+    const end = new Date(range.to);
+    end.setUTCHours(0, 0, 0, 0);
+    while (day <= end) {
+      const date = day.toISOString().slice(0, 10);
+      const row = byDate.get(date);
+      seeded.push({
+        date,
+        runsCreated: row?.runsCreated ?? 0,
+        completedRuns: row?.completedRuns ?? 0,
+        failedRuns: row?.failedRuns ?? 0,
+        generatedLooks: row?.generatedLooks ?? 0,
+      });
+      day.setUTCDate(day.getUTCDate() + 1);
+    }
+    return seeded;
   }
 
   private async countDownloads(
