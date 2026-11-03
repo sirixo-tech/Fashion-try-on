@@ -11,7 +11,21 @@ import 'customer_theme.dart';
 /// An indeterminate visual using the actual inputs, without a fake percentage.
 class CustomerGeneratingLook extends StatefulWidget {
   final CustomerExperience experience;
-  const CustomerGeneratingLook({super.key, required this.experience});
+  final String? demoModelId;
+  final CustomerPhoto? personPhoto;
+  final Uint8List? personPreview;
+  final Json? demoProduct, storeProduct;
+  final bool preparing;
+  const CustomerGeneratingLook({
+    super.key,
+    required this.experience,
+    this.demoModelId,
+    this.personPhoto,
+    this.personPreview,
+    this.demoProduct,
+    this.storeProduct,
+    this.preparing = false,
+  });
 
   @override
   State<CustomerGeneratingLook> createState() => _CustomerGeneratingLookState();
@@ -44,12 +58,20 @@ class _CustomerGeneratingLookState extends State<CustomerGeneratingLook>
   @override
   Widget build(BuildContext context) {
     final exp = widget.experience;
-    final personAsset = exp.demoModelId == null
+    final selectedModelId = widget.demoModelId ?? exp.demoModelId;
+    final selectedDemoProduct = widget.demoProduct ?? exp.demoProduct;
+    final selectedStoreProduct = widget.storeProduct ?? exp.product;
+    final isDemoModel = selectedModelId != null;
+    final hasSelectedGarmentOverride =
+        widget.demoProduct != null || widget.storeProduct != null;
+    final personAsset = selectedModelId == null
         ? null
-        : demoModelImage(exp.demoModelId!);
-    final garmentAsset = exp.demoProduct == null
+        : demoModelImage(selectedModelId);
+    final garmentAsset = selectedDemoProduct == null
         ? null
-        : demoProductImage(exp.demoProduct!['id'] as String);
+        : demoProductImage(selectedDemoProduct['id'] as String);
+    final personPhoto = widget.personPhoto ?? exp.person;
+    final personPreview = widget.personPreview ?? exp.personPreview;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -71,8 +93,8 @@ class _CustomerGeneratingLookState extends State<CustomerGeneratingLook>
                         angle: -.07 + .04 * phase,
                         child: _InputTile(
                           label: 'You',
-                          bytes: exp.personPreview,
-                          photo: exp.person,
+                          bytes: isDemoModel ? null : personPreview,
+                          photo: isDemoModel ? null : personPhoto,
                           assetPath: personAsset,
                           icon: Icons.person_outline_rounded,
                         ),
@@ -84,11 +106,13 @@ class _CustomerGeneratingLookState extends State<CustomerGeneratingLook>
                         angle: .07 - .04 * phase,
                         child: _InputTile(
                           label: 'Outfit',
-                          bytes: exp.outfitPreview,
-                          photo: exp.outfit,
+                          bytes: hasSelectedGarmentOverride
+                              ? null
+                              : exp.outfitPreview,
+                          photo: hasSelectedGarmentOverride ? null : exp.outfit,
                           assetPath: garmentAsset,
                           imageUrl:
-                              (exp.product?['image'] as Map?)?['url']
+                              (selectedStoreProduct?['image'] as Map?)?['url']
                                   as String?,
                           icon: Icons.checkroom_outlined,
                         ),
@@ -123,7 +147,9 @@ class _CustomerGeneratingLookState extends State<CustomerGeneratingLook>
           ),
           const SizedBox(height: 18),
           CustomerText(
-            exp.run?['status'] == 'QUEUED'
+            widget.preparing
+                ? 'Preparing your Try-On…'
+                : exp.run?['status'] == 'QUEUED'
                 ? 'Your look is queued'
                 : 'Creating your look…',
             textAlign: TextAlign.center,

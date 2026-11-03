@@ -84,6 +84,7 @@ Future<bool> prepareCustomerStudio(
   Json? product,
   Json? demoProduct,
   String? demoModelId,
+  VoidCallback? onConsentAccepted,
 }) async {
   if (!experience.generating && !experience.hasUncertainRequest) {
     if (!experience.available) {
@@ -150,6 +151,7 @@ Future<bool> prepareCustomerStudio(
       ),
     );
     if (accepted != true || !context.mounted) return false;
+    onConsentAccepted?.call();
     await experience.begin(
       storeProduct: product,
       selectedDemoProduct: demoProduct,

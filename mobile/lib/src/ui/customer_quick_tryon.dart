@@ -33,8 +33,13 @@ class CustomerQuickTryOn extends StatefulWidget {
 
 class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
   bool working = false;
+  bool _startingSuggestedTryOn = false;
   bool _resultDismissed = false;
   String? _dismissedResultRunId;
+  String? _suggestedModelId;
+  CustomerPhoto? _suggestedPersonPhoto;
+  Uint8List? _suggestedPersonPreview;
+  Json? _suggestedDemoProduct, _suggestedStoreProduct;
   String? error;
   CustomerExperience get exp => widget.experience;
 
@@ -246,14 +251,38 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
 
   Future<void> trySuggested(Json item) => run(() async {
     final selectedModelId = exp.demoModelId;
-    final ready = await prepareCustomerStudio(
-      context,
-      exp,
-      product: exp.storeMode ? item : null,
-      demoProduct: exp.storeMode ? null : item,
-      demoModelId: selectedModelId,
-    );
-    if (ready && exp.canGenerate) await exp.generate();
+    try {
+      final ready = await prepareCustomerStudio(
+        context,
+        exp,
+        product: exp.storeMode ? item : null,
+        demoProduct: exp.storeMode ? null : item,
+        demoModelId: selectedModelId,
+        onConsentAccepted: () {
+          if (!mounted) return;
+          setState(() {
+            _startingSuggestedTryOn = true;
+            _suggestedModelId = selectedModelId;
+            _suggestedPersonPhoto = exp.person;
+            _suggestedPersonPreview = exp.personPreview;
+            _suggestedDemoProduct = exp.storeMode ? null : item;
+            _suggestedStoreProduct = exp.storeMode ? item : null;
+          });
+        },
+      );
+      if (ready && exp.canGenerate) await exp.generate();
+    } finally {
+      if (mounted && _startingSuggestedTryOn) {
+        setState(() {
+          _startingSuggestedTryOn = false;
+          _suggestedModelId = null;
+          _suggestedPersonPhoto = null;
+          _suggestedPersonPreview = null;
+          _suggestedDemoProduct = null;
+          _suggestedStoreProduct = null;
+        });
+      }
+    }
   });
 
   @override
@@ -292,8 +321,16 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                   SizedBox(height: tight ? 8 : 12),
                 ],
                 Expanded(
-                  child: exp.generating
-                      ? CustomerGeneratingLook(experience: exp)
+                  child: exp.generating || _startingSuggestedTryOn
+                      ? CustomerGeneratingLook(
+                          experience: exp,
+                          demoModelId: _suggestedModelId,
+                          personPhoto: _suggestedPersonPhoto,
+                          personPreview: _suggestedPersonPreview,
+                          demoProduct: _suggestedDemoProduct,
+                          storeProduct: _suggestedStoreProduct,
+                          preparing: _startingSuggestedTryOn && !exp.generating,
+                        )
                       : showResult
                       ? Stack(
                           children: [
