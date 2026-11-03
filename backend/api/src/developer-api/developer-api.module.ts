@@ -7,6 +7,9 @@ import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import { TryOnModule } from "../try-on/try-on.module.js";
 import { UsageModule } from "../usage/usage.module.js";
+import { EntitlementsModule } from "../entitlements/entitlements.module.js";
+import { OrganizationsModule } from "../organizations/organizations.module.js";
+import { StoreDeveloperApiController } from "./store-developer-api.controller.js";
 import { DeveloperApiConsoleController } from "./developer-api-console.controller.js";
 import { DeveloperApiConsoleService } from "./developer-api-console.service.js";
 import { DeveloperApiKeyController } from "./developer-api-key.controller.js";
@@ -21,9 +24,17 @@ import { PublicApiUploadService } from "./public-api-upload.service.js";
 import { PublicApiWebhookService } from "./public-api-webhook.service.js";
 
 @Module({
-  imports: [AuthModule, DatabaseModule, TryOnModule, UsageModule],
+  imports: [
+    AuthModule,
+    DatabaseModule,
+    TryOnModule,
+    UsageModule,
+    EntitlementsModule,
+    OrganizationsModule,
+  ],
   controllers: [
     DeveloperApiKeyController,
+    StoreDeveloperApiController,
     DeveloperApiConsoleController,
     PublicApiController,
   ],

@@ -196,7 +196,7 @@ Mail Settings now has locked SMTP configuration, editable automatic templates, c
 
 ### ROLES-3 — Restore shared defaults and configurable Staff grants (2026-10-22)
 
-Store Admin starts with Store administration/operations and Store Staff starts with daily operations, including products.manage. Authorized Platform role managers may grant or revoke any Store-applicable permission for Staff; its initial defaults are not a permission ceiling. Shared edits apply to all existing and future Stores. Platform-only and Developer/API permissions remain excluded. Merchant users cannot edit global role maps.
+Store Admin starts with Store administration/operations and Store Staff starts with daily operations, including products.manage. Authorized Platform role managers may grant or revoke any Store-applicable permission for Staff; its initial defaults are not a permission ceiling. Shared edits apply to all existing and future Stores. Platform-only permissions remain excluded. The Store Developer / API module uses the Store-applicable `developer_api.view` and `developer_api.manage` permissions. Merchant users cannot edit global role maps.
 
 
 ### PRODUCTS-EDITOR-1 / SHOPPING-3 — Product options and kiosk purchasing (2026-10-21)
@@ -259,13 +259,15 @@ owner membership and Starter trial onboarding exactly once. Never auto-grant
 Platform access or reactivate suspended users/Stores. This is separate from
 future customer social login and kiosk device authentication.
 
-Developer / API is now reserved for Platform roles with explicit Developer API
-permissions. Retire Store developer permissions, navigation and console access.
-Direct Public API credentials require an active creator with current Platform
-Developer API management authority; historical Store-issued keys cannot bypass
-the restriction. Keep credentials/history for administration. Stores currently
-use kiosks, Shopify and WooCommerce through their existing authentication paths.
-This supersedes the older Store Developer API administration requirement.
+Developer / API is a Store module, enabled by the Store's active plan through
+the `PUBLIC_API` feature. Store Admins with the shared
+`developer_api.manage` permission can create and revoke API keys and manage
+webhooks for their Store. Other Store roles may receive `developer_api.view` for
+read-only keys, usage and webhook visibility. The API always derives Store scope
+from the authenticated Store context; clients cannot select another Store.
+Public API credentials remain Store-owned and stop working whenever the Store's
+plan no longer includes `PUBLIC_API` or the Store is inactive. Platform roles
+retain cross-Store administration under their separate Platform permissions.
 
 ### PAYMENTS-1K — Store gateway availability (2026-10-20)
 

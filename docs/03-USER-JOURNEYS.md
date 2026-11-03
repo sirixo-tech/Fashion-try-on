@@ -198,10 +198,14 @@ Wrong-account, expired, changed-credential or conflicting links do not merge use
 Cancellation/failure permits retry and preserves validated continuation where
 available. Suspended users/Stores are not reactivated by Google sign-in.
 
-Only authorized Platform users open Developer / API. Store users see kiosks and
-the Shopify/WooCommerce integrations their permissions and plan allow. Old Store
-API keys cannot restore direct API access. Platform administrators retain their
-permission-controlled key, usage and webhook management.
+Platform users with Developer API permissions retain cross-Store key, usage and
+webhook administration. Store users can open Developer / API only when their
+active Store plan includes `PUBLIC_API` and their shared Store role grants
+`developer_api.view` or `developer_api.manage`. Store Admins
+with manage permission can create/revoke keys and manage webhooks; view-only
+roles see configuration and usage without write controls. Every Store operation
+is scoped server-side to the authenticated current Store. Existing keys stop
+working if the Store loses the plan feature or becomes inactive.
 
 ### PAYMENTS-1K — Configure only available gateways (2026-10-20)
 

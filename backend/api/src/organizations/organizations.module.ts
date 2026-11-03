@@ -41,6 +41,7 @@ import { TenantManagementService } from "./tenant-management.service.js";
   exports: [
     OrganizationTenantGuardService,
     TenantAuthorizationService,
+    TenantManagementService,
     PlatformAuthorizationService,
   ],
 })

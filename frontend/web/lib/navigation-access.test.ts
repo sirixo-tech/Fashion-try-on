@@ -247,6 +247,7 @@ describe("permission-aware navigation", () => {
       "Integrations",
       "Shopify",
       "WooCommerce",
+      "Developer / API",
       "Activity",
     ]);
   });

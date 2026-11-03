@@ -102,6 +102,7 @@ const storePermissionsByHref: Record<string, string[]> = {
   "/app/integrations/shopify": ["integrations.view"],
   "/app/integrations/woocommerce": ["integrations.view"],
   "/app/integrations/store-qr": ["integrations.view"],
+  "/app/developer": ["developer_api.view", "developer_api.manage"],
 };
 
 const storeFeaturesByHref: Record<string, string[]> = {
@@ -109,6 +110,7 @@ const storeFeaturesByHref: Record<string, string[]> = {
   "/app/analytics": ["ANALYTICS"],
   "/app/integrations/shopify": ["SHOPIFY_INTEGRATION"],
   "/app/integrations/woocommerce": ["WOOCOMMERCE_INTEGRATION"],
+  "/app/developer": ["PUBLIC_API"],
 };
 
 const storeTeamLocationHrefs = new Set(["/app/locations", "/app/staff"]);
@@ -237,6 +239,12 @@ export function canSeeHref(href: string, access: NavigationAccess): boolean {
         hasAny(access.platformPermissions, [
           "DEVELOPER_API_VIEW",
           "DEVELOPER_API_MANAGE",
+        ])) ||
+      (access.hasActiveStore &&
+        hasAny(access.storeFeatureKeys, ["PUBLIC_API"]) &&
+        hasAny(access.storePermissions, [
+          "developer_api.view",
+          "developer_api.manage",
         ]))
     );
   }

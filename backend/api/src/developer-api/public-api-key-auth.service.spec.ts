@@ -21,7 +21,7 @@ describe("PublicApiKeyAuthService", () => {
     ]);
     const service = new PublicApiKeyAuthService(
       prisma as never,
-      platform() as never,
+      entitlements() as never,
     );
 
     const context = await service.verifyRequest(
@@ -43,25 +43,20 @@ describe("PublicApiKeyAuthService", () => {
     });
   });
 
-  it.each([false, null])(
-    "blocks legacy Store credentials or missing creator (%s)",
-    async (allowed) => {
-      const key = storedKey();
-      if (allowed === null) key.createdByUserId = null;
-      const db = new FakePrisma([key]);
-      const authority = { hasPermission: vi.fn().mockResolvedValue(false) };
-      const service = new PublicApiKeyAuthService(
-        db as never,
-        authority as never,
-      );
-      await expect(
-        service.verifyApiKey("selfx_test_abcdefghijklmnopqrstuvwxyzABCDEFGH"),
-      ).rejects.toMatchObject({
-        response: { error: { code: "PUBLIC_API_PLATFORM_ONLY" } },
-      });
-      expect(db.apiKey.update).not.toHaveBeenCalled();
-    },
-  );
+  it("allows Store-issued API keys under the Store plan instead of creator role", async () => {
+    const key = storedKey();
+    key.createdByUserId = null;
+    const db = new FakePrisma([key]);
+    const plan = entitlements();
+    const service = new PublicApiKeyAuthService(db as never, plan as never);
+    await expect(
+      service.verifyApiKey("selfx_test_abcdefghijklmnopqrstuvwxyzABCDEFGH"),
+    ).resolves.toMatchObject({ storeId: "store-1" });
+    expect(plan.assertStoreHasFeature).toHaveBeenCalledWith(
+      "store-1",
+      "PUBLIC_API",
+    );
+  });
   it("supports Authorization Bearer API keys", async () => {
     const rawKey = "selfx_live_abcdefghijklmnopqrstuvwxyzABCDEFGH";
     const prisma = new FakePrisma([
@@ -69,7 +64,7 @@ describe("PublicApiKeyAuthService", () => {
     ]);
     const service = new PublicApiKeyAuthService(
       prisma as never,
-      platform() as never,
+      entitlements() as never,
     );
 
     await expect(
@@ -78,31 +73,11 @@ describe("PublicApiKeyAuthService", () => {
       ]),
     ).resolves.toMatchObject({ environment: "LIVE", scopes: ["usage:read"] });
   });
-  it("blocks keys from suspended or deleted Platform creators even with retained role assignments", async () => {
-    const key = storedKey();
-    key.createdByUser.status = "DISABLED";
-    const prisma = new FakePrisma([key]);
-    const authority = platform();
-    const service = new PublicApiKeyAuthService(
-      prisma as never,
-      authority as never,
-    );
-    await expect(
-      service.verifyApiKey("selfx_test_abcdefghijklmnopqrstuvwxyzABCDEFGH"),
-    ).rejects.toThrow();
-    expect(authority.hasPermission).not.toHaveBeenCalled();
-    key.createdByUser.status = "ACTIVE";
-    key.createdByUser.deletedAt = new Date();
-    await expect(
-      service.verifyApiKey("selfx_test_abcdefghijklmnopqrstuvwxyzABCDEFGH"),
-    ).rejects.toThrow();
-    expect(prisma.apiKey.update).not.toHaveBeenCalled();
-  });
 
   it("rejects missing API keys", async () => {
     const service = new PublicApiKeyAuthService(
       new FakePrisma([]) as never,
-      platform() as never,
+      entitlements() as never,
     );
 
     await expect(service.verifyRequest(request({}))).rejects.toMatchObject({
@@ -120,7 +95,7 @@ describe("PublicApiKeyAuthService", () => {
     ]);
     const service = new PublicApiKeyAuthService(
       prisma as never,
-      platform() as never,
+      entitlements() as never,
     );
 
     await expect(
@@ -145,7 +120,7 @@ describe("PublicApiKeyAuthService", () => {
           revokedAt: new Date("2026-08-01T00:00:00.000Z"),
         }),
       ]) as never,
-      platform() as never,
+      entitlements() as never,
     );
 
     await expect(service.verifyApiKey(rawKey)).rejects.toMatchObject({
@@ -166,7 +141,7 @@ describe("PublicApiKeyAuthService", () => {
           expiresAt: new Date("2020-01-01T00:00:00.000Z"),
         }),
       ]) as never,
-      platform() as never,
+      entitlements() as never,
     );
 
     await expect(service.verifyApiKey(rawKey)).rejects.toMatchObject({
@@ -184,7 +159,7 @@ describe("PublicApiKeyAuthService", () => {
       new FakePrisma([
         storedKey({ rawKey, storeStatus: OrganizationStatus.SUSPENDED }),
       ]) as never,
-      platform() as never,
+      entitlements() as never,
     );
 
     await expect(service.verifyApiKey(rawKey)).rejects.toMatchObject({
@@ -200,7 +175,7 @@ describe("PublicApiKeyAuthService", () => {
     const rawKey = "selfx_test_abcdefghijklmnopqrstuvwxyzABCDEFGH";
     const service = new PublicApiKeyAuthService(
       new FakePrisma([storedKey({ rawKey, scopes: ["tryon:read"] })]) as never,
-      platform() as never,
+      entitlements() as never,
     );
 
     await expect(
@@ -212,6 +187,17 @@ describe("PublicApiKeyAuthService", () => {
         }),
       }),
     });
+  });
+
+  it("blocks key use when the Store plan no longer includes Public API", async () => {
+    const plan = entitlements();
+    plan.assertStoreHasFeature.mockRejectedValue(new Error("feature disabled"));
+    const prisma = new FakePrisma([storedKey()]);
+    const service = new PublicApiKeyAuthService(prisma as never, plan as never);
+    await expect(
+      service.verifyApiKey("selfx_test_abcdefghijklmnopqrstuvwxyzABCDEFGH"),
+    ).rejects.toThrow("feature disabled");
+    expect(prisma.apiKey.update).not.toHaveBeenCalled();
   });
 });
 
@@ -280,6 +266,6 @@ function request(headers: Record<string, string>) {
   return { headers } as never;
 }
 
-function platform() {
-  return { hasPermission: vi.fn().mockResolvedValue(true) };
+function entitlements() {
+  return { assertStoreHasFeature: vi.fn().mockResolvedValue(undefined) };
 }

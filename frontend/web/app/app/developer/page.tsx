@@ -68,6 +68,10 @@ import {
 } from "@/lib/developer-api";
 import { useSession } from "@/lib/session";
 import { listStores, type AdminStore } from "@/lib/stores";
+import {
+  getCurrentMerchantStoreAccess,
+  type CurrentStoreAccess,
+} from "@/lib/current-store";
 
 const apiKeyScopes: Array<{
   value: DeveloperApiKeyScope;
@@ -150,6 +154,8 @@ export default function DeveloperPage() {
     session.status === "authenticated" ? session.accessToken : null;
   const [platformAccess, setPlatformAccess] =
     useState<CurrentPlatformAccess | null>(null);
+  const [merchantStoreAccess, setMerchantStoreAccess] =
+    useState<CurrentStoreAccess | null>(null);
   const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState("");
   const [keys, setKeys] = useState<DeveloperApiKey[]>([]);
@@ -193,8 +199,28 @@ export default function DeveloperPage() {
     platformAccess?.isSuperadmin ||
     platformAccess?.permissions.includes("DEVELOPER_API_MANAGE"),
   );
-  const canManageSelectedDeveloperApi = canManagePlatformDeveloperApi;
-  const canViewSelectedDeveloperApi = hasPlatformDeveloperAccess;
+  const hasStoreDeveloperAccess = Boolean(
+    merchantStoreAccess?.store &&
+    merchantStoreAccess.permissions?.featureKeys.includes("PUBLIC_API") &&
+    (merchantStoreAccess.permissions.permissions.includes(
+      "developer_api.view",
+    ) ||
+      merchantStoreAccess.permissions.permissions.includes(
+        "developer_api.manage",
+      )),
+  );
+  const storeCanManageDeveloperApi = Boolean(
+    hasStoreDeveloperAccess &&
+    merchantStoreAccess?.permissions?.permissions.includes(
+      "developer_api.manage",
+    ),
+  );
+  const canManageSelectedDeveloperApi = hasPlatformDeveloperAccess
+    ? canManagePlatformDeveloperApi
+    : storeCanManageDeveloperApi;
+  const canViewSelectedDeveloperApi =
+    hasPlatformDeveloperAccess || hasStoreDeveloperAccess;
+  const storeScoped = !hasPlatformDeveloperAccess;
   const selectedStoreName =
     storeOptions.find((store) => store.id === selectedStoreId)?.name ?? "";
   const canCreate =
@@ -208,8 +234,12 @@ export default function DeveloperPage() {
     }
     setError(null);
     try {
-      const access = await getCurrentPlatformAccess(accessToken);
+      const [access, storeAccess] = await Promise.all([
+        getCurrentPlatformAccess(accessToken),
+        getCurrentMerchantStoreAccess(accessToken),
+      ]);
       setPlatformAccess(access);
+      setMerchantStoreAccess(storeAccess);
       if (
         access.isSuperadmin ||
         access.permissions.includes("DEVELOPER_API_VIEW") ||
@@ -220,7 +250,15 @@ export default function DeveloperPage() {
         return;
       }
 
-      setStoreOptions([]);
+      if (storeAccess.store) {
+        setSelectedStoreId(storeAccess.store.id);
+        setStoreOptions([
+          { id: storeAccess.store.id, name: storeAccess.store.name },
+        ]);
+      } else {
+        setSelectedStoreId("");
+        setStoreOptions([]);
+      }
     } catch (caught) {
       setError(messageFor(caught));
       setPlatformAccess({ isSuperadmin: false, permissions: [] });
@@ -246,6 +284,7 @@ export default function DeveloperPage() {
       const response = await listDeveloperApiKeys(accessToken, {
         storeId: selectedStoreId || undefined,
         pageSize: 50,
+        storeScoped,
       });
       setKeys(response.data);
     } catch (caught) {
@@ -258,6 +297,7 @@ export default function DeveloperPage() {
     accessToken,
     canViewSelectedDeveloperApi,
     hasPlatformDeveloperAccess,
+    storeScoped,
     selectedStoreId,
   ]);
 
@@ -283,15 +323,17 @@ export default function DeveloperPage() {
         await Promise.all([
           getDeveloperApiUsageSummary(accessToken, {
             storeId,
+            storeScoped,
             range: usageRange,
             limit: 8,
             catalogSource: usageCatalogSource || undefined,
             productQuery: usageProductQuery.trim() || undefined,
           }),
-          listDeveloperApiWebhooks(accessToken, { storeId }),
+          listDeveloperApiWebhooks(accessToken, { storeId, storeScoped }),
           listDeveloperApiWebhookDeliveries(accessToken, {
             storeId,
             limit: 20,
+            storeScoped,
           }),
         ]);
       setUsage(usageResponse);
@@ -310,6 +352,7 @@ export default function DeveloperPage() {
     canViewSelectedDeveloperApi,
     hasPlatformDeveloperAccess,
     selectedStoreId,
+    storeScoped,
     usageCatalogSource,
     usageProductQuery,
     usageRange,
@@ -343,12 +386,16 @@ export default function DeveloperPage() {
     setSaving(true);
     setError(null);
     try {
-      const response = await createDeveloperApiKey(accessToken, {
-        storeId: selectedStoreId,
-        name: draft.name,
-        environment: draft.environment,
-        scopes: draft.scopes,
-      });
+      const response = await createDeveloperApiKey(
+        accessToken,
+        {
+          storeId: selectedStoreId,
+          name: draft.name,
+          environment: draft.environment,
+          scopes: draft.scopes,
+        },
+        storeScoped,
+      );
       setKeys((current) => [response.apiKey, ...current]);
       setCreatedSecret({
         name: response.apiKey.name,
@@ -371,7 +418,11 @@ export default function DeveloperPage() {
     setSaving(true);
     setError(null);
     try {
-      const revoked = await revokeDeveloperApiKey(accessToken, keyId);
+      const revoked = await revokeDeveloperApiKey(
+        accessToken,
+        keyId,
+        storeScoped,
+      );
       setKeys((current) =>
         current.map((key) => (key.id === revoked.id ? revoked : key)),
       );
@@ -398,6 +449,7 @@ export default function DeveloperPage() {
             subscribedEvents: webhookDraft.subscribedEvents,
             enabled: webhookDraft.enabled,
           },
+          storeScoped,
         );
         setWebhooks((current) =>
           current.map((endpoint) =>
@@ -405,11 +457,15 @@ export default function DeveloperPage() {
           ),
         );
       } else {
-        const created = await createDeveloperApiWebhook(accessToken, {
-          storeId: selectedStoreId,
-          url: webhookDraft.url,
-          subscribedEvents: webhookDraft.subscribedEvents,
-        });
+        const created = await createDeveloperApiWebhook(
+          accessToken,
+          {
+            storeId: selectedStoreId,
+            url: webhookDraft.url,
+            subscribedEvents: webhookDraft.subscribedEvents,
+          },
+          storeScoped,
+        );
         setWebhooks((current) => [created, ...current]);
         setWebhookSecret({ url: created.url, secret: created.secret });
         setWebhookSecretCopied(false);
@@ -434,12 +490,19 @@ export default function DeveloperPage() {
     setError(null);
     try {
       const updated = enabled
-        ? await updateDeveloperApiWebhook(accessToken, endpoint.id, {
-            enabled: true,
-          })
-        : await disableDeveloperApiWebhook(accessToken, endpoint.id).then(
-            () => ({ ...endpoint, status: "DISABLED" as const }),
-          );
+        ? await updateDeveloperApiWebhook(
+            accessToken,
+            endpoint.id,
+            {
+              enabled: true,
+            },
+            storeScoped,
+          )
+        : await disableDeveloperApiWebhook(
+            accessToken,
+            endpoint.id,
+            storeScoped,
+          ).then(() => ({ ...endpoint, status: "DISABLED" as const }));
       setWebhooks((current) =>
         current.map((item) => (item.id === endpoint.id ? updated : item)),
       );
@@ -500,7 +563,11 @@ export default function DeveloperPage() {
     });
   }
 
-  if (platformAccess && !hasPlatformDeveloperAccess) {
+  if (
+    platformAccess &&
+    !hasPlatformDeveloperAccess &&
+    !hasStoreDeveloperAccess
+  ) {
     return (
       <PageContainer>
         <PageHeader
@@ -523,18 +590,20 @@ export default function DeveloperPage() {
               <RefreshCwIcon aria-hidden="true" />
               Refresh
             </Button>
-            <Button
-              disabled={!canCreate}
-              onClick={() => setCreateOpen(true)}
-              title={
-                canManageSelectedDeveloperApi
-                  ? undefined
-                  : "Developer API manage permission is required."
-              }
-            >
-              <PlusIcon aria-hidden="true" />
-              Create API Key
-            </Button>
+            {canManageSelectedDeveloperApi ? (
+              <Button
+                disabled={!canCreate}
+                onClick={() => setCreateOpen(true)}
+                title={
+                  selectedStoreId
+                    ? undefined
+                    : "Choose one Store before creating an API key."
+                }
+              >
+                <PlusIcon aria-hidden="true" />
+                Create API Key
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -776,17 +845,21 @@ export default function DeveloperPage() {
                 <TableHead>Scopes</TableHead>
                 <TableHead>Last Used</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {canManageSelectedDeveloperApi ? (
+                  <TableHead className="text-right">Actions</TableHead>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7}>Loading API keys...</TableCell>
+                  <TableCell colSpan={canManageSelectedDeveloperApi ? 7 : 6}>
+                    Loading API keys...
+                  </TableCell>
                 </TableRow>
               ) : keys.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7}>
+                  <TableCell colSpan={canManageSelectedDeveloperApi ? 7 : 6}>
                     No Developer API keys have been created yet.
                   </TableCell>
                 </TableRow>
@@ -831,32 +904,33 @@ export default function DeveloperPage() {
                     <TableCell>
                       <StatusBadge status={key.status} />
                     </TableCell>
-                    <TableCell className="text-right">
-                      {key.status === "ACTIVE" &&
-                      canManageSelectedDeveloperApi ? (
-                        <ConfirmDialog
-                          title="Revoke API key?"
-                          description={`Revoke ${key.name}? Existing integrations using this key will stop working.`}
-                          confirmLabel="Revoke"
-                          destructive
-                          onConfirm={() => void revokeKey(key.id)}
-                          trigger={
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={saving}
-                            >
-                              <Trash2Icon aria-hidden="true" />
-                              Revoke
-                            </Button>
-                          }
-                        />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          {key.status === "ACTIVE" ? "View only" : "Revoked"}
-                        </span>
-                      )}
-                    </TableCell>
+                    {canManageSelectedDeveloperApi ? (
+                      <TableCell className="text-right">
+                        {key.status === "ACTIVE" ? (
+                          <ConfirmDialog
+                            title="Revoke API key?"
+                            description={`Revoke ${key.name}? Existing integrations using this key will stop working.`}
+                            confirmLabel="Revoke"
+                            destructive
+                            onConfirm={() => void revokeKey(key.id)}
+                            trigger={
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={saving}
+                              >
+                                <Trash2Icon aria-hidden="true" />
+                                Revoke
+                              </Button>
+                            }
+                          />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Revoked
+                          </span>
+                        )}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))
               )}
@@ -871,19 +945,21 @@ export default function DeveloperPage() {
             title="Webhooks"
             description="Send signed events when Public API Try-On runs complete or fail."
             actions={
-              <Button
-                size="sm"
-                disabled={!canManageWebhookForSelection || saving}
-                onClick={() => openWebhookDialog()}
-                title={
-                  selectedStoreId
-                    ? undefined
-                    : "Choose one Store before creating a webhook."
-                }
-              >
-                <WebhookIcon aria-hidden="true" />
-                Add Webhook
-              </Button>
+              canManageSelectedDeveloperApi ? (
+                <Button
+                  size="sm"
+                  disabled={!canManageWebhookForSelection || saving}
+                  onClick={() => openWebhookDialog()}
+                  title={
+                    selectedStoreId
+                      ? undefined
+                      : "Choose one Store before creating a webhook."
+                  }
+                >
+                  <WebhookIcon aria-hidden="true" />
+                  Add Webhook
+                </Button>
+              ) : null
             }
           >
             <Table>
@@ -893,17 +969,21 @@ export default function DeveloperPage() {
                   <TableHead>Events</TableHead>
                   <TableHead>Latest Delivery</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canManageSelectedDeveloperApi ? (
+                    <TableHead className="text-right">Actions</TableHead>
+                  ) : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loadingConsole ? (
                   <TableRow>
-                    <TableCell colSpan={5}>Loading webhooks...</TableCell>
+                    <TableCell colSpan={canManageSelectedDeveloperApi ? 5 : 4}>
+                      Loading webhooks...
+                    </TableCell>
                   </TableRow>
                 ) : webhooks.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5}>
+                    <TableCell colSpan={canManageSelectedDeveloperApi ? 5 : 4}>
                       No webhook endpoints have been configured yet.
                     </TableCell>
                   </TableRow>
@@ -940,8 +1020,8 @@ export default function DeveloperPage() {
                       <TableCell>
                         <StatusBadge status={endpoint.status} />
                       </TableCell>
-                      <TableCell className="text-right">
-                        {canManageSelectedDeveloperApi ? (
+                      {canManageSelectedDeveloperApi ? (
+                        <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button
                               variant="outline"
@@ -967,12 +1047,8 @@ export default function DeveloperPage() {
                                 : "Enable"}
                             </Button>
                           </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            View only
-                          </span>
-                        )}
-                      </TableCell>
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   ))
                 )}

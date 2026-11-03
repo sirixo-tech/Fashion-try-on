@@ -149,7 +149,12 @@ export type CreateDeveloperApiWebhookResponse = DeveloperApiWebhookEndpoint & {
 
 export function listDeveloperApiKeys(
   accessToken: string,
-  input: { storeId?: string; page?: number; pageSize?: number } = {},
+  input: {
+    storeId?: string;
+    page?: number;
+    pageSize?: number;
+    storeScoped?: boolean;
+  } = {},
 ): Promise<DeveloperApiKeyListResponse> {
   const params = new URLSearchParams();
   if (input.storeId) {
@@ -163,7 +168,7 @@ export function listDeveloperApiKeys(
   }
   const query = params.toString();
   return selfxApi<DeveloperApiKeyListResponse>(
-    `/api/v1/admin/developer/api-keys${query ? `?${query}` : ""}`,
+    `${input.storeScoped ? "/api/v1/store/developer/api-keys" : "/api/v1/admin/developer/api-keys"}${query ? `?${query}` : ""}`,
     { accessToken },
   );
 }
@@ -171,9 +176,12 @@ export function listDeveloperApiKeys(
 export function createDeveloperApiKey(
   accessToken: string,
   input: CreateDeveloperApiKeyInput,
+  storeScoped = false,
 ): Promise<CreateDeveloperApiKeyResponse> {
   return selfxApi<CreateDeveloperApiKeyResponse>(
-    "/api/v1/admin/developer/api-keys",
+    storeScoped
+      ? "/api/v1/store/developer/api-keys"
+      : "/api/v1/admin/developer/api-keys",
     {
       method: "POST",
       accessToken,
@@ -185,9 +193,10 @@ export function createDeveloperApiKey(
 export function revokeDeveloperApiKey(
   accessToken: string,
   keyId: string,
+  storeScoped = false,
 ): Promise<DeveloperApiKey> {
   return selfxApi<DeveloperApiKey>(
-    `/api/v1/admin/developer/api-keys/${keyId}/revoke`,
+    `${storeScoped ? "/api/v1/store/developer/api-keys" : "/api/v1/admin/developer/api-keys"}/${keyId}/revoke`,
     {
       method: "POST",
       accessToken,
@@ -199,6 +208,7 @@ export function getDeveloperApiUsageSummary(
   accessToken: string,
   input: {
     storeId?: string;
+    storeScoped?: boolean;
     apiKeyId?: string;
     range?: DeveloperApiUsageRangePreset;
     limit?: number;
@@ -227,14 +237,14 @@ export function getDeveloperApiUsageSummary(
   }
   const query = params.toString();
   return selfxApi<DeveloperApiUsageSummary>(
-    `/api/v1/admin/developer/usage${query ? `?${query}` : ""}`,
+    `${input.storeScoped ? "/api/v1/store/developer/usage" : "/api/v1/admin/developer/usage"}${query ? `?${query}` : ""}`,
     { accessToken },
   );
 }
 
 export function listDeveloperApiWebhooks(
   accessToken: string,
-  input: { storeId?: string } = {},
+  input: { storeId?: string; storeScoped?: boolean } = {},
 ): Promise<{ data: DeveloperApiWebhookEndpoint[] }> {
   const params = new URLSearchParams();
   if (input.storeId) {
@@ -242,7 +252,7 @@ export function listDeveloperApiWebhooks(
   }
   const query = params.toString();
   return selfxApi<{ data: DeveloperApiWebhookEndpoint[] }>(
-    `/api/v1/admin/developer/webhooks${query ? `?${query}` : ""}`,
+    `${input.storeScoped ? "/api/v1/store/developer/webhooks" : "/api/v1/admin/developer/webhooks"}${query ? `?${query}` : ""}`,
     { accessToken },
   );
 }
@@ -250,9 +260,12 @@ export function listDeveloperApiWebhooks(
 export function createDeveloperApiWebhook(
   accessToken: string,
   input: CreateDeveloperApiWebhookInput,
+  storeScoped = false,
 ): Promise<CreateDeveloperApiWebhookResponse> {
   return selfxApi<CreateDeveloperApiWebhookResponse>(
-    "/api/v1/admin/developer/webhooks",
+    storeScoped
+      ? "/api/v1/store/developer/webhooks"
+      : "/api/v1/admin/developer/webhooks",
     {
       method: "POST",
       accessToken,
@@ -265,9 +278,10 @@ export function updateDeveloperApiWebhook(
   accessToken: string,
   endpointId: string,
   input: UpdateDeveloperApiWebhookInput,
+  storeScoped = false,
 ): Promise<DeveloperApiWebhookEndpoint> {
   return selfxApi<DeveloperApiWebhookEndpoint>(
-    `/api/v1/admin/developer/webhooks/${endpointId}`,
+    `${storeScoped ? "/api/v1/store/developer/webhooks" : "/api/v1/admin/developer/webhooks"}/${endpointId}`,
     {
       method: "PATCH",
       accessToken,
@@ -279,15 +293,26 @@ export function updateDeveloperApiWebhook(
 export function disableDeveloperApiWebhook(
   accessToken: string,
   endpointId: string,
+  storeScoped = false,
 ): Promise<void> {
-  return updateDeveloperApiWebhook(accessToken, endpointId, {
-    enabled: false,
-  }).then(() => undefined);
+  return updateDeveloperApiWebhook(
+    accessToken,
+    endpointId,
+    {
+      enabled: false,
+    },
+    storeScoped,
+  ).then(() => undefined);
 }
 
 export function listDeveloperApiWebhookDeliveries(
   accessToken: string,
-  input: { storeId?: string; endpointId?: string; limit?: number } = {},
+  input: {
+    storeId?: string;
+    endpointId?: string;
+    limit?: number;
+    storeScoped?: boolean;
+  } = {},
 ): Promise<{ data: DeveloperApiWebhookDelivery[] }> {
   const params = new URLSearchParams();
   if (input.storeId) {
@@ -301,7 +326,7 @@ export function listDeveloperApiWebhookDeliveries(
   }
   const query = params.toString();
   return selfxApi<{ data: DeveloperApiWebhookDelivery[] }>(
-    `/api/v1/admin/developer/webhook-deliveries${query ? `?${query}` : ""}`,
+    `${input.storeScoped ? "/api/v1/store/developer/webhook-deliveries" : "/api/v1/admin/developer/webhook-deliveries"}${query ? `?${query}` : ""}`,
     { accessToken },
   );
 }

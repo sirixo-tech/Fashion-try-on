@@ -207,7 +207,7 @@ describe.skipIf(!url)("Application-wide Store roles", () => {
     },
   );
 
-  it("retires stored Developer API grants from Store roles, runtime permissions and permission lists", async () => {
+  it("keeps Developer API permissions available to Store role maps", async () => {
     const actor = await user(true),
       tenant = await store(),
       admin = await user();
@@ -219,7 +219,7 @@ describe.skipIf(!url)("Application-wide Store roles", () => {
         code: "developer_api.view",
         module: "developer_api",
         action: "view",
-        label: "Retired Store API access",
+        label: "View Developer API",
         applicability: "STORE",
       },
       update: {},
@@ -240,29 +240,27 @@ describe.skipIf(!url)("Application-wide Store roles", () => {
     });
     const workspace = await global.workspace(actor);
     expect(
-      workspace.permissions.some((p) => p.code.startsWith("developer_api.")),
-    ).toBe(false);
+      workspace.permissions.some((p) => p.code === "developer_api.view"),
+    ).toBe(true);
     expect(
       workspace.roles
         .flatMap((r) => r.permissions)
-        .some((p) => p.code.startsWith("developer_api.")),
-    ).toBe(false);
+        .some((p) => p.code === "developer_api.view"),
+    ).toBe(true);
     expect(
       (await rbac.effectivePermissions(admin, tenant, false)).permissions,
-    ).not.toContain("developer_api.view");
+    ).toContain("developer_api.view");
     expect(
       (await access.listPermissions()).data.some((p) =>
         p.code.startsWith("developer_api."),
       ),
-    ).toBe(false);
+    ).toBe(true);
     await expect(
       save(actor, "store-admin", [
         ...STORE_ADMIN_REQUIRED_PERMISSIONS,
         "developer_api.view",
       ]),
-    ).rejects.toMatchObject({
-      response: { error: { code: "STORE_PERMISSION_INVALID" } },
-    });
+    ).resolves.toBeUndefined();
   });
 
   it("applies revocation and grant immediately to Staff in multiple Stores and future Stores", async () => {

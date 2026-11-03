@@ -1,5 +1,26 @@
 # SelfX Public API
 
+## Store access and plan control
+
+Public API access is a Store module controlled by the Store's active plan. A
+Platform role manager enables the `PUBLIC_API` feature on a plan in Platform
+Plans; assigning or changing that plan updates access through the same
+entitlement system used by other Store modules. Store users open Developer / API
+from the Store dashboard. Store Admins with
+`developer_api.manage` can create/revoke Store API keys and manage webhooks;
+roles with only `developer_api.view` can inspect keys, usage and webhook state
+without mutation controls. Platform roles continue to use the cross-Store
+administration console. The existing shared Store Admin and Store Staff roles
+remain the only Store roles; Staff can be granted view access by an authorized
+Platform role manager.
+
+Store API endpoints infer the active Store from the authenticated dashboard
+session. They do not accept a client-selected Store ID for authorization. API
+keys remain owned by that Store, and each API request checks that the Store is
+active and still has the `PUBLIC_API` plan feature. Removing the feature blocks
+key use without deleting keys or usage history; restoring the feature restores
+access to unexpired, unrevoked keys.
+
 This guide documents the first developer-facing SelfX Public API surface.
 
 The Public API is a governed subset of SelfX. External applications authenticate with scoped SelfX API keys and call SelfX only. Clients must never call FASHN, Google Virtual Try-On or other AI providers directly with provider credentials.

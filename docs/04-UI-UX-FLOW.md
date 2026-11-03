@@ -463,8 +463,13 @@ save feedback. Existing workspace timestamps use shared reactive formatting.
 ### NAV-ORDER-1 — Operational modules before configuration (2026-10-21)
 
 Store navigation is Dashboard, Products, Kiosks, Try-On Lab, Integrations,
-Team & Locations, User Management, Analytics, Activity, Usage & Billing, Settings,
-filtered by current permissions and plan entitlements. Move Payment Settings
+Developer / API, Team & Locations, User Management, Analytics, Activity,
+Usage & Billing, Settings,
+filtered by current permissions and plan entitlements. Developer / API appears
+only when the active Store plan includes `PUBLIC_API` and the user's shared role
+grants `developer_api.view` or `developer_api.manage`. Manage roles see key and
+webhook actions; view-only roles see the same Store-scoped information without
+write controls. Move Payment Settings
 inside Settings; retain its /app/payments URL and existing access rules. Hide
 Settings when none of its children is permitted. Platform users retain Stores
 after Dashboard, Plans after the operational groups, Developer / API and their
@@ -522,9 +527,10 @@ callback, restore the HttpOnly SelfX session on /auth/google/complete and resolv
 the permitted destination; never expose tokens in the completion URL. A failed
 session restore offers Return to sign in.
 
-Remove Developer / API from Store navigation, Store role checkboxes and Store
-permission bypasses. Direct page access shows a Platform-only explanation; backend
-denial remains authoritative. Platform view/manage permissions control the console.
+Store Developer / API access follows the Store plan and Store permissions.
+Platform view/manage permissions continue to control cross-Store administration.
+Direct routes and every write remain guarded by backend entitlement, Store scope
+and permission checks.
 
 ### PAYMENTS-1K — Available gateway cards without verification panel (2026-10-20)
 

@@ -244,14 +244,17 @@ Cloud configuration change is needed for this correction.
 
 ### AUTH-GOOGLE-1 / DEV-PLATFORM-1 (2026-10-20)
 
-Implement Platform-only console/API key access, retire effective Store developer
-permissions, and preserve kiosk/Shopify/WooCommerce authentication. Add the Google
+The initial Platform-only console/API key access has been superseded by the
+Store Developer API module described in PRD DEV-STORE-1: Store plan feature
+`PUBLIC_API` controls availability, shared Store roles control view/manage, and
+Platform permissions retain cross-Store administration. Preserve
+kiosk/Shopify/WooCommerce authentication. Add the Google
 identity migration, code-flow verification, secure account linking, shared session
 issuance, conditional buttons and permission-aware completion/signup redirects.
 Verify disabled configuration, callback validation/replay/expiry/browser binding,
 account linking conflicts, password/version checks, concurrent signup, Starter
 onboarding, suspension, password/session/recovery regressions and Platform-only
-Developer/API execution. Run real local PostgreSQL migration/auth tests, types,
+Store- and Platform-scoped Developer/API execution. Run real local PostgreSQL migration/auth tests, types,
 lint and production builds. Deploy the migration, all API instances and web before
 enabling Google. Google Cloud credentials/branding/redirect registration and live
 Google smoke testing are operator setup. See AUTH-GOOGLE-1-IMPLEMENTATION-REPORT.md.

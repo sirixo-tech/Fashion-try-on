@@ -1,7 +1,4 @@
-export const RETIRED_STORE_PERMISSION_CODES = [
-  "developer_api.view",
-  "developer_api.manage",
-];
+export const RETIRED_STORE_PERMISSION_CODES: string[] = [];
 export const STORE_PERMISSION_CODES = {
   storesView: "stores.view",
   storesUpdate: "stores.update",
@@ -220,6 +217,22 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     label: "Manage Integrations",
     description:
       "Connect, disconnect and create Store-scoped integration credentials.",
+    applicability: "STORE",
+  },
+  {
+    code: STORE_PERMISSION_CODES.developerApiView,
+    module: "developer_api",
+    action: "view",
+    label: "View Developer API",
+    description: "View Store API keys, usage and webhook configuration.",
+    applicability: "STORE",
+  },
+  {
+    code: STORE_PERMISSION_CODES.developerApiManage,
+    module: "developer_api",
+    action: "manage",
+    label: "Manage Developer API",
+    description: "Create and revoke Store API keys and manage webhooks.",
     applicability: "STORE",
   },
 ] as const;
