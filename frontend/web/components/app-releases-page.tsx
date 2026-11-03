@@ -145,6 +145,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
   const [file, setFile] = useState<File | null>(null);
   const [notes, setNotes] = useState("");
   const [uploadTarget, setUploadTarget] = useState<UploadTarget>("KIOSK");
+  const [updatingAppName, setUpdatingAppName] = useState<string | null>(null);
   const [appName, setAppName] = useState("");
   const [appDescription, setAppDescription] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -271,6 +272,25 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
 
   function openUpload() {
     setUploadTarget("KIOSK");
+    setUpdatingAppName(null);
+    setAppName("");
+    setAppDescription("");
+    setFile(null);
+    setNotes("");
+    setError("");
+    setUploadOpen(true);
+  }
+
+  function openUpdate(release: Release) {
+    const customAppId = release.customAppId ?? release.customApp?.id;
+    const target: UploadTarget = customAppId
+      ? `CUSTOM:${customAppId}`
+      : release.app === "CUSTOMER" ||
+          release.packageName === "com.selfx.selfx_customer"
+        ? "CUSTOMER"
+        : "KIOSK";
+    setUploadTarget(target);
+    setUpdatingAppName(displayApp(release));
     setAppName("");
     setAppDescription("");
     setFile(null);
@@ -592,6 +612,15 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">
+                  {canManage && (
+                    <Button
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => openUpdate(release)}
+                    >
+                      Update
+                    </Button>
+                  )}
                   {(publishedVisible(release) || canManage) && (
                     <>
                       <Button
@@ -692,11 +721,15 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add App APK</DialogTitle>
+            <DialogTitle>
+              {updatingAppName
+                ? `Update ${updatingAppName} APK`
+                : "Add App APK"}
+            </DialogTitle>
             <DialogDescription>
-              Upload a signed APK. SelfX reads the app version, build number,
-              supported architecture and minimum Android version directly from
-              the file.
+              {updatingAppName
+                ? `Upload a newer signed APK for ${updatingAppName}. SelfX reads the app version, build number, supported architecture and minimum Android version directly from the file. The current release stays in history.`
+                : "Upload a signed APK. SelfX reads the app version, build number, supported architecture and minimum Android version directly from the file."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={upload} className="space-y-4">
@@ -706,7 +739,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
                 id="app-target"
                 ariaLabel="App"
                 value={uploadTarget}
-                disabled={busy}
+                disabled={busy || updatingAppName !== null}
                 onChange={(value) => setUploadTarget(value as UploadTarget)}
                 options={[
                   { value: "KIOSK", label: "SelfX Kiosk" },

@@ -38,6 +38,34 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
   String? error;
   CustomerExperience get exp => widget.experience;
 
+  List<Json> _interestOrderedDemoProducts(List<Json> products) {
+    final interests = exp.auth.profile?.interests ?? const <String>[];
+    final preferredCategory = interests.contains('MEN')
+        ? 'MEN'
+        : interests.contains('WOMEN')
+        ? 'WOMEN'
+        : null;
+    if (preferredCategory == null) return products;
+
+    int categoryPriority(Json product) {
+      final category = product['category'];
+      if (category == preferredCategory) return 0;
+      if (category == 'UNISEX' || category == 'ALL' || category == null) {
+        return 1;
+      }
+      return 2;
+    }
+
+    final ordered = products.indexed.toList()
+      ..sort((a, b) {
+        final byCategory = categoryPriority(
+          a.$2,
+        ).compareTo(categoryPriority(b.$2));
+        return byCategory != 0 ? byCategory : a.$1.compareTo(b.$1);
+      });
+    return ordered.map((entry) => entry.$2).toList();
+  }
+
   Future<void> run(Future<void> Function() action) async {
     if (working || exp.busy) return;
     setState(() {
@@ -246,7 +274,9 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
         builder: (context, size) {
           final tight = size.maxHeight < 550;
           final models = exp.demoModels;
-          final products = exp.storeMode ? exp.products : exp.demoProducts;
+          final products = exp.storeMode
+              ? exp.products
+              : _interestOrderedDemoProducts(exp.demoProducts);
           return Padding(
             padding: showResult
                 ? EdgeInsets.zero

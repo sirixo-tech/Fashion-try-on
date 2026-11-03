@@ -428,6 +428,9 @@ new app, and upload an APK with optional notes. New companion apps request a nam
 and description. Do not ask users to type version metadata: show that it is read
 from the APK. Upload directly to private storage with a visible transfer
 percentage, then show background validation status and a clear failure state.
+Managers can choose Update on an app release card to upload a newer APK for that
+same app. Keep its app target fixed in the upload dialog; the upload creates a
+new validated draft release and preserves all existing release history.
 Group duplicate failed entries by filename and failure code. Platform managers
 can dismiss a failed entry; dismissal removes only that manager's failed upload
 records and cleans up any unreferenced staged object. Pending uploads remain
