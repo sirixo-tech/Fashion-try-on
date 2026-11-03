@@ -64,6 +64,29 @@ describe("ObjectStorageService", () => {
     );
   });
 
+  it("matches the SigV4 fixture when APK response overrides mix query-key case", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-03T10:00:00.000Z"));
+    try {
+      const url = new URL(
+        new ObjectStorageService().createAppReleaseReadUrl({
+          key: "app-releases/release/installer.apk",
+          expiresInSeconds: 24 * 60 * 60,
+          responseContentType: "application/vnd.android.package-archive",
+          responseContentDisposition: 'attachment; filename="selfx.apk"',
+        }),
+      );
+
+      // Fixed AWS SigV4 fixture independently calculated for this request.
+      // It catches locale collation placing lowercase response-* before X-Amz-*.
+      expect(url.searchParams.get("X-Amz-Signature")).toBe(
+        "0f09f4d1c92deca68d25b29f5d94b5d8acd2c27bc2ba1a094168393d5f887893",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("supports explicitly configured path-style buckets", () => {
     vi.stubEnv("OBJECT_STORAGE_URL_STYLE", "path");
     const url = new URL(

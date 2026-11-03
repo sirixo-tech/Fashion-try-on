@@ -300,11 +300,11 @@ function objectUrl(config: Required<ObjectStorageConfig>, key: string): URL {
 function canonicalQuery(params: URLSearchParams): string {
   return [...params.entries()]
     .map(([key, value]) => [awsEncode(key), awsEncode(value)] as const)
-    .sort(([leftKey, leftValue], [rightKey, rightValue]) =>
-      leftKey === rightKey
-        ? leftValue.localeCompare(rightValue)
-        : leftKey.localeCompare(rightKey),
-    )
+    .sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+      if (leftKey !== rightKey) return leftKey < rightKey ? -1 : 1;
+      if (leftValue !== rightValue) return leftValue < rightValue ? -1 : 1;
+      return 0;
+    })
     .map(([key, value]) => `${key}=${value}`)
     .join("&");
 }
