@@ -87,10 +87,14 @@ Order reads are intentionally not requested until SelfX implements Shopify
 Try-On sales attribution analytics.
 
 The storefront theme app block launches through the Shopify App Proxy at
-`/apps/selfx-tryon/launch`. The proxy route verifies Shopify's signed request,
-checks the stored SelfX connection and redirects connected stores to
-`SELFX_STOREFRONT_TRYON_URL` with Shopify product context. The embedded app
-checks the published theme's `templates/product.json` file for the
+`/apps/selfx-tryon/launch`. This endpoint is a React Router resource route: it
+has a loader and deliberately no default component, so its HTML navigation
+response is returned directly instead of rendering the Shopify app document and
+referencing JavaScript assets from the merchant storefront's `/assets/` path.
+The proxy route verifies Shopify's signed request, checks the stored SelfX
+connection and navigates connected stores to `SELFX_STOREFRONT_TRYON_URL` with
+Shopify product context. The embedded app checks the published theme's
+`templates/product.json` file for the
 `selfx_try_it_on` app block so merchants can see whether the storefront block is
 installed.
 

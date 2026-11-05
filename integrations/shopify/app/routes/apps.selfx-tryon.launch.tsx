@@ -151,10 +151,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-export default function SelfxTryOnLaunchRoute(): null {
-  return null;
-}
-
 function normalizeLimit(value: unknown): number {
   const parsed =
     typeof value === "number"
