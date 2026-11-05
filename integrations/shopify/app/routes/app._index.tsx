@@ -277,11 +277,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
       return redirect(approval, { target: "_top" });
     } catch (error) {
+      // Shopify authentication uses Response objects for redirects and
+      // authentication failures. Preserve those responses instead of masking
+      // them as a billing error in the embedded app.
+      if (error instanceof Response) throw error;
+
+      const message = redactBillingDiagnostic(
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Shopify billing failed unexpectedly. Refresh the app and try again.",
+      );
+      console.error("SelfX Shopify billing action failed", {
+        intent,
+        errorName: error instanceof Error ? error.name : typeof error,
+        message,
+      });
       return {
-        billingActionError:
-          error instanceof Error
-            ? error.message
-            : "Shopify billing is unavailable.",
+        billingActionError: message,
         productActionError: null,
         productActionSuccess: null,
       };
@@ -2225,6 +2237,9 @@ function PlansPanel({
                   <PlanCard
                     active
                     canChooseShopifyPlan={canChooseShopifyPlan}
+                    hasActiveShopifyBilling={
+                      billingOwnership === "SHOPIFY_MANAGED"
+                    }
                     plan={{
                       id: currentPlan.id,
                       code: currentPlan.code,
@@ -2252,6 +2267,9 @@ function PlansPanel({
                       key={plan.id}
                       active={active}
                       canChooseShopifyPlan={canChooseShopifyPlan}
+                      hasActiveShopifyBilling={
+                        billingOwnership === "SHOPIFY_MANAGED"
+                      }
                       plan={
                         active && currentPlan
                           ? {
@@ -3099,6 +3117,29 @@ function SelfxShopifyStyles() {
           flex-direction: column;
           gap: 0.75rem;
           margin-block-start: auto;
+        }
+
+        .selfx-shopify-plan-card__purchase .selfx-shopify-button {
+          box-sizing: border-box;
+          inline-size: 100%;
+          justify-content: center;
+          text-align: center;
+        }
+
+        .selfx-shopify-plan-card__status {
+          align-items: center;
+          align-self: center;
+          background: #f1f3f5;
+          border: 1px solid #d8dee5;
+          border-radius: 999px;
+          color: #626f7b;
+          display: inline-flex;
+          font-size: 0.875rem;
+          font-weight: 600;
+          justify-content: center;
+          margin-block-start: auto;
+          min-block-size: 2.5rem;
+          padding-inline: 1.25rem;
         }
 
         .selfx-shopify-plan-card__usage-cap {
@@ -4686,6 +4727,16 @@ async function safeShopifyBillingOwnership(
   } catch {
     return null;
   }
+}
+
+function redactBillingDiagnostic(message: string): string {
+  return message
+    .replace(/\bBearer\s+[^\s"'<>]+/gi, "Bearer [redacted]")
+    .replace(/https?:\/\/[^\s"'<>]+/gi, "[redacted URL]")
+    .replace(
+      /\beyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\b/g,
+      "[redacted token]",
+    );
 }
 
 function creditHealthFor(

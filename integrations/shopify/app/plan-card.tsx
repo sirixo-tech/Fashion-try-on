@@ -4,10 +4,12 @@ import type { SelfxStorefrontPricingPlan } from "./selfx-storefront-tryon.server
 export function PlanCard({
   active,
   canChooseShopifyPlan,
+  hasActiveShopifyBilling,
   plan,
 }: {
   active: boolean;
   canChooseShopifyPlan: boolean;
+  hasActiveShopifyBilling: boolean;
   plan: SelfxStorefrontPricingPlan;
 }) {
   const channelLabel = plan.channels.includes("SHOPIFY")
@@ -86,7 +88,7 @@ export function PlanCard({
       ) : null}
       {active ? (
         <div className="selfx-shopify-plan-card__active-note">
-          {canChooseShopifyPlan
+          {hasActiveShopifyBilling
             ? "Current plan. Approved changes take effect at the next renewal."
             : "This plan is assigned to your Store in SelfX."}
         </div>
@@ -121,15 +123,16 @@ export function PlanCard({
               </small>
             </label>
           ) : null}
-          <s-button type="submit" variant="primary">
-            Buy / Upgrade plan
-          </s-button>
+          <button
+            className="selfx-shopify-button selfx-shopify-button--primary"
+            type="submit"
+          >
+            {hasActiveShopifyBilling ? "Upgrade" : "Buy"}
+          </button>
         </Form>
       ) : active ? (
-        <div className="selfx-shopify-plan-card__purchase">
-          <s-button type="button" variant="secondary" disabled>
-            In use
-          </s-button>
+        <div className="selfx-shopify-plan-card__status" role="status">
+          In use
         </div>
       ) : null}
     </div>
