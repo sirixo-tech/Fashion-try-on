@@ -9,11 +9,14 @@ function request(
   body: unknown = { session },
   origin = "https://selfx.example",
   cookie?: string,
+  requestUrl = "https://selfx.example/try-on/commerce/visitor",
+  host = new URL(requestUrl).host,
 ) {
-  return new NextRequest("https://selfx.example/try-on/commerce/visitor", {
+  return new NextRequest(requestUrl, {
     method: "POST",
     headers: {
       Origin: origin,
+      Host: host,
       "Content-Type": "application/json",
       ...(cookie ? { Cookie: cookie } : {}),
     },
@@ -48,6 +51,20 @@ describe("SelfX first-party visitor bridge", () => {
         redirect: "error",
       }),
     );
+  });
+  it("accepts the public HTTPS origin when Railway forwards an internal HTTP URL", async () => {
+    upstream.mockResolvedValue(Response.json({ bound: true }));
+    const response = await bindStorefrontVisitor(
+      request(
+        { session },
+        "https://selfx.example",
+        undefined,
+        "http://next-internal:3000/try-on/commerce/visitor",
+        "selfx.example",
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(upstream).toHaveBeenCalledTimes(1);
   });
   it("forwards only the visitor cookie, never staff or other browser cookies", async () => {
     upstream.mockResolvedValue(Response.json({ bound: true }));

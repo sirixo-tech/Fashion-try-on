@@ -278,7 +278,16 @@ export function storefrontNavigationResponse(targetUrl: string): Response {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
   return new Response(
-    `<!doctype html><html><head><meta name="referrer" content="no-referrer"><title>SelfX Try-On</title></head><body><p>Opening SelfX Try-On… <a href="${linkUrl}" rel="noreferrer">Continue to SelfX</a></p><script>window.location.replace(${scriptUrl});</script></body></html>`,
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="theme-color" content="#fffaf1"><title>SelfX Try-On</title><style>
+      :root{color-scheme:light;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#25221f;background:#fffaf1}
+      *{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:linear-gradient(145deg,#fffaf1 0%,#fff4e7 100%)}
+      main{width:min(100%,420px);padding:48px 32px 36px;text-align:center;background:#fff;border:1px solid #f0e6d9;border-radius:28px;box-shadow:0 18px 60px rgba(78,50,24,.09)}
+      .brand{margin:0;color:#f46b13;font-size:34px;font-weight:850;letter-spacing:-1.8px}.brand span{color:#f5aa16}
+      .spinner{width:46px;height:46px;margin:34px auto 22px;border:4px solid #ffe3cc;border-top-color:#f46b13;border-radius:50%;animation:spin .8s linear infinite}
+      h1{margin:0;font-size:20px;font-weight:700;letter-spacing:-.3px}.message{margin:9px 0 0;color:#77716a;font-size:15px;line-height:1.55}
+      .fallback{display:inline-block;margin-top:28px;color:#c9570d;font-size:14px;font-weight:650;text-decoration:none}.fallback:hover{text-decoration:underline}
+      @keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.spinner{animation-duration:2s}}
+    </style></head><body><main aria-busy="true" aria-live="polite"><p class="brand" aria-label="SelfX">SELF<span>X</span></p><div class="spinner" role="status" aria-label="Loading"></div><h1>Opening your fitting room</h1><p class="message">Taking you to your SelfX Try-On…</p><a class="fallback" href="${linkUrl}" rel="noreferrer">Continue to SelfX</a></main><script>window.location.replace(${scriptUrl});</script></body></html>`,
     {
       headers: {
         "Content-Type": "text/html; charset=utf-8",

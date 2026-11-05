@@ -26,6 +26,9 @@ describe("SelfxStorefrontTryOnClient", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(html).toContain("window.location.replace(");
     expect(html).toContain('rel="noreferrer"');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('class="spinner"');
+    expect(html).toContain("Opening your fitting room");
     expect(html).toContain("\\u003c/script>");
     expect(html).toContain("&amp;x=&lt;/script&gt;&quot;");
   });

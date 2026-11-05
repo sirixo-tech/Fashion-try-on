@@ -11,7 +11,26 @@ export async function bindStorefrontVisitor(
     "Referrer-Policy": "no-referrer",
   };
   const origin = request.headers.get("origin");
-  if (origin !== new URL(request.url).origin) {
+  const secure = process.env.NODE_ENV === "production";
+  const requestUrl = new URL(request.url);
+  // Railway terminates TLS before forwarding requests to Next.js. In
+  // production, request.url can therefore describe the internal HTTP hop;
+  // the Host header still identifies the public host the browser contacted.
+  const host = request.headers.get("host")?.trim() || requestUrl.host;
+  let originIsSelfX = false;
+  try {
+    const expectedOrigin = new URL(
+      `${secure ? "https:" : requestUrl.protocol}//${host}`,
+    ).origin;
+    const parsedOrigin = origin === null ? null : new URL(origin);
+    originIsSelfX =
+      parsedOrigin !== null &&
+      origin === parsedOrigin.origin &&
+      parsedOrigin.origin === expectedOrigin;
+  } catch {
+    /* A malformed or opaque Origin is rejected below. */
+  }
+  if (!originIsSelfX) {
     return NextResponse.json(
       {
         error: {
@@ -41,7 +60,6 @@ export async function bindStorefrontVisitor(
       { status: 400, headers },
     );
   }
-  const secure = process.env.NODE_ENV === "production";
   const name = secure
     ? "__Host-selfx_storefront_visitor"
     : "selfx_storefront_visitor";
