@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   beginShopifyBilling,
   billingEnabled,
@@ -20,6 +20,7 @@ import {
   useFetcher,
   useLoaderData,
   useLocation,
+  useRevalidator,
   useRouteError,
 } from "react-router";
 
@@ -72,6 +73,7 @@ import {
   type ShopifyTryOnVertical,
 } from "../selfx-tryon-settings";
 import { ProductClassificationModal } from "../product-classification-modal";
+import { PlanCard } from "../plan-card";
 
 const tryOnBlockHandle = "selfx_try_it_on";
 const lowCreditThreshold = 20;
@@ -82,7 +84,12 @@ const limitPeriods = [
 ] as const;
 
 type ThemeBlockView = {
-  status: "NOT_CHECKED" | "INSTALLED" | "NOT_INSTALLED" | "UNAVAILABLE";
+  status:
+    | "NOT_CHECKED"
+    | "INSTALLED"
+    | "NOT_INSTALLED"
+    | "NO_MAIN_THEME"
+    | "UNAVAILABLE";
   themeName: string | null;
   checkedFilenames: string[];
   errorMessage: string | null;
@@ -562,6 +569,7 @@ export default function Index() {
   const actionData = useActionData<typeof action>();
   const connectionFetcher = useFetcher<ProductActionData>();
   const location = useLocation();
+  const revalidator = useRevalidator();
   const [actionError, setActionError] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<ShopifyAdminPanelKey>("setup");
   const connection = loaded.connection;
@@ -584,6 +592,21 @@ export default function Index() {
     const fragment = new URLSearchParams(window.location.hash.slice(1));
     setActionError(fragment.get("selfxError"));
   }, []);
+
+  useEffect(() => {
+    const recheckThemeStatus = () => {
+      if (
+        document.visibilityState === "visible" &&
+        revalidator.state === "idle"
+      ) {
+        revalidator.revalidate();
+      }
+    };
+    document.addEventListener("visibilitychange", recheckThemeStatus);
+    return () => {
+      document.removeEventListener("visibilitychange", recheckThemeStatus);
+    };
+  }, [revalidator]);
 
   useEffect(() => {
     if (
@@ -613,7 +636,6 @@ export default function Index() {
   const connected = connection.status === "CONNECTED";
   const synced = connection.syncStatus === "SUCCESS";
   const themeBlockInstalled = themeBlock.status === "INSTALLED";
-  const storefrontReady = connected && synced && themeBlockInstalled;
   const creditHealth = creditHealthFor(creditSummary);
   const includedCredits =
     creditSummary?.subscription?.pricingPlan?.includedCredits ??
@@ -751,7 +773,6 @@ export default function Index() {
             billingOwnership={billingOwnership}
             shopifyBillingEnabled={shopifyBillingEnabled}
             restartActionPath={restartActionPath}
-            storefrontReady={storefrontReady}
             synced={synced}
             themeBlock={themeBlock}
             themeBlockInstalled={themeBlockInstalled}
@@ -1258,7 +1279,6 @@ function ShopifyPanelContent({
   selfxBillingUrl,
   billingOwnership,
   shopifyBillingEnabled,
-  storefrontReady,
   synced,
   themeBlock,
   themeBlockInstalled,
@@ -1284,7 +1304,6 @@ function ShopifyPanelContent({
   selfxBillingUrl: string | null;
   billingOwnership: ShopifyBillingOwnership | null;
   shopifyBillingEnabled: boolean;
-  storefrontReady: boolean;
   synced: boolean;
   themeBlock: ThemeBlockView;
   themeBlockInstalled: boolean;
@@ -1354,7 +1373,6 @@ function ShopifyPanelContent({
       connected={connected}
       connection={connection}
       pending={pending}
-      storefrontReady={storefrontReady}
       synced={synced}
       themeBlock={themeBlock}
       themeBlockInstalled={themeBlockInstalled}
@@ -1367,7 +1385,6 @@ function SetupPanel({
   connected,
   connection,
   pending,
-  storefrontReady,
   synced,
   themeBlock,
   themeBlockInstalled,
@@ -1376,7 +1393,6 @@ function SetupPanel({
   connected: boolean;
   connection: SelfxConnectionView;
   pending: boolean;
-  storefrontReady: boolean;
   synced: boolean;
   themeBlock: ThemeBlockView;
   themeBlockInstalled: boolean;
@@ -1394,10 +1410,16 @@ function SetupPanel({
               </s-text>
             </s-grid-item>
             <s-grid-item>
-              {storefrontReady ? (
+              {themeBlock.status === "INSTALLED" ? (
                 <s-badge tone="success">Added</s-badge>
-              ) : (
+              ) : themeBlock.status === "NOT_INSTALLED" ? (
                 <s-badge tone="warning">Not yet added</s-badge>
+              ) : themeBlock.status === "NO_MAIN_THEME" ? (
+                <s-badge tone="neutral">No live theme</s-badge>
+              ) : themeBlock.status === "NOT_CHECKED" ? (
+                <s-badge tone="neutral">Connect SelfX to check</s-badge>
+              ) : (
+                <s-badge tone="neutral">Could not verify</s-badge>
               )}
             </s-grid-item>
           </s-grid>
@@ -2048,6 +2070,7 @@ function PlansPanel({
   creditSummary: SelfxStorefrontCreditSummary | null;
   includedCredits: number;
 }) {
+  const planCarouselRef = useRef<HTMLDivElement>(null);
   const currentPlan = creditSummary?.subscription?.pricingPlan ?? null;
   const currentPlanId = currentPlan?.id ?? null;
   const currentPlanCode = currentPlan?.code ?? null;
@@ -2144,52 +2167,108 @@ function PlansPanel({
           </s-stack>
         </s-box>
         {availablePlans.length > 0 ? (
-          <div className="selfx-shopify-plan-grid">
-            {currentPlan && !hasCurrentPlanInCatalog ? (
-              <PlanCard
-                active
-                canChooseShopifyPlan={canChooseShopifyPlan}
-                plan={{
-                  id: currentPlan.id,
-                  code: currentPlan.code,
-                  name: currentPlan.name,
-                  currency: currentPlan.currency,
-                  monthlyPriceCents: currentPlan.monthlyPriceCents,
-                  includedCredits: currentPlan.includedCredits,
-                  trialCredits: creditSummary?.subscription?.trialCredits ?? 0,
-                  storeLocationLimit: currentPlan.storeLocationLimit,
-                  extraCreditPriceCents: currentPlan.extraCreditPriceCents,
-                  kioskMonthlyRentCents: currentPlan.kioskMonthlyRentCents,
-                  kioskDeviceLimit: currentPlan.kioskDeviceLimit,
-                  channels: currentPlan.channels,
-                  featureKeys: [],
-                }}
-              />
-            ) : null}
-            {availablePlans.map((plan) => {
-              const active =
-                (currentPlanId != null && plan.id === currentPlanId) ||
-                (currentPlanCode != null && plan.code === currentPlanCode);
-              return (
-                <PlanCard
-                  key={plan.id}
-                  active={active}
-                  canChooseShopifyPlan={canChooseShopifyPlan}
-                  plan={
-                    active && currentPlan
-                      ? {
-                          ...plan,
-                          ...currentPlan,
-                          trialCredits:
-                            creditSummary?.subscription?.trialCredits ??
-                            plan.trialCredits,
-                        }
-                      : plan
+          <section
+            className="selfx-shopify-plan-carousel"
+            aria-label="SelfX plans"
+          >
+            <div className="selfx-shopify-plan-carousel__controls">
+              <s-text color="subdued">Browse available plans</s-text>
+              <div>
+                <s-button
+                  type="button"
+                  variant="secondary"
+                  aria-label="Previous plans"
+                  title="Previous plans"
+                  disabled={availablePlans.length < 2}
+                  onClick={() =>
+                    planCarouselRef.current?.scrollBy({
+                      left: -Math.max(
+                        planCarouselRef.current.clientWidth * 0.8,
+                        280,
+                      ),
+                      behavior: "smooth",
+                    })
                   }
-                />
-              );
-            })}
-          </div>
+                >
+                  ←
+                </s-button>
+                <s-button
+                  type="button"
+                  variant="secondary"
+                  aria-label="Next plans"
+                  title="Next plans"
+                  disabled={availablePlans.length < 2}
+                  onClick={() =>
+                    planCarouselRef.current?.scrollBy({
+                      left: Math.max(
+                        planCarouselRef.current.clientWidth * 0.8,
+                        280,
+                      ),
+                      behavior: "smooth",
+                    })
+                  }
+                >
+                  →
+                </s-button>
+              </div>
+            </div>
+            <div
+              className="selfx-shopify-plan-carousel__viewport"
+              id="selfx-shopify-plan-carousel"
+              ref={planCarouselRef}
+              role="region"
+              aria-label="Available SelfX plans"
+              tabIndex={0}
+            >
+              <div className="selfx-shopify-plan-carousel__track">
+                {currentPlan && !hasCurrentPlanInCatalog ? (
+                  <PlanCard
+                    active
+                    canChooseShopifyPlan={canChooseShopifyPlan}
+                    plan={{
+                      id: currentPlan.id,
+                      code: currentPlan.code,
+                      name: currentPlan.name,
+                      currency: currentPlan.currency,
+                      monthlyPriceCents: currentPlan.monthlyPriceCents,
+                      includedCredits: currentPlan.includedCredits,
+                      trialCredits:
+                        creditSummary?.subscription?.trialCredits ?? 0,
+                      storeLocationLimit: currentPlan.storeLocationLimit,
+                      extraCreditPriceCents: currentPlan.extraCreditPriceCents,
+                      kioskMonthlyRentCents: currentPlan.kioskMonthlyRentCents,
+                      kioskDeviceLimit: currentPlan.kioskDeviceLimit,
+                      channels: currentPlan.channels,
+                      featureKeys: [],
+                    }}
+                  />
+                ) : null}
+                {availablePlans.map((plan) => {
+                  const active =
+                    (currentPlanId != null && plan.id === currentPlanId) ||
+                    (currentPlanCode != null && plan.code === currentPlanCode);
+                  return (
+                    <PlanCard
+                      key={plan.id}
+                      active={active}
+                      canChooseShopifyPlan={canChooseShopifyPlan}
+                      plan={
+                        active && currentPlan
+                          ? {
+                              ...plan,
+                              ...currentPlan,
+                              trialCredits:
+                                creditSummary?.subscription?.trialCredits ??
+                                plan.trialCredits,
+                            }
+                          : plan
+                      }
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </section>
         ) : (
           <s-box
             padding="base"
@@ -2217,153 +2296,6 @@ function PlansPanel({
       </s-stack>
     </s-section>
   );
-}
-
-function PlanCard({
-  active,
-  canChooseShopifyPlan,
-  plan,
-}: {
-  active: boolean;
-  canChooseShopifyPlan: boolean;
-  plan: SelfxStorefrontPricingPlan;
-}) {
-  const channelLabel = plan.channels.includes("SHOPIFY")
-    ? "Shopify storefront"
-    : plan.channels.join(", ");
-  const canPurchase =
-    canChooseShopifyPlan &&
-    (plan.monthlyPriceCents > 0 || plan.billingMode === "POSTPAID_PAYG");
-  const featureKeys = Array.isArray(plan.featureKeys) ? plan.featureKeys : [];
-  const visibleFeatures = featureKeys.slice(0, 5);
-  const hiddenFeatureCount = Math.max(
-    featureKeys.length - visibleFeatures.length,
-    0,
-  );
-  return (
-    <div className={`selfx-shopify-plan-card${active ? " is-active" : ""}`}>
-      <div className="selfx-shopify-plan-card__header">
-        <div>
-          <div className="selfx-shopify-plan-card__name">{plan.name}</div>
-          <div className="selfx-shopify-plan-card__code">{plan.code}</div>
-        </div>
-        {active ? (
-          <span className="selfx-shopify-plan-pill selfx-shopify-plan-pill--active">
-            Active
-          </span>
-        ) : null}
-      </div>
-      <div className="selfx-shopify-plan-card__price">
-        {formatMoney(plan.monthlyPriceCents, plan.currency)}
-        <span> / month</span>
-      </div>
-      <div className="selfx-shopify-plan-card__stats">
-        <div>
-          <span>Credits</span>
-          <strong>{plan.includedCredits}</strong>
-        </div>
-        <div>
-          <span>Locations</span>
-          <strong>{formatLocationLimit(plan.storeLocationLimit)}</strong>
-        </div>
-        <div>
-          <span>Extra credit</span>
-          <strong>
-            {formatOptionalMoney(plan.extraCreditPriceCents, plan.currency)}
-          </strong>
-        </div>
-      </div>
-      <div className="selfx-shopify-plan-card__meta">{channelLabel}</div>
-      {visibleFeatures.length > 0 ? (
-        <div className="selfx-shopify-plan-card__features">
-          {visibleFeatures.map((featureKey) => (
-            <div className="selfx-shopify-plan-card__feature" key={featureKey}>
-              <span
-                aria-hidden="true"
-                className="selfx-shopify-plan-card__feature-icon"
-              />
-              <span>{planFeatureLabel(featureKey)}</span>
-            </div>
-          ))}
-          {hiddenFeatureCount > 0 ? (
-            <div className="selfx-shopify-plan-card__more">
-              +{hiddenFeatureCount} more
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      {active ? (
-        <div className="selfx-shopify-plan-card__active-note">
-          {canChooseShopifyPlan
-            ? "Current plan. Approved changes take effect at the next renewal."
-            : "This plan is assigned to your Store in SelfX."}
-        </div>
-      ) : (
-        <div className="selfx-shopify-plan-card__active-note">
-          {canPurchase
-            ? "Plan details are set in SelfX; Shopify will show the payment approval."
-            : canChooseShopifyPlan
-              ? "Free Starter access is assigned automatically by SelfX."
-              : "Available plans are assigned by your SelfX administrator."}
-        </div>
-      )}
-      {!active && canPurchase ? (
-        <Form method="post" className="selfx-shopify-plan-card__purchase">
-          <input type="hidden" name="intent" value="billing:choose" />
-          <input type="hidden" name="planId" value={plan.id} />
-          {plan.billingMode === "POSTPAID_PAYG" ? (
-            <label className="selfx-shopify-plan-card__usage-cap">
-              Shopify spending cap ({formatMoney(
-                plan.creditUnitPriceCents ?? 0,
-                plan.currency,
-              )} minimum)
-              <input
-                type="number"
-                name="usageCap"
-                min={((plan.creditUnitPriceCents ?? 1) / 100).toFixed(2)}
-                step="0.01"
-                required
-              />
-              <small>
-                Maximum Shopify charges for successful Try-Ons in a billing
-                period.
-              </small>
-            </label>
-          ) : null}
-          <s-button type="submit" variant="primary">
-            Buy / upgrade
-          </s-button>
-        </Form>
-      ) : null}
-    </div>
-  );
-}
-
-function planFeatureLabel(featureKey: string): string {
-  return featureKey
-    .split(/[_:-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ");
-}
-
-function formatMoney(amountCents: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: /^[A-Z]{3}$/.test(currency) ? currency : "USD",
-    maximumFractionDigits: amountCents % 100 === 0 ? 0 : 2,
-  }).format(amountCents / 100);
-}
-
-function formatOptionalMoney(
-  amountCents: number | null,
-  currency: string,
-): string {
-  return amountCents == null ? "-" : formatMoney(amountCents, currency);
-}
-
-function formatLocationLimit(value: number | null): string {
-  return value === null ? "Custom" : new Intl.NumberFormat().format(value);
 }
 
 function UnavailablePanel({
@@ -2967,11 +2899,45 @@ function SelfxShopifyStyles() {
           padding-right: 0.25rem;
         }
 
-        .selfx-shopify-plan-grid {
-          display: grid;
+        .selfx-shopify-plan-carousel {
+          min-width: 0;
+        }
+
+        .selfx-shopify-plan-carousel__controls {
+          align-items: center;
+          display: flex;
+          justify-content: space-between;
+          margin-block-end: 0.5rem;
+        }
+
+        .selfx-shopify-plan-carousel__controls > div {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        .selfx-shopify-plan-carousel__viewport {
+          min-width: 0;
+          overflow-x: auto;
+          overscroll-behavior-inline: contain;
+          padding: 0.5rem 0.25rem 1rem;
+          scroll-behavior: smooth;
+          scroll-snap-type: inline mandatory;
+          scrollbar-color: #aebdca #edf2f7;
+          scrollbar-width: thin;
+        }
+
+        .selfx-shopify-plan-carousel__viewport:focus-visible {
+          border-radius: 8px;
+          outline: 2px solid #ff6a1a;
+          outline-offset: 2px;
+        }
+
+        .selfx-shopify-plan-carousel__track {
+          align-items: stretch;
+          display: flex;
           gap: 1rem;
-          grid-template-columns: repeat(auto-fill, minmax(15.5rem, 18rem));
-          justify-content: start;
+          inline-size: max-content;
+          min-inline-size: 100%;
         }
 
         .selfx-shopify-plan-card {
@@ -2982,9 +2948,20 @@ function SelfxShopifyStyles() {
           display: flex;
           flex-direction: column;
           gap: 0.875rem;
-          inline-size: 100%;
+          flex: 0 0 min(18rem, calc(100vw - 4rem));
+          inline-size: min(18rem, calc(100vw - 4rem));
           min-height: 15rem;
           padding: 1rem;
+          scroll-snap-align: start;
+          transition:
+            box-shadow 160ms ease,
+            transform 160ms ease;
+        }
+
+        .selfx-shopify-plan-card:hover {
+          box-shadow: 0 14px 28px rgba(18, 50, 74, 0.16);
+          transform: translateY(-3px) scale(1.015);
+          z-index: 1;
         }
 
         .selfx-shopify-plan-card.is-active {
@@ -3094,6 +3071,24 @@ function SelfxShopifyStyles() {
           font-weight: 700;
         }
 
+        .selfx-shopify-plan-card__more summary {
+          cursor: pointer;
+          inline-size: fit-content;
+          list-style-position: inside;
+        }
+
+        .selfx-shopify-plan-card__more summary:focus-visible {
+          border-radius: 4px;
+          outline: 2px solid #ff6a1a;
+          outline-offset: 2px;
+        }
+
+        .selfx-shopify-plan-card__expanded-features {
+          display: grid;
+          gap: 0.5rem;
+          margin-block-start: 0.5rem;
+        }
+
         .selfx-shopify-plan-card > .selfx-shopify-button,
         .selfx-shopify-plan-card__active-note {
           margin-block-start: auto;
@@ -3103,6 +3098,7 @@ function SelfxShopifyStyles() {
           display: flex;
           flex-direction: column;
           gap: 0.75rem;
+          margin-block-start: auto;
         }
 
         .selfx-shopify-plan-card__usage-cap {
@@ -3151,6 +3147,16 @@ function SelfxShopifyStyles() {
         .selfx-shopify-plan-pill--active {
           background: #d8f8e4;
           color: #007f4e;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .selfx-shopify-plan-carousel__viewport {
+            scroll-behavior: auto;
+          }
+
+          .selfx-shopify-plan-card {
+            transition: none;
+          }
         }
 
         @media (max-width: 760px) {
@@ -4215,7 +4221,7 @@ async function safeThemeBlockView(input: {
     }).getThemeAppBlockStatus(tryOnBlockHandle);
     if (result.status === "NO_MAIN_THEME") {
       return {
-        status: "UNAVAILABLE",
+        status: "NO_MAIN_THEME",
         themeName: null,
         checkedFilenames: result.checkedFilenames,
         errorMessage: "No published Shopify theme was found.",
@@ -4446,7 +4452,7 @@ function emptyThemeBlockView(status: ThemeBlockView["status"]): ThemeBlockView {
   return {
     status,
     themeName: null,
-    checkedFilenames: ["templates/product.json"],
+    checkedFilenames: ["templates/product*.json"],
     errorMessage: null,
   };
 }

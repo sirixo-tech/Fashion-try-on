@@ -193,7 +193,8 @@ export class ShopifyAdminClient {
   async getThemeAppBlockStatus(
     blockHandle: string,
   ): Promise<ShopifyThemeAppBlockStatus> {
-    const checkedFilenames = ["templates/product.json"];
+    // Merchants can assign the app block to alternate product templates too.
+    const checkedFilenames = ["templates/product*.json"];
     const themes = await this.graphql<ThemesQueryData>(themesQuery, {});
     const mainTheme = themes.themes.nodes.find(
       (theme) => theme.role === "MAIN",

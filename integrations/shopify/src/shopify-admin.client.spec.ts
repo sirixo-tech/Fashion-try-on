@@ -260,7 +260,7 @@ describe("ShopifyAdminClient", () => {
     expect(body.query).not.toMatch(/\bmutation\b/i);
   });
 
-  it("detects the SelfX app block in the main product template", async () => {
+  it("detects the SelfX app block in an alternate product template", async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(
@@ -293,7 +293,7 @@ describe("ShopifyAdminClient", () => {
               files: {
                 nodes: [
                   {
-                    filename: "templates/product.json",
+                    filename: "templates/product.custom.json",
                     body: {
                       content: JSON.stringify({
                         sections: {
@@ -329,9 +329,15 @@ describe("ShopifyAdminClient", () => {
       status: "INSTALLED",
       themeId: "gid://shopify/OnlineStoreTheme/2",
       themeName: "Main",
-      checkedFilenames: ["templates/product.json"],
+      checkedFilenames: ["templates/product*.json"],
     });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const themeRequest = JSON.parse(
+      String((fetchImpl.mock.calls[1]?.[1] as RequestInit).body),
+    ) as { variables: { filenames: string[] } };
+    expect(themeRequest.variables.filenames).toEqual([
+      "templates/product*.json",
+    ]);
   });
 
   it("reports the SelfX app block as missing when product template has no block", async () => {
@@ -388,6 +394,12 @@ describe("ShopifyAdminClient", () => {
       status: "NOT_INSTALLED",
       themeName: "Main",
     });
+    const themeRequest = JSON.parse(
+      String((fetchImpl.mock.calls[1]?.[1] as RequestInit).body),
+    ) as { variables: { filenames: string[] } };
+    expect(themeRequest.variables.filenames).toEqual([
+      "templates/product*.json",
+    ]);
   });
 });
 
