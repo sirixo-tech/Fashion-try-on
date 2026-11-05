@@ -5,6 +5,8 @@ import {
   cancelShopifyBilling,
   syncShopifyBilling,
   scheduledShopifyPlan,
+  shopifyBillingOwnership,
+  type ShopifyBillingOwnership,
 } from "../selfx-billing.server";
 import type {
   ActionFunctionArgs,
@@ -115,6 +117,7 @@ type ProductActionData =
       productActionError: string | null;
       productActionSuccess: string | null;
       connectionActionError?: string | null;
+      billingActionError?: string | null;
       settingsActionError?: string | null;
       settingsActionSuccess?: string | null;
       settingsStorefrontLocale?: string | null;
@@ -206,6 +209,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       : { ...connection, status: "ERROR" as const };
   return {
     connection,
+    shopifyBillingOwnership: await safeShopifyBillingOwnership(session.shop),
+    shopifyBillingEnabled: billingEnabled(),
     scheduledBilling: await scheduledShopifyPlan(session.shop).catch(
       () => null,
     ),
@@ -227,7 +232,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       connected: connectionHealth.state === "CONNECTED",
       shop: session.shop,
     }),
-    selfxBillingUrl: "/app?panel=plans",
+    selfxBillingUrl: safeSelfxBillingUrl(),
     selfxPublicUrls: safeSelfxPublicUrls(),
     themeEditorUrl: buildTryOnBlockThemeEditorUrl(session.shop),
   };
@@ -266,7 +271,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return redirect(approval, { target: "_top" });
     } catch (error) {
       return {
-        connectionActionError:
+        billingActionError:
           error instanceof Error
             ? error.message
             : "Shopify billing is unavailable.",
@@ -568,6 +573,8 @@ export default function Index() {
   const productControls = loaded.productControls;
   const productCollections = loaded.productCollections;
   const selfxBillingUrl = loaded.selfxBillingUrl;
+  const billingOwnership = loaded.shopifyBillingOwnership;
+  const shopifyBillingEnabled = loaded.shopifyBillingEnabled;
   const selfxPublicUrls = loaded.selfxPublicUrls;
   const themeEditorUrl = loaded.themeEditorUrl;
   const connectActionPath = selfxActionPath(location.search, "connect");
@@ -741,6 +748,8 @@ export default function Index() {
             productControls={productControls}
             onAdminLocaleChange={setAdminLocale}
             selfxBillingUrl={selfxBillingUrl}
+            billingOwnership={billingOwnership}
+            shopifyBillingEnabled={shopifyBillingEnabled}
             restartActionPath={restartActionPath}
             storefrontReady={storefrontReady}
             synced={synced}
@@ -805,6 +814,11 @@ function StatusAlerts({
       {actionData?.connectionActionError || connectionActionError ? (
         <s-banner heading="Connection could not be completed" tone="critical">
           {actionData?.connectionActionError || connectionActionError}
+        </s-banner>
+      ) : null}
+      {actionData?.billingActionError ? (
+        <s-banner heading="Plan change could not be completed" tone="critical">
+          {actionData.billingActionError}
         </s-banner>
       ) : null}
       {connection.errorMessage ? (
@@ -1242,6 +1256,8 @@ function ShopifyPanelContent({
   productControls,
   restartActionPath,
   selfxBillingUrl,
+  billingOwnership,
+  shopifyBillingEnabled,
   storefrontReady,
   synced,
   themeBlock,
@@ -1266,6 +1282,8 @@ function ShopifyPanelContent({
   productControls: ProductControlsView | null;
   restartActionPath: string;
   selfxBillingUrl: string | null;
+  billingOwnership: ShopifyBillingOwnership | null;
+  shopifyBillingEnabled: boolean;
   storefrontReady: boolean;
   synced: boolean;
   themeBlock: ThemeBlockView;
@@ -1322,6 +1340,8 @@ function ShopifyPanelContent({
         adminLocale={adminLocale}
         availablePlans={availablePlans}
         billingUrl={selfxBillingUrl}
+        billingOwnership={billingOwnership}
+        shopifyBillingEnabled={shopifyBillingEnabled}
         creditHealth={creditHealth}
         creditSummary={creditSummary}
         availableCredits={availableCredits}
@@ -2012,6 +2032,8 @@ function PlansPanel({
   availablePlans,
   availableCredits,
   billingUrl,
+  billingOwnership,
+  shopifyBillingEnabled,
   creditHealth,
   creditSummary,
   includedCredits,
@@ -2020,6 +2042,8 @@ function PlansPanel({
   availablePlans: SelfxStorefrontPricingPlan[];
   availableCredits: number;
   billingUrl: string | null;
+  billingOwnership: ShopifyBillingOwnership | null;
+  shopifyBillingEnabled: boolean;
   creditHealth: CreditHealth;
   creditSummary: SelfxStorefrontCreditSummary | null;
   includedCredits: number;
@@ -2034,21 +2058,56 @@ function PlansPanel({
   );
   const currentPlanLabel = currentPlan?.name ?? "Plan unavailable";
   const payg = currentPlan?.billingMode === "POSTPAID_PAYG";
+  const canChooseShopifyPlan =
+    shopifyBillingEnabled && billingOwnership !== null;
 
   return (
     <s-section heading="Plans">
       <s-stack gap="base">
-        <Form method="post">
-          <input type="hidden" name="intent" value="billing:cancel" />
-          <label>
-            <input type="checkbox" name="confirmCancel" value="yes" required />{" "}
-            I understand that cancelling the Shopify plan stops paid Try-On
-            access.
-          </label>
-          <s-button type="submit" variant="secondary">
-            Cancel Shopify plan
-          </s-button>
-        </Form>
+        <s-box
+          padding="base"
+          background="subdued"
+          borderWidth="small"
+          borderColor="base"
+          borderRadius="base"
+        >
+          <s-stack gap="base">
+            <s-text color="subdued">
+              {billingOwnership === "SHOPIFY_MANAGED"
+                ? "This plan has an active Shopify billing agreement. Cancelling it will stop paid Try-On access."
+                : canChooseShopifyPlan
+                  ? "Choose a plan below to review and approve its charges through Shopify. Plan terms come from SelfX."
+                  : billingOwnership === "SELFX_MANAGED"
+                    ? "This Store’s plan and credits are managed in SelfX. Shopify shows the assigned plan and usage."
+                    : "Shopify billing status could not be verified. Your Store’s plan can still be managed in SelfX."}
+            </s-text>
+            {billingOwnership === "SHOPIFY_MANAGED" ? (
+              <Form method="post">
+                <input type="hidden" name="intent" value="billing:cancel" />
+                <label>
+                  <input
+                    type="checkbox"
+                    name="confirmCancel"
+                    value="yes"
+                    required
+                  />{" "}
+                  I understand that cancelling stops paid Try-On access.
+                </label>
+                <s-button type="submit" variant="secondary">
+                  Cancel Shopify plan
+                </s-button>
+              </Form>
+            ) : !shopifyBillingEnabled && billingUrl ? (
+              <SelfxActionButton
+                href={billingUrl}
+                target="_blank"
+                tone="primary"
+              >
+                Manage plan in SelfX
+              </SelfxActionButton>
+            ) : null}
+          </s-stack>
+        </s-box>
         <s-grid
           gridTemplateColumns="repeat(auto-fit, minmax(12rem, 1fr))"
           gap="base"
@@ -2077,8 +2136,9 @@ function PlansPanel({
             <s-stack gap="small-200">
               <s-heading>{currentPlanLabel}</s-heading>
               <s-text color="subdued">
-                Choose a SelfX plan below. Shopify handles approval and app
-                charges.
+                {canChooseShopifyPlan
+                  ? "Plan options come from SelfX. Shopify handles payment approval and billing."
+                  : "Plan assignment, credits and upgrades are managed in SelfX."}
               </s-text>
             </s-stack>
           </s-stack>
@@ -2088,7 +2148,7 @@ function PlansPanel({
             {currentPlan && !hasCurrentPlanInCatalog ? (
               <PlanCard
                 active
-                billingUrl={billingUrl}
+                canChooseShopifyPlan={canChooseShopifyPlan}
                 plan={{
                   id: currentPlan.id,
                   code: currentPlan.code,
@@ -2114,7 +2174,7 @@ function PlansPanel({
                 <PlanCard
                   key={plan.id}
                   active={active}
-                  billingUrl={billingUrl}
+                  canChooseShopifyPlan={canChooseShopifyPlan}
                   plan={
                     active && currentPlan
                       ? {
@@ -2161,15 +2221,19 @@ function PlansPanel({
 
 function PlanCard({
   active,
+  canChooseShopifyPlan,
   plan,
 }: {
   active: boolean;
-  billingUrl: string | null;
+  canChooseShopifyPlan: boolean;
   plan: SelfxStorefrontPricingPlan;
 }) {
   const channelLabel = plan.channels.includes("SHOPIFY")
     ? "Shopify storefront"
     : plan.channels.join(", ");
+  const canPurchase =
+    canChooseShopifyPlan &&
+    (plan.monthlyPriceCents > 0 || plan.billingMode === "POSTPAID_PAYG");
   const featureKeys = Array.isArray(plan.featureKeys) ? plan.featureKeys : [];
   const visibleFeatures = featureKeys.slice(0, 5);
   const hiddenFeatureCount = Math.max(
@@ -2230,42 +2294,47 @@ function PlanCard({
       ) : null}
       {active ? (
         <div className="selfx-shopify-plan-card__active-note">
-          This is your current plan.
+          {canChooseShopifyPlan
+            ? "Current plan. Approved changes take effect at the next renewal."
+            : "This plan is assigned to your Store in SelfX."}
         </div>
       ) : (
-        <Form method="post">
+        <div className="selfx-shopify-plan-card__active-note">
+          {canPurchase
+            ? "Plan details are set in SelfX; Shopify will show the payment approval."
+            : canChooseShopifyPlan
+              ? "Free Starter access is assigned automatically by SelfX."
+              : "Available plans are assigned by your SelfX administrator."}
+        </div>
+      )}
+      {!active && canPurchase ? (
+        <Form method="post" className="selfx-shopify-plan-card__purchase">
           <input type="hidden" name="intent" value="billing:choose" />
           <input type="hidden" name="planId" value={plan.id} />
           {plan.billingMode === "POSTPAID_PAYG" ? (
-            <label>
-              Usage spending cap per 30-day period ({plan.currency})
+            <label className="selfx-shopify-plan-card__usage-cap">
+              Shopify spending cap ({formatMoney(
+                plan.creditUnitPriceCents ?? 0,
+                plan.currency,
+              )} minimum)
               <input
-                name="usageCap"
                 type="number"
-                min="0.01"
-                max="1000000"
+                name="usageCap"
+                min={((plan.creditUnitPriceCents ?? 1) / 100).toFixed(2)}
                 step="0.01"
                 required
               />
-              <s-text>
-                {formatMoney(plan.creditUnitPriceCents ?? 0, plan.currency)} per
-                successful Try-On. Your approved cap applies across this
-                Store&apos;s channels.
-              </s-text>
+              <small>
+                Maximum Shopify charges for successful Try-Ons in a billing
+                period.
+              </small>
             </label>
           ) : null}
-          <s-button
-            type="submit"
-            variant="primary"
-            disabled={
-              plan.monthlyPriceCents === 0 &&
-              plan.billingMode !== "POSTPAID_PAYG"
-            }
-          >
-            Choose plan in Shopify
+          <s-button type="submit" variant="primary">
+            Buy / upgrade
           </s-button>
         </Form>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -3028,6 +3097,44 @@ function SelfxShopifyStyles() {
         .selfx-shopify-plan-card > .selfx-shopify-button,
         .selfx-shopify-plan-card__active-note {
           margin-block-start: auto;
+        }
+
+        .selfx-shopify-plan-card__purchase {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .selfx-shopify-plan-card__usage-cap {
+          color: #1f2d3d;
+          display: grid;
+          font-size: 0.875rem;
+          font-weight: 600;
+          gap: 0.375rem;
+        }
+
+        .selfx-shopify-plan-card__usage-cap input {
+          background: #ffffff;
+          border: 1px solid #aebdca;
+          border-radius: 6px;
+          box-sizing: border-box;
+          color: #00112c;
+          font: inherit;
+          min-block-size: 2.5rem;
+          padding: 0.5rem 0.625rem;
+          inline-size: 100%;
+        }
+
+        .selfx-shopify-plan-card__usage-cap input:focus-visible {
+          outline: 2px solid #ff6a1a;
+          outline-offset: 2px;
+        }
+
+        .selfx-shopify-plan-card__usage-cap small {
+          color: #607589;
+          font-size: 0.8125rem;
+          font-weight: 400;
+          line-height: 1.4;
         }
 
         .selfx-shopify-plan-pill {
@@ -4554,6 +4661,24 @@ function safeSelfxPublicUrls(): { privacyUrl: string; supportUrl: string } {
       privacyUrl: "https://selfxweb-production.up.railway.app/privacy",
       supportUrl: "https://selfxweb-production.up.railway.app/support",
     };
+  }
+}
+
+function safeSelfxBillingUrl(): string | null {
+  try {
+    return new URL("/app/billing", loadSelfxLinkConfig().webBaseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+async function safeShopifyBillingOwnership(
+  shop: string,
+): Promise<ShopifyBillingOwnership | null> {
+  try {
+    return await shopifyBillingOwnership(shop);
+  } catch {
+    return null;
   }
 }
 

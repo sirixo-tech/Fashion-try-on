@@ -67,6 +67,20 @@ type Prepared = {
   usageTerms: string | null;
 };
 type Agreement = { id: string; externalSubscriptionId: string; status: string };
+export type ShopifyBillingOwnership = "SELFX_MANAGED" | "SHOPIFY_MANAGED";
+
+export async function shopifyBillingOwnership(
+  shop: string,
+): Promise<ShopifyBillingOwnership> {
+  if (!billingEnabled()) return "SELFX_MANAGED";
+  const agreements = await central<Agreement[]>("/agreements", shop);
+  return agreements.some((agreement) =>
+    ["ACTIVE", "FROZEN", "PENDING"].includes(agreement.status),
+  )
+    ? "SHOPIFY_MANAGED"
+    : "SELFX_MANAGED";
+}
+
 export async function scheduledShopifyPlan(
   shop: string,
 ): Promise<{ name: string; effectiveAfter: string } | null> {
@@ -296,11 +310,16 @@ export async function beginShopifyBilling(
   return target.toString();
 }
 export async function cancelShopifyBilling(shop: string, admin: BillingAdmin) {
-  if (!billingEnabled()) return;
-  await submitPendingShopifyUsage(shop, admin);
+  if (!billingEnabled())
+    throw new Error("This Store's plan is managed in SelfX, not Shopify.");
   const agreements = await central<Agreement[]>("/agreements", shop);
-  for (const agreement of agreements) {
-    if (!["ACTIVE", "FROZEN", "PENDING"].includes(agreement.status)) continue;
+  const cancelableAgreements = agreements.filter((agreement) =>
+    ["ACTIVE", "FROZEN", "PENDING"].includes(agreement.status),
+  );
+  if (cancelableAgreements.length === 0)
+    throw new Error("There is no active Shopify billing plan to cancel.");
+  await submitPendingShopifyUsage(shop, admin);
+  for (const agreement of cancelableAgreements) {
     const data = await graphql<{
       appSubscriptionCancel: { userErrors: unknown[] };
     }>(admin, CANCEL_SUBSCRIPTION, { id: agreement.externalSubscriptionId });
