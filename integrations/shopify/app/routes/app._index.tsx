@@ -303,7 +303,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     ({ session } = await authenticate.admin(request));
   } catch (error) {
-    console.error("SelfX Shopify action authentication failed", error);
+    // The central auth wrapper records sanitized diagnostics.
     return shopifyActionFailure({
       intent,
       message:

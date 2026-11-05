@@ -30,6 +30,28 @@ async function central<T>(
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
+    // Only emit a fixed operation label; paths may contain agreement/charge IDs.
+    const operation =
+      path === "/agreements"
+        ? "agreements"
+        : path === "/usage"
+          ? "usage"
+          : path === "/prepare"
+            ? "prepare"
+            : path.endsWith("/acknowledge")
+              ? "acknowledge"
+              : path.endsWith("/confirm")
+                ? "confirm"
+                : path.endsWith("/attach")
+                  ? "attach"
+                  : "other";
+    console.error(
+      JSON.stringify({
+        event: "selfx_shopify_billing_api_failed",
+        operation,
+        status: response.status,
+      }),
+    );
     const result = await response.json().catch(() => null);
     throw new SelfxLinkApiError(
       result?.error?.code ?? "SHOPIFY_BILLING_UNAVAILABLE",
