@@ -21,7 +21,8 @@ vi.mock("./selfx-connection.server", () => ({
 }));
 
 import { PlanCard } from "./plan-card";
-import { action } from "./routes/app._index";
+import { action, PlansPanel } from "./routes/app._index";
+import type { ComponentProps } from "react";
 
 const shop = "selfx-test-store.myshopify.com";
 
@@ -109,7 +110,99 @@ describe("Shopify plan card presentation", () => {
     expect(markup).toContain("<summary>+2 more</summary>");
     expect(markup).toContain("Developer Api");
     expect(markup).toContain("Priority Support");
-    expect(markup).toContain(">In use</s-button>");
+    expect(markup).toContain('role="status">In use</div>');
     expect(markup).not.toContain(">Active</span>");
+  });
+});
+
+describe("embedded Shopify Plans tab", () => {
+  const plan = {
+    id: "plan-pro",
+    code: "pro",
+    name: "Pro",
+    currency: "USD",
+    billingMode: "CREDIT_LIMITED" as const,
+    monthlyPriceCents: 2000,
+    includedCredits: 100,
+    trialCredits: 0,
+    channels: ["SHOPIFY"],
+    storeLocationLimit: 1,
+    extraCreditPriceCents: null,
+    kioskMonthlyRentCents: null,
+    kioskDeviceLimit: null,
+    featureKeys: ["priority_support"],
+  };
+  const props: ComponentProps<typeof PlansPanel> = {
+    adminLocale: "en",
+    availablePlans: [plan],
+    availableCredits: 0,
+    includedCredits: 0,
+    billingUrl: "https://app.selfx.test/app/billing",
+    billingOwnership: null,
+    shopifyBillingEnabled: true,
+    creditHealth: "UNKNOWN",
+    creditSummary: null,
+    plansError: null,
+    creditSummaryError: "Credits could not be loaded.",
+    retrying: false,
+    onRetry: vi.fn(),
+  };
+  it("shows catalog pricing and features even when current credits fail", () => {
+    const markup = renderToStaticMarkup(createElement(PlansPanel, props));
+    expect(markup).toContain("Pro");
+    expect(markup).toContain("$20");
+    expect(markup).toContain("Priority Support");
+    expect(markup).toContain("Retry loading plans");
+    expect(markup).toContain("Unavailable");
+    expect(markup).not.toContain("View Plans in SelfX");
+    expect(markup).not.toContain("Available credits</s-text><s-heading>0");
+    expect(markup).not.toContain('value="billing:choose"');
+  });
+  it("preserves the assigned plan when the catalog request fails", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PlansPanel, {
+        ...props,
+        availablePlans: [],
+        plansError: "Plans could not be loaded.",
+        creditSummaryError: null,
+        availableCredits: 42,
+        includedCredits: 100,
+        creditSummary: {
+          availableCredits: 42,
+          subscription: {
+            id: "subscription",
+            status: "ACTIVE",
+            channels: ["SHOPIFY"],
+            includedCredits: 100,
+            trialCredits: 0,
+            currentPeriodStart: null,
+            currentPeriodEnd: null,
+            trialStartedAt: null,
+            trialEndsAt: null,
+            pricingPlan: plan,
+          },
+        },
+      }),
+    );
+    expect(markup).toContain("Pro");
+    expect(markup).toContain('role="status">In use</div>');
+    expect(markup).toContain(">42</s-heading>");
+    expect(markup).toContain("Retry loading plans");
+    expect(markup).not.toContain("No active Shopify-compatible plans");
+  });
+  it("distinguishes a healthy empty catalog from a failed request", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PlansPanel, {
+        ...props,
+        availablePlans: [],
+        creditSummaryError: null,
+        creditSummary: { availableCredits: 0, subscription: null },
+      }),
+    );
+    expect(markup).toContain(
+      "No active Shopify-compatible plans are currently available.",
+    );
+    expect(markup).toContain("No current plan");
+    expect(markup).not.toContain("Retry loading plans");
   });
 });

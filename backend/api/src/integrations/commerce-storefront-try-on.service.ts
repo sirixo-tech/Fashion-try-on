@@ -696,7 +696,9 @@ export class CommerceStorefrontTryOnService {
   async getAvailablePlansForShop(
     shop: string | undefined,
   ): Promise<ShopifyStorefrontPricingPlansDto> {
-    await this.requireActiveIntegrationForShop(shop);
+    // This is the public, active pricing catalog, not Store-owned billing data.
+    // Shopify service authentication remains enforced by the controller.
+    normalizeShopDomain(shop ?? "");
     const plans = await this.pricing.listAvailablePlans();
     return {
       data: plans.filter(supportsShopifyChannel).map(toPricingPlanDto),

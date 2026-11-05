@@ -74,6 +74,8 @@ import {
 } from "../selfx-tryon-settings";
 import { ProductClassificationModal } from "../product-classification-modal";
 import { PlanCard } from "../plan-card";
+import { PlanDataNotice } from "../plan-data-notice";
+import { loadSelfxPlanData } from "../selfx-plan-data.server";
 
 const tryOnBlockHandle = "selfx_try_it_on";
 const lowCreditThreshold = 20;
@@ -202,6 +204,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       /* Preserve read-only access while billing recovery retries. */
     }
   }
+  const planData = loadSelfxPlanData(session.shop);
   let connection = await safeConnectionView(session.shop);
   const connectionHealth = await safeConnectionHealth(session.shop, connection);
   if (
@@ -227,8 +230,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       connected: connectionHealth.state === "CONNECTED",
       shop: session.shop,
     }),
-    creditSummary: await safeCreditSummary(session.shop, verifiedConnection),
-    availablePlans: await safeAvailablePlans(session.shop, verifiedConnection),
+    ...(await planData),
     usageSummary: await safeUsageSummary(session.shop, verifiedConnection),
     productControls: await safeProductControls(
       session.shop,
@@ -769,6 +771,10 @@ export default function Index() {
             activePanel={activePanel}
             adminLocale={adminLocale}
             availablePlans={availablePlans}
+            plansError={loaded.plansError}
+            creditSummaryError={loaded.creditSummaryError}
+            retrying={revalidator.state !== "idle"}
+            onRetry={() => revalidator.revalidate()}
             availableCredits={availableCredits}
             connectActionPath={connectActionPath}
             connected={connected}
@@ -1275,6 +1281,10 @@ function ShopifyPanelContent({
   activePanel,
   adminLocale,
   availablePlans,
+  plansError,
+  creditSummaryError,
+  retrying,
+  onRetry,
   availableCredits,
   connectActionPath,
   connected,
@@ -1300,6 +1310,10 @@ function ShopifyPanelContent({
   activePanel: ShopifyAdminPanelKey;
   adminLocale: string;
   availablePlans: SelfxStorefrontPricingPlan[];
+  plansError: string | null;
+  creditSummaryError: string | null;
+  retrying: boolean;
+  onRetry: () => void;
   availableCredits: number;
   connectActionPath: string;
   connected: boolean;
@@ -1370,6 +1384,10 @@ function ShopifyPanelContent({
       <PlansPanel
         adminLocale={adminLocale}
         availablePlans={availablePlans}
+        plansError={plansError}
+        creditSummaryError={creditSummaryError}
+        retrying={retrying}
+        onRetry={onRetry}
         billingUrl={selfxBillingUrl}
         billingOwnership={billingOwnership}
         shopifyBillingEnabled={shopifyBillingEnabled}
@@ -2061,9 +2079,13 @@ function AnalyticsPanel({
   );
 }
 
-function PlansPanel({
+export function PlansPanel({
   adminLocale,
   availablePlans,
+  plansError,
+  creditSummaryError,
+  retrying,
+  onRetry,
   availableCredits,
   billingUrl,
   billingOwnership,
@@ -2074,6 +2096,10 @@ function PlansPanel({
 }: {
   adminLocale: string;
   availablePlans: SelfxStorefrontPricingPlan[];
+  plansError: string | null;
+  creditSummaryError: string | null;
+  retrying: boolean;
+  onRetry: () => void;
   availableCredits: number;
   billingUrl: string | null;
   billingOwnership: ShopifyBillingOwnership | null;
@@ -2091,14 +2117,24 @@ function PlansPanel({
       (currentPlanId && plan.id === currentPlanId) ||
       (currentPlanCode && plan.code === currentPlanCode),
   );
-  const currentPlanLabel = currentPlan?.name ?? "Plan unavailable";
+  const currentPlanLabel =
+    currentPlan?.name ??
+    (creditSummary ? "No current plan" : "Current plan unavailable");
   const payg = currentPlan?.billingMode === "POSTPAID_PAYG";
   const canChooseShopifyPlan =
-    shopifyBillingEnabled && billingOwnership !== null;
+    shopifyBillingEnabled &&
+    billingOwnership !== null &&
+    creditSummary !== null;
 
   return (
     <s-section heading="Plans">
       <s-stack gap="base">
+        <PlanDataNotice
+          plansError={plansError}
+          creditSummaryError={creditSummaryError}
+          retrying={retrying}
+          onRetry={onRetry}
+        />
         <s-box
           padding="base"
           background="subdued"
@@ -2150,12 +2186,18 @@ function PlansPanel({
           {payg ? (
             <Metric
               label="Billable Try-Ons this period"
-              value={creditSummary?.postpaid?.billableCredits ?? 0}
+              value={creditSummary?.postpaid?.billableCredits ?? "Unavailable"}
             />
           ) : (
             <>
-              <Metric label="Available credits" value={availableCredits} />
-              <Metric label="Plan credits" value={includedCredits} />
+              <Metric
+                label="Available credits"
+                value={creditSummary ? availableCredits : "Unavailable"}
+              />
+              <Metric
+                label="Plan credits"
+                value={creditSummary ? includedCredits : "Unavailable"}
+              />
             </>
           )}
         </s-grid>
@@ -2178,7 +2220,7 @@ function PlansPanel({
             </s-stack>
           </s-stack>
         </s-box>
-        {availablePlans.length > 0 ? (
+        {availablePlans.length > 0 || currentPlan ? (
           <section
             className="selfx-shopify-plan-carousel"
             aria-label="SelfX plans"
@@ -2189,8 +2231,7 @@ function PlansPanel({
                 <s-button
                   type="button"
                   variant="secondary"
-                  aria-label="Previous plans"
-                  title="Previous plans"
+                  accessibilityLabel="Previous plans"
                   disabled={availablePlans.length < 2}
                   onClick={() =>
                     planCarouselRef.current?.scrollBy({
@@ -2207,8 +2248,7 @@ function PlansPanel({
                 <s-button
                   type="button"
                   variant="secondary"
-                  aria-label="Next plans"
-                  title="Next plans"
+                  accessibilityLabel="Next plans"
                   disabled={availablePlans.length < 2}
                   onClick={() =>
                     planCarouselRef.current?.scrollBy({
@@ -2287,7 +2327,7 @@ function PlansPanel({
               </div>
             </div>
           </section>
-        ) : (
+        ) : !plansError ? (
           <s-box
             padding="base"
             background="subdued"
@@ -2297,20 +2337,11 @@ function PlansPanel({
           >
             <s-stack gap="base">
               <s-text color="subdued">
-                SelfX plans are not available in Shopify right now.
+                No active Shopify-compatible plans are currently available.
               </s-text>
-              {billingUrl ? (
-                <SelfxActionButton
-                  href={billingUrl}
-                  target="_blank"
-                  tone="primary"
-                >
-                  View Plans in SelfX
-                </SelfxActionButton>
-              ) : null}
             </s-stack>
           </s-box>
-        )}
+        ) : null}
       </s-stack>
     </s-section>
   );
@@ -2338,7 +2369,7 @@ function UnavailablePanel({
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function Metric({ label, value }: { label: string; value: number | string }) {
   return (
     <s-box
       padding="base"
@@ -4530,22 +4561,6 @@ async function safeConnectionView(shop: string): Promise<SelfxConnectionView> {
   }
 }
 
-async function safeCreditSummary(
-  shop: string,
-  connection: SelfxConnectionView,
-): Promise<SelfxStorefrontCreditSummary | null> {
-  if (connection.status !== "CONNECTED") {
-    return null;
-  }
-  try {
-    return await new SelfxStorefrontTryOnClient(
-      loadSelfxLinkConfig(),
-    ).getCreditSummary(shop);
-  } catch {
-    return null;
-  }
-}
-
 async function safeConnectionHealth(
   shop: string,
   connection: SelfxConnectionView,
@@ -4638,24 +4653,6 @@ async function safeUsageSummary(
     ).getUsageSummary(shop);
   } catch {
     return null;
-  }
-}
-
-async function safeAvailablePlans(
-  shop: string,
-  connection: SelfxConnectionView,
-): Promise<SelfxStorefrontPricingPlan[]> {
-  if (connection.status !== "CONNECTED") {
-    return [];
-  }
-  try {
-    return (
-      await new SelfxStorefrontTryOnClient(
-        loadSelfxLinkConfig(),
-      ).getAvailablePlans(shop)
-    ).data;
-  } catch {
-    return [];
   }
 }
 

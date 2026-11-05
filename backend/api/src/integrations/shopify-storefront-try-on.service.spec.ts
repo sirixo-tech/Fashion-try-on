@@ -21,15 +21,13 @@ describe("ShopifyStorefrontTryOnService", () => {
       new FakeTryOnSessions(),
       new FakeStorage(),
     );
-    const credits = vi
-      .fn()
-      .mockResolvedValue({
-        subscription: {
-          status: "ACTIVE",
-          pricingPlan: { billingMode: "CREDIT_LIMITED" },
-        },
-        availableCredits: 0,
-      });
+    const credits = vi.fn().mockResolvedValue({
+      subscription: {
+        status: "ACTIVE",
+        pricingPlan: { billingMode: "CREDIT_LIMITED" },
+      },
+      availableCredits: 0,
+    });
     Object.assign(
       (service as unknown as { entitlements: object }).entitlements,
       { getStoreCreditSummary: credits },
@@ -716,6 +714,26 @@ describe("ShopifyStorefrontTryOnService", () => {
       where: { status: "ACTIVE" },
       orderBy: [{ monthlyPriceCents: "asc" }, { createdAt: "desc" }],
     });
+  });
+
+  it("allows catalog browsing before connection while keeping Store credit data private", async () => {
+    const prisma = new FakePrisma();
+    prisma.integrationConnected = false;
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+    const plans = await service.getAvailablePlansForShop(
+      "merchant.myshopify.com",
+    );
+    expect(plans.data).toHaveLength(1);
+    await expect(
+      service.getCreditSummaryForShop("merchant.myshopify.com"),
+    ).rejects.toThrow();
+    await expect(
+      service.getAvailablePlansForShop("untrusted.example"),
+    ).rejects.toThrow();
   });
 });
 
