@@ -1,4 +1,4 @@
-param([string]$PhpPath = 'php')
+param([string]$PhpPath = 'php', [switch]$Submission)
 $ErrorActionPreference = 'Stop'
 $wooRoot = Split-Path $PSScriptRoot -Parent
 $pluginRoot = Join-Path $wooRoot 'selfx-woocommerce'
@@ -7,7 +7,7 @@ $readme = Get-Content -LiteralPath (Join-Path $pluginRoot 'readme.txt') -Raw
 if ($header -notmatch '(?m)^ \* Version: (\d+\.\d+\.\d+)\s*$') { throw 'Plugin version missing.' }
 $version = $Matches[1]
 if ($readme -notmatch "(?m)^Stable tag: $([regex]::Escape($version))\s*$") { throw 'Stable tag must match plugin version.' }
-foreach ($required in @('Requires at least:', 'Requires PHP:', 'License:', 'License URI:', '== External service and privacy ==', 'Privacy policy:', 'Support:')) {
+foreach ($required in @('Requires at least:', 'Requires PHP:', 'License:', 'License URI:', '= External service and privacy =', '= Account, plans and pricing =', '[Privacy policy]', '[Terms of service]', '[Support]')) {
     if (!$readme.Contains($required)) { throw "Missing release disclosure: $required" }
 }
 Get-ChildItem -LiteralPath $pluginRoot -Recurse -Filter '*.php' | ForEach-Object {
@@ -16,5 +16,5 @@ Get-ChildItem -LiteralPath $pluginRoot -Recurse -Filter '*.php' | ForEach-Object
 }
 & $PhpPath (Join-Path $wooRoot 'tests/plugin-test.php')
 if ($LASTEXITCODE -ne 0) { throw 'Plugin behavior checks failed.' }
-& (Join-Path $PSScriptRoot 'build.ps1')
+& (Join-Path $PSScriptRoot 'build.ps1') -Submission:$Submission
 Write-Output 'Local release checks passed. WordPress Plugin Check, real-site compatibility and directory review remain required before publication.'

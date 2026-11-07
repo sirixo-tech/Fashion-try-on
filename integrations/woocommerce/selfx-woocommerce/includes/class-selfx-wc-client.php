@@ -58,7 +58,7 @@ final class SelfX_WC_Client {
     public static function friendly_error(string $code, bool $customer = true): string {
         $messages = array(
             'STORE_BINDING_LOCKED' => 'This website is linked to its approved SelfX Store. Reconnect to that Store or contact SelfX support about ownership.',
-            'SHOPIFY_USAGE_CAP_REACHED' => 'This Store has reached its approved Shopify usage spending cap.',
+            'SHOPIFY_USAGE_CAP_REACHED' => 'This Store has reached its approved Try-On spending cap.',
             'SELFX_CREDITS_EXHAUSTED' => 'This Store has no Try-On credits available. Please try again later.',
             'SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED' => 'You have reached this Store\'s Try-On allowance for now. Please return after the allowance resets.',
             'SHOPIFY_STOREFRONT_TRYON_MONTHLY_LIMIT_REACHED' => 'This Store has reached its monthly Try-On allowance. Please try again later.',

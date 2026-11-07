@@ -1,9 +1,9 @@
 === SelfX for WooCommerce ===
-Contributors: selfx
 Tags: woocommerce, catalog, virtual-try-on, kiosk
 Requires at least: 6.5
+Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.5.0
+Stable tag: 0.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,33 +17,31 @@ Classic templates show Try it on automatically. Block themes can add SelfX Try-O
 
 Requires WooCommerce 8.0+, OpenSSL AES-GCM, active SelfX Store/integration and plan/credits, and public product/image URLs. Localhost media cannot be fetched by hosted SelfX. Single-site WordPress. Background sync requires cron / WooCommerce Scheduled Actions.
 
-== External service and privacy ==
+= External service and privacy =
 
-Service: https://selfxweb-production.up.railway.app/
-Privacy policy: https://selfxweb-production.up.railway.app/privacy
-Support: https://selfxweb-production.up.railway.app/support
+SelfX is an external service that provides catalog sync and virtual Try-On. The plugin connects to the [SelfX API](https://selfxapi-production.up.railway.app/) and directs merchants and shoppers to the [SelfX website](https://selfxweb-production.up.railway.app/) for approval and Try-On. See the [Privacy policy](https://selfxweb-production.up.railway.app/privacy), [Terms of service](https://selfxweb-production.up.railway.app/terms) and [Support](https://selfxweb-production.up.railway.app/support).
 
-An account and an active SelfX Store are required. Paid plans and usage are
-provided by the SelfX service; the WordPress plugin code is GPLv2 or later.
-The plugin sends catalog and website context only after a merchant connects.
-It does not send WordPress customer accounts, orders, payment details or photos.
-Customer photo consent and processing occur on the separate SelfX service.
-Choose visitor day/week/month and monthly Store limits in WooCommerce > SelfX.
-The Store plan and shared credits remain authoritative. Limits are per browser,
-not proof of a person's identity. There is no Change Store control.
+* **Connection:** When you choose Connect to SelfX, the plugin sends your public website URL and temporary verification details for the approval and return to WordPress. Once you approve the connection, the plugin receives a Store integration credential and stores it encrypted on your WordPress server. The credential authenticates subsequent requests.
+* **Catalog sync:** After approval, SelfX receives parent product IDs, names, descriptions, slugs, product URLs, image URLs, publication status and revision timestamps. SelfX can fetch the referenced product images. The plugin does not send WordPress customer accounts, orders, payment details, variant stock or prices.
+* **Usage settings:** When you save visitor or monthly Try-On limits in WooCommerce > SelfX, the plugin sends those limits and the visitor reset period to SelfX.
+* **Try-On:** For a connected Store, the plugin sends the product ID to check eligibility. When a shopper starts a Try-On, it also sends the site's language and an anonymous identifier held in a browser cookie to enforce usage limits. Shoppers provide consent and upload or take their photo directly on SelfX. SelfX processes the photo there, and sensitive photo and result assets expire within seven days.
 
-Connects to your SelfX API (default https://selfxapi-production.up.railway.app). The plugin pairs with a SelfX Store through a short-lived approval link and receives its credential server-to-server. Sends website identity, parent IDs, names, descriptions, URLs, images, publication state and revisions. No order/inventory writeback. Launch uses an anonymous HTTP-only visitor cookie. Photo processing happens directly on SelfX after consent under your SelfX service agreement/privacy policy. Sensitive assets expire within at most seven days.
+Uninstalling clears local plugin data and leaves WooCommerce products and the remote catalog in place. Revoke the integration credential in SelfX to stop new launches. Disable the integration or product in SelfX to block eligibility for existing sessions.
 
-Tokens are encrypted using WP salts, never shown in storefront HTML. Reconnect after salt changes/site migration. Uninstall clears local data but retains products and remote catalog. Revoke tokens in SelfX to stop new launches; disable integration/product for existing session eligibility denial. Short-lived sessions expire separately.
+= Account, plans and pricing =
+
+The WordPress plugin is free to install. Catalog sync and Try-On require a SelfX account, an active connected SelfX Store and a plan that supports WooCommerce. Running Try-On also requires available credits or enabled usage billing, depending on the plan.
+
+Eligible new Stores can receive a one-time Starter trial with no monthly fee and a default allowance of 10 shared Try-On credits. Check the allowance shown in your SelfX account. Reconnecting does not grant another trial. Ongoing paid plans and any additional credit or usage charges are billed separately through SelfX. Open [Store billing in SelfX](https://selfxweb-production.up.railway.app/app/billing) after signing in to see the plans, prices, currency and usage rates applicable to your Store before purchasing.
 
 == Installation ==
 
-1. Deploy current SelfX API/web with WooCommerce linking migration and HTTPS SELFX_WEB_BASE_URL.
-2. Upload this ZIP in Plugins > Add New > Upload Plugin and activate on a public HTTPS website.
+1. Install and activate WooCommerce on your public HTTPS WordPress site.
+2. In WordPress, go to Plugins > Add New and search for SelfX for WooCommerce, or choose Upload Plugin if you have the ZIP. Install and activate the plugin.
 3. Open WooCommerce > SelfX and choose Connect to SelfX.
-4. Sign in or create a SelfX account, choose the active Store and approve the website. Return to WooCommerce to finish and start sync.
-5. Check sync status; classify and enable imports in SelfX Products.
-6. Use automatic classic placement or block/shortcode for block themes.
+4. Sign in or create a SelfX account, select your active SelfX Store and approve the website. You'll return to WordPress, where the plugin finishes the connection and queues the first sync. Use Retry connection if the connection does not complete.
+5. Check the sync status in WooCommerce > SelfX. In SelfX Products, classify the imported products and enable Try-On for the ones you want shoppers to use.
+6. Classic product templates show the button automatically. For a block theme, add the SelfX Try-On block or a Shortcode block containing `[selfx_try_on]` to the Single Product template outside the cart form. Use one placement per template.
 
 == Customize the Try-On block ==
 
@@ -58,6 +56,10 @@ Automatic classic placement and shortcodes retain theme styling; these editor
 controls apply to the SelfX Try-On block. Use one placement to avoid duplicates.
 
 == Changelog ==
+
+= 0.5.1 =
+* Updated WordPress installation, external service, privacy and pricing disclosures.
+* Updated a WooCommerce usage-limit message to refer to the Store's Try-On spending cap.
 
 = 0.5.0 =
 * Native WordPress Try-On block styling with a live button preview and editable text.
