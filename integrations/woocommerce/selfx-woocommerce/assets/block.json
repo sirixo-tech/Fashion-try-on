@@ -6,7 +6,7 @@
   "icon": "camera",
   "category": "widgets",
   "description": "Show a customizable Try-On button for eligible connected products.",
-  "textdomain": "selfx-woocommerce",
+  "textdomain": "selfx-for-woocommerce",
   "usesContext": ["postId"],
   "attributes": {
     "label": { "type": "string" }

@@ -2,17 +2,17 @@
 /**
  * Plugin Name: SelfX for WooCommerce
  * Description: Connect your WooCommerce catalog to your SelfX Store and its kiosks.
- * Version: 0.5.1
+ * Version: 0.5.2
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Requires Plugins: woocommerce
  * WC requires at least: 8.0
  * Author: SelfX
  * License: GPL-2.0-or-later
- * Text Domain: selfx-woocommerce
+ * Text Domain: selfx-for-woocommerce
  */
 defined('ABSPATH') || exit;
-define('SELFX_WC_VERSION', '0.5.1');
+define('SELFX_WC_VERSION', '0.5.2');
 require_once __DIR__ . '/includes/class-selfx-wc-client.php';
 require_once __DIR__ . '/includes/class-selfx-wc-product.php';
 require_once __DIR__ . '/includes/class-selfx-wc-plugin.php';
@@ -20,7 +20,7 @@ require_once __DIR__ . '/includes/class-selfx-wc-storefront.php';
 add_action('plugins_loaded', static function () {
     if (!class_exists('WooCommerce')) {
         add_action('admin_notices', static function () {
-            echo '<div class="notice notice-error"><p>' . esc_html__('SelfX requires WooCommerce to be active.', 'selfx-woocommerce') . '</p></div>';
+            echo '<div class="notice notice-error"><p>' . esc_html__('SelfX requires WooCommerce to be active.', 'selfx-for-woocommerce') . '</p></div>';
         });
         return;
     }

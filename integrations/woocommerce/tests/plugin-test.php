@@ -2,6 +2,7 @@
 /** Offline integration harness: real plugin PHP, deterministic WordPress/Woo adapters. */
 define('ABSPATH', __DIR__ . '/'); define('ARRAY_A', 'ARRAY_A');
 define('DAY_IN_SECONDS', 86400); define('HOUR_IN_SECONDS', 3600);
+define('SELFX_WC_VERSION', '0.0.0-test');
 $options = $products = $posts = $meta = $requests = $scheduled = $hooks = array();
 $context = array('authenticated' => true, 'integrationType' => 'WOOCOMMERCE', 'integrationId' => 'integration-a',
     'store' => array('id' => 'store-a', 'name' => 'Store A'), 'serverTime' => '2026-10-22T00:00:00.000Z',
@@ -52,6 +53,7 @@ function current_user_can($cap) { global $can_manage; return $can_manage && $cap
 function check_admin_referer($action) { global $nonce_valid; if (!$nonce_valid) { throw new Exception('NONCE_DENIED'); } }
 function wp_die($message, ...$args) { throw new Exception('PERMISSION_DENIED'); }
 function wp_unslash($value) { return $value; }
+function sanitize_text_field($value) { return is_string($value) ? trim(strip_tags($value)) : ''; }
 function wp_safe_redirect($url) { throw new Exception('REDIRECT'); }
 function esc_html__($value, $domain) { return $value; }
 function __($value, $domain) { return $value; }
@@ -59,7 +61,7 @@ function esc_html($value) { return htmlspecialchars((string) $value, ENT_QUOTES)
 function esc_attr($value) { return esc_html($value); }
 function esc_url($value) { return esc_html($value); }
 function admin_url($path) { return 'https://website.example/wp-admin/' . $path; }
-function plugins_url($path, $file) { return 'https://website.example/wp-content/plugins/selfx-woocommerce/assets/block.js'; }
+function plugins_url($path, $file) { return 'https://website.example/wp-content/plugins/selfx-for-woocommerce/assets/block.js'; }
 function wp_register_script($handle, $url, $deps, $version, $footer) {
     global $block_script; $block_script = compact('handle', 'url', 'deps', 'version', 'footer');
 }
@@ -222,6 +224,7 @@ test('block render applies native styles to the submit button and preserves secu
     global $block_registration, $block_script, $native_button_attributes;
     equal(in_array('wp-block-editor', $block_script['deps'], true), true);
     equal($block_registration['name'], 'selfx/try-on');
+    equal($block_registration['textdomain'], 'selfx-for-woocommerce');
     equal($block_registration['supports']['color']['gradients'], true);
     equal($block_registration['supports']['spacing']['padding'], true);
     equal($block_registration['supports']['__experimentalBorder']['radius'], true);
@@ -259,7 +262,10 @@ test('block styling cannot bypass eligibility or inject markup through button te
     equal($render(array('label' => 'Custom'), '', $block), '');
 });
 test('a public launch validates its nonce before using the server credential', function () {
-    setup(); add_product(10); $_POST = array('product_id' => 10, '_wpnonce' => 'wrong');
+    setup(); add_product(10); add_product(1);
+    $_POST = array('product_id' => '10', '_wpnonce' => 'wrong');
+    rejects(fn() => (new SelfX_WC_Storefront())->launch(), 'PERMISSION_DENIED');
+    $_POST = array('product_id' => array('10'), '_wpnonce' => wp_create_nonce('selfx_wc_try_on_1'));
     rejects(fn() => (new SelfX_WC_Storefront())->launch(), 'PERMISSION_DENIED');
     global $requests; equal($requests, array()); $_POST = array();
 });
@@ -442,8 +448,12 @@ test('approved return completes server-side and rejects unauthorized or invalid 
     equal($proof['adminUrl'], $pending['adminUrl']);
     $requests = array();
     $_GET = array('page' => 'selfx-woocommerce', 'selfx_return' => '1', 'selfx_state' => str_repeat('x', 43));
-    rejects(fn() => $plugin->complete_return(), 'REDIRECT');
-    equal(get_option(SelfX_WC_Plugin::STATE)['message'], 'LINK_RETURN_INVALID');
+    $before_return = get_option(SelfX_WC_Plugin::STATE);
+    rejects(fn() => $plugin->complete_return(), 'PERMISSION_DENIED');
+    equal(get_option(SelfX_WC_Plugin::STATE), $before_return);
+    $_GET['selfx_state'] = array($query['selfx_state']);
+    rejects(fn() => $plugin->complete_return(), 'PERMISSION_DENIED');
+    equal(get_option(SelfX_WC_Plugin::STATE), $before_return);
     equal($requests, array());
     $_GET['selfx_state'] = $query['selfx_state'];
     $can_manage = false;
@@ -485,7 +495,7 @@ test('saves bounded visitor and monthly allowances to SelfX without client Store
 });
 test('invalid limits and unauthorized operators never write settings', function () {
     global $requests, $can_manage, $nonce_valid;
-    foreach (array(array('visitorTryOnLimit' => '-1'), array('visitorTryOnLimit' => '1.5'), array('monthlyStoreTryOnLimit' => '1000001'), array('visitorTryOnLimitPeriod' => 'YEAR')) as $invalid) {
+    foreach (array(array('visitorTryOnLimit' => '-1'), array('visitorTryOnLimit' => '1.5'), array('monthlyStoreTryOnLimit' => '1000001'), array('visitorTryOnLimitPeriod' => 'YEAR'), array('visitorTryOnLimit' => array('5')), array('visitorTryOnLimitPeriod' => array('DAY'))) as $invalid) {
         $plugin = setup(); $_POST = array_merge(array('visitorTryOnLimit' => '5', 'visitorTryOnLimitPeriod' => 'DAY', 'monthlyStoreTryOnLimit' => '0'), $invalid);
         rejects(fn() => $plugin->save_limits(), 'REDIRECT'); equal(count($requests), 0);
     }
@@ -497,6 +507,12 @@ test('actionable errors preserve only safe codes and customer guidance', functio
     $response_hook = fn() => array('code' => 402, 'body' => '{"error":{"code":"SELFX_CREDITS_EXHAUSTED","message":"private provider information"}}');
     $client = new SelfX_WC_Client('https://api.example', 'selfx_woocommerce_' . str_repeat('a', 43));
     rejects(fn() => $client->request('GET', '/api/v1/integrations/storefront/settings'), 'SELFX_CREDITS_EXHAUSTED');
+    $response_hook = fn() => array('code' => 409, 'body' => '{"error":{"code":"WOOCOMMERCE_LINK_PENDING"}}');
+    $link_path = '/api/v1/public/integrations/woocommerce/link-sessions';
+    rejects(fn() => SelfX_WC_Client::link_request('https://api.example', 'POST', $link_path), 'WOOCOMMERCE_LINK_PENDING');
+    $response_hook = fn() => array('code' => 409, 'body' => '{"error":{"code":"<script>unknown</script>"}}');
+    rejects(fn() => SelfX_WC_Client::link_request('https://api.example', 'POST', $link_path), 'API_HTTP_409');
+    rejects(fn() => $client->request('GET', '/api/v1/integrations/storefront/settings'), 'API_HTTP_409');
     equal(str_contains(SelfX_WC_Client::friendly_error('SELFX_CREDITS_EXHAUSTED'), 'no Try-On credits'), true);
     equal(str_contains(SelfX_WC_Client::friendly_error('API_HTTP_401', false), 'reconnect'), true);
     equal(str_contains(SelfX_WC_Client::friendly_error('SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED'), 'allowance'), true);

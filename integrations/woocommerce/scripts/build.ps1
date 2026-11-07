@@ -6,10 +6,14 @@ $pluginRoot = Join-Path $wooRoot 'selfx-woocommerce'
 $header = Get-Content -LiteralPath (Join-Path $pluginRoot 'selfx-woocommerce.php') -Raw
 if ($header -notmatch '(?m)^ \* Version: (\d+\.\d+\.\d+)\s*$') { throw 'Plugin version missing.' }
 $version = $Matches[1]
+$slug = 'selfx-for-woocommerce'
+if ($header -notmatch "(?m)^ \* Text Domain: $([regex]::Escape($slug))\s*$") { throw 'Plugin text domain must match the assigned WordPress.org slug.' }
+$block = Get-Content -LiteralPath (Join-Path $pluginRoot 'assets/block.json') -Raw | ConvertFrom-Json
+if ($block.textdomain -cne $slug) { throw 'Block text domain must match the assigned WordPress.org slug.' }
 $outputRoot = Join-Path $wooRoot 'dist'
 $publicRoot = Join-Path $repoRoot 'frontend/web/public/downloads'
 New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
-$filename = if ($Submission) { "selfx-woocommerce-$version-wordpress-org.zip" } else { 'selfx-woocommerce.zip' }
+$filename = if ($Submission) { "$slug-$version-wordpress-org.zip" } else { 'selfx-woocommerce.zip' }
 $archive = Join-Path $outputRoot $filename
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -24,7 +28,7 @@ $pluginFiles = @(
     'includes/class-selfx-wc-product.php',
     'includes/class-selfx-wc-storefront.php'
 )
-$expectedEntries = @($pluginFiles | ForEach-Object { "selfx-woocommerce/$_" })
+$expectedEntries = @($pluginFiles | ForEach-Object { "$slug/$_" })
 foreach ($file in $pluginFiles) {
     if (!(Test-Path -LiteralPath (Join-Path $pluginRoot $file) -PathType Leaf)) { throw "Missing plugin file: $file" }
 }
@@ -35,7 +39,7 @@ try {
     $zip = New-Object IO.Compression.ZipArchive($stream, [IO.Compression.ZipArchiveMode]::Create, $true)
     try {
         foreach ($file in $pluginFiles) {
-            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, (Join-Path $pluginRoot $file), "selfx-woocommerce/$file") | Out-Null
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, (Join-Path $pluginRoot $file), "$slug/$file") | Out-Null
         }
     } finally { $zip.Dispose() }
 } finally { $stream.Dispose() }

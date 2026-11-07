@@ -1,7 +1,7 @@
 /* global window */
 (function (blocks, element, blockEditor, components, i18n) {
   const el = element.createElement;
-  const defaultLabel = i18n.__("Try it on", "selfx-woocommerce");
+  const defaultLabel = i18n.__("Try it on", "selfx-for-woocommerce");
 
   // Server-registered block.json supplies attributes and native style supports.
   blocks.registerBlockType("selfx/try-on", {
@@ -22,9 +22,9 @@
           null,
           el(
             components.PanelBody,
-            { title: i18n.__("Try-On button", "selfx-woocommerce") },
+            { title: i18n.__("Try-On button", "selfx-for-woocommerce") },
             el(components.TextControl, {
-              label: i18n.__("Button text", "selfx-woocommerce"),
+              label: i18n.__("Button text", "selfx-for-woocommerce"),
               value:
                 attributes.label === undefined
                   ? defaultLabel
@@ -35,7 +35,7 @@
               },
               help: i18n.__(
                 "Shown only for eligible connected products. Use the Styles tab to customize its appearance.",
-                "selfx-woocommerce",
+                "selfx-for-woocommerce",
               ),
             }),
           ),

@@ -11,7 +11,7 @@ final class SelfX_WC_Storefront {
         add_action('admin_post_nopriv_selfx_wc_try_on', array($this, 'launch'));
     }
     public function block(): void {
-        wp_register_script('selfx-try-on-editor', plugins_url('../assets/block.js', __FILE__), array('wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n'), defined('SELFX_WC_VERSION') ? SELFX_WC_VERSION : '0.5.0', true);
+        wp_register_script('selfx-try-on-editor', plugins_url('../assets/block.js', __FILE__), array('wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n'), SELFX_WC_VERSION, true);
         register_block_type(__DIR__ . '/../assets/block.json', array(
             'render_callback' => function ($attributes, $content, $block) {
                 // Apply native styles to the actionable button, not its nonce/form.
@@ -32,7 +32,14 @@ final class SelfX_WC_Storefront {
         if (empty($config['credential'])) { throw new SelfX_WC_Error('CONNECTION_REQUIRED'); }
         return new SelfX_WC_Client($config['origin'], SelfX_WC_Client::decrypt($config['credential']));
     }
-    public function automatic_button(): void { echo $this->button(array()); } // Already escaped by button().
+    public function automatic_button(): void {
+        // Classic placement uses a fixed form. The block render path keeps WordPress's native style attributes.
+        echo wp_kses($this->button(), array(
+            'form' => array('method' => true, 'action' => true, 'class' => true),
+            'input' => array('type' => true, 'name' => true, 'value' => true),
+            'button' => array('type' => true, 'class' => true),
+        ));
+    }
     public function button($attributes = array()): string { return $this->render_button($attributes); }
     private function render_button($attributes = array(), ?string $block_button_attributes = null): string {
         $id = absint($attributes['product_id'] ?? get_queried_object_id());
@@ -48,23 +55,28 @@ final class SelfX_WC_Storefront {
         }
         if (($ready['available'] ?? false) !== true) { return ''; }
         $label = isset($attributes['label']) && is_string($attributes['label']) ? trim(wp_strip_all_tags($attributes['label'])) : '';
-        if ($label === '') { $label = __('Try it on', 'selfx-woocommerce'); }
+        if ($label === '') { $label = __('Try it on', 'selfx-for-woocommerce'); }
         // Only the block callback supplies WordPress-generated, escaped attributes.
         // Shortcodes inside other blocks must not inherit the parent block's styles.
         $button_attributes = $block_button_attributes ?? 'class="button"';
         return '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="selfx-try-on"><input type="hidden" name="action" value="selfx_wc_try_on"><input type="hidden" name="product_id" value="' . esc_attr((string) $id) . '"><input type="hidden" name="_wpnonce" value="' . esc_attr(wp_create_nonce('selfx_wc_try_on_' . $id)) . '"><button type="submit" ' . $button_attributes . '>' . esc_html($label) . '</button></form>';
     }
     public function launch(): void {
-        $id = absint($_POST['product_id'] ?? 0);
-        if (!$this->product($id) || !wp_verify_nonce((string) wp_unslash($_POST['_wpnonce'] ?? ''), 'selfx_wc_try_on_' . $id)) {
-            wp_die(esc_html__('This Try-On link has expired. Reload the product page and try again.', 'selfx-woocommerce'), '', array('response' => 403));
+        $raw_id = sanitize_text_field(wp_unslash($_POST['product_id'] ?? ''));
+        $id = ctype_digit($raw_id) ? absint($raw_id) : 0;
+        $nonce = sanitize_text_field(wp_unslash($_POST['_wpnonce'] ?? ''));
+        if (!$id || !wp_verify_nonce($nonce, 'selfx_wc_try_on_' . $id) || !$this->product($id)) {
+            wp_die(esc_html__('This Try-On link has expired. Reload the product page and try again.', 'selfx-for-woocommerce'), '', array('response' => 403));
         }
         try {
-            $rate = 'selfx_wc_launch_' . hash_hmac('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? '') . ':' . gmdate('YmdHi'), wp_salt('auth'));
+            $address = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? ''));
+            $ip = filter_var($address, FILTER_VALIDATE_IP) ?: '';
+            $rate = 'selfx_wc_launch_' . hash_hmac('sha256', $ip . ':' . gmdate('YmdHi'), wp_salt('auth'));
             $attempts = (int) get_transient($rate); if ($attempts >= 10) { throw new SelfX_WC_Error('STOREFRONT_RATE_LIMITED'); }
             set_transient($rate, $attempts + 1, 120);
-            $visitor = (string) ($_COOKIE['selfx_wc_visitor'] ?? '');
-            if (!preg_match('/^[A-Za-z0-9_-]{43}$/D', $visitor)) {
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- This opaque ID must pass the exact base64url format below or be replaced.
+            $visitor = wp_unslash($_COOKIE['selfx_wc_visitor'] ?? '');
+            if (!is_string($visitor) || !preg_match('/^[A-Za-z0-9_-]{43}$/D', $visitor)) {
                 $visitor = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
                 setcookie('selfx_wc_visitor', $visitor, array('expires' => time() + DAY_IN_SECONDS, 'path' => '/', 'secure' => is_ssl(), 'httponly' => true, 'samesite' => 'Lax'));
             }

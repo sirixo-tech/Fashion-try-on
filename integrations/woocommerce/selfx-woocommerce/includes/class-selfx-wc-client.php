@@ -48,7 +48,10 @@ final class SelfX_WC_Client {
             $error = json_decode(wp_remote_retrieve_body($response), true);
             $code = $error['error']['code'] ?? '';
             // Expose only explicitly supported actionable codes, never response payloads.
-            if (in_array($code, array('AUTH_VALIDATION_FAILED', 'COMMERCE_PUBLIC_URL_REQUIRED', 'STOREFRONT_RATE_LIMITED', 'SELFX_CREDITS_EXHAUSTED', 'SELFX_SUBSCRIPTION_UNAVAILABLE', 'SELFX_FEATURE_UNAVAILABLE', 'SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED', 'SHOPIFY_STOREFRONT_TRYON_MONTHLY_LIMIT_REACHED', 'SHOPIFY_STOREFRONT_TRYON_PRODUCT_NOT_ENABLED', 'SHOPIFY_STOREFRONT_TRYON_PRODUCT_UNAVAILABLE', 'INTEGRATION_CREDENTIAL_REVOKED', 'INTEGRATION_DISCONNECTED', 'ORGANIZATION_SUSPENDED'), true)) { throw new SelfX_WC_Error($code); }
+            if (in_array($code, array('AUTH_VALIDATION_FAILED', 'COMMERCE_PUBLIC_URL_REQUIRED', 'STOREFRONT_RATE_LIMITED', 'SELFX_CREDITS_EXHAUSTED', 'SELFX_SUBSCRIPTION_UNAVAILABLE', 'SELFX_FEATURE_UNAVAILABLE', 'SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED', 'SHOPIFY_STOREFRONT_TRYON_MONTHLY_LIMIT_REACHED', 'SHOPIFY_STOREFRONT_TRYON_PRODUCT_NOT_ENABLED', 'SHOPIFY_STOREFRONT_TRYON_PRODUCT_UNAVAILABLE', 'INTEGRATION_CREDENTIAL_REVOKED', 'INTEGRATION_DISCONNECTED', 'ORGANIZATION_SUSPENDED'), true)) {
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Only exact literal codes above can reach this internal exception. User-facing text is escaped where rendered.
+                throw new SelfX_WC_Error($code);
+            }
             throw new SelfX_WC_Error('API_HTTP_' . (int) $status);
         }
         $data = json_decode(wp_remote_retrieve_body($response), true);
@@ -110,6 +113,7 @@ final class SelfX_WC_Client {
         if ($status < 200 || $status >= 300) {
             $code = $data['error']['code'] ?? '';
             if (in_array($code, array('WOOCOMMERCE_LINK_PENDING', 'WOOCOMMERCE_SITE_UNVERIFIED', 'WOOCOMMERCE_SITE_ALREADY_LINKED', 'WOOCOMMERCE_STORE_ALREADY_LINKED', 'WOOCOMMERCE_LINK_INVALID'), true)) {
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Only exact literal pairing codes above can reach this internal exception.
                 throw new SelfX_WC_Error($code);
             }
             throw new SelfX_WC_Error('API_HTTP_' . (int) $status);

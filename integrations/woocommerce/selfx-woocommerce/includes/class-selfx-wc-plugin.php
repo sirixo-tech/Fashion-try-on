@@ -36,8 +36,11 @@ final class SelfX_WC_Plugin {
     }
     private function config(): array { $value = get_option(self::CONFIG, array()); return is_array($value) ? $value : array(); }
     private function state(): array { $value = get_option(self::STATE, array()); return is_array($value) ? $value : array(); }
+    private function require_manager(): void {
+        if (!current_user_can('manage_woocommerce')) { wp_die(esc_html__('You cannot manage this connection.', 'selfx-for-woocommerce'), '', array('response' => 403)); }
+    }
     private function authorize(string $action): void {
-        if (!current_user_can('manage_woocommerce')) { wp_die(esc_html__('You cannot manage this connection.', 'selfx-woocommerce'), '', array('response' => 403)); }
+        $this->require_manager();
         check_admin_referer('selfx_wc_' . $action);
     }
     private function redirect(): void { wp_safe_redirect(admin_url('admin.php?page=selfx-woocommerce')); exit; }
@@ -52,9 +55,9 @@ final class SelfX_WC_Plugin {
     }
     public function link_proof($request): array {
         $pending = get_option(self::PENDING, array());
-        $challenge = (string) $request->get_param('challenge');
+        $challenge = $request->get_param('challenge');
         if (!is_array($pending) || empty($pending['tokenHash']) || empty($pending['expiresAt'])
-            || time() >= (int) $pending['expiresAt'] || !preg_match('/^[a-f0-9]{64}$/D', $challenge)
+            || time() >= (int) $pending['expiresAt'] || !is_string($challenge) || !preg_match('/^[a-f0-9]{64}$/D', $challenge)
             || !hash_equals($pending['tokenHash'], $challenge)) { return array(); }
         return array('siteUrl' => rtrim(home_url('/'), '/'),
             'adminUrl' => $pending['adminUrl'] ?? '', 'challenge' => $challenge);
@@ -96,22 +99,23 @@ final class SelfX_WC_Plugin {
         $this->redirect();
     }
     public function complete_return(): void {
-        if (($_GET['page'] ?? '') !== 'selfx-woocommerce' || ($_GET['selfx_return'] ?? '') !== '1') { return; }
-        if (!current_user_can('manage_woocommerce')) {
-            wp_die(esc_html__('You cannot manage this connection.', 'selfx-woocommerce'), '', array('response' => 403));
-        }
+        // These values only select the callback. Pairing authority comes from the capability and return-state check below.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Cross-site return uses its own state token.
+        $page = sanitize_text_field(wp_unslash($_GET['page'] ?? ''));
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Route selector only.
+        $return = sanitize_text_field(wp_unslash($_GET['selfx_return'] ?? ''));
+        if ($page !== 'selfx-woocommerce' || $return !== '1') { return; }
+        $this->require_manager();
         if ($this->config()) { $this->redirect(); }
         $pending = get_option(self::PENDING, array());
-        $raw_state = $_GET['selfx_state'] ?? '';
-        $return_state = is_string($raw_state) ? wp_unslash($raw_state) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- The original opaque token must match the exact format and stored SHA-256 below.
+        $return_state = wp_unslash($_GET['selfx_state'] ?? '');
         if (!is_array($pending) || empty($pending['returnStateHash'])
-            || !preg_match('/^[A-Za-z0-9_-]{43}$/D', $return_state)
+            || !is_string($return_state) || !preg_match('/^[A-Za-z0-9_-]{43}$/D', $return_state)
             || !hash_equals($pending['returnStateHash'], hash('sha256', $return_state))) {
-            $state = $this->state(); $state['message'] = 'LINK_RETURN_INVALID';
-            update_option(self::STATE, $state, false);
-        } else {
-            $this->complete_pending_link();
+            wp_die(esc_html__('This SelfX connection return could not be verified. Open WooCommerce → SelfX and use Retry connection.', 'selfx-for-woocommerce'), '', array('response' => 403, 'back_link' => true));
         }
+        $this->complete_pending_link();
         $this->redirect();
     }
     private function complete_pending_link(): void {
@@ -149,13 +153,20 @@ final class SelfX_WC_Plugin {
         }
     }
     public function connect(): void {
-        $this->authorize('connect');
+        $this->require_manager();
+        check_admin_referer('selfx_wc_connect');
         $lock = $this->lock();
         try {
             if (!$lock) { throw new SelfX_WC_Error('SYNC_IN_PROGRESS_TRY_AGAIN'); }
             $current = $this->config();
-            $origin = trim((string) wp_unslash($_POST['api_origin'] ?? SelfX_WC_Client::DEFAULT_ORIGIN));
-            $token = trim((string) wp_unslash($_POST['integration_token'] ?? ''));
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- SelfX_WC_Client rejects invalid or unsafe origins before making any request.
+            $origin = wp_unslash($_POST['api_origin'] ?? SelfX_WC_Client::DEFAULT_ORIGIN);
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- The client checks the exact token format before making any request.
+            $token = wp_unslash($_POST['integration_token'] ?? '');
+            if (!is_string($origin)) { throw new SelfX_WC_Error('API_ORIGIN_INVALID'); }
+            if (!is_string($token)) { throw new SelfX_WC_Error('TOKEN_INVALID'); }
+            $origin = trim($origin);
+            $token = trim($token);
             if ($token === '' && !empty($current['origin']) && rtrim($origin, '/') !== $current['origin']) {
                 throw new SelfX_WC_Error('TOKEN_REQUIRED_FOR_NEW_API_ORIGIN');
             }
@@ -185,7 +196,7 @@ final class SelfX_WC_Plugin {
         $this->authorize('disconnect');
         if (!empty($this->config()['storeId'])) { update_option(self::BOUND_STORE, $this->config()['storeId'], false); }
         $lock = $this->lock();
-        if (!$lock) { wp_die(esc_html__('A catalog batch is running. Try disconnecting again shortly.', 'selfx-woocommerce'), '', array('response' => 409)); }
+        if (!$lock) { wp_die(esc_html__('A catalog batch is running. Try disconnecting again shortly.', 'selfx-for-woocommerce'), '', array('response' => 409)); }
         self::unschedule(); self::clear_dirty();
         delete_option(self::CONFIG); delete_option(self::PENDING); delete_option('selfx_wc_reconcile_needed');
         update_option(self::STATE, array('status' => 'DISCONNECTED', 'message' => 'Disconnected on this website. The SelfX catalog is retained; revoke the credential or disconnect the integration in SelfX to disable its access.'), false);
@@ -195,7 +206,7 @@ final class SelfX_WC_Plugin {
     public function manual(): void {
         $this->authorize('sync');
         $lock = $this->lock();
-        if (!$lock) { wp_die(esc_html__('A catalog batch is running. Try again shortly.', 'selfx-woocommerce'), '', array('response' => 409)); }
+        if (!$lock) { wp_die(esc_html__('A catalog batch is running. Try again shortly.', 'selfx-for-woocommerce'), '', array('response' => 409)); }
         if ($this->config()) {
             // Do not replace an active snapshot; retry its unacknowledged batch.
             $state = $this->state();
@@ -407,15 +418,18 @@ final class SelfX_WC_Plugin {
         }
     }
     public function save_limits(): void {
-        $this->authorize('limits');
+        $this->require_manager();
+        check_admin_referer('selfx_wc_limits');
         try {
             $limits = array();
             foreach (array('visitorTryOnLimit', 'monthlyStoreTryOnLimit') as $key) {
-                $raw = (string) wp_unslash($_POST[$key] ?? '');
-                if (!preg_match('/^\d{1,7}$/D', $raw) || (int) $raw > 1000000) { throw new SelfX_WC_Error('LIMIT_SETTINGS_INVALID'); }
+                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Reject anything outside the exact numeric grammar before casting.
+                $raw = wp_unslash($_POST[$key] ?? '');
+                if (!is_string($raw) || !preg_match('/^\d{1,7}$/D', $raw) || (int) $raw > 1000000) { throw new SelfX_WC_Error('LIMIT_SETTINGS_INVALID'); }
                 $limits[$key] = (int) $raw;
             }
-            $period = (string) wp_unslash($_POST['visitorTryOnLimitPeriod'] ?? '');
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Only the three exact literals below are accepted.
+            $period = wp_unslash($_POST['visitorTryOnLimitPeriod'] ?? '');
             if (!in_array($period, array('DAY', 'WEEK', 'MONTH'), true)) { throw new SelfX_WC_Error('LIMIT_SETTINGS_INVALID'); }
             $limits['visitorTryOnLimitPeriod'] = $period;
             $config = $this->config();
