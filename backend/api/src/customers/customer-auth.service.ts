@@ -33,6 +33,8 @@ import { CustomerPhoneClient } from "./customer-phone.client.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import {
   type CustomerDeleteDto,
+  type CustomerDeletionRequestDto,
+  type CustomerDeletionConfirmDto,
   type CustomerOAuthDto,
   type CustomerSignupDto,
   type CustomerProfileDto,
@@ -179,7 +181,8 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
   private async queueEmail(
     tx: Prisma.TransactionClient,
     email: string,
-    purpose: "VERIFY_EMAIL" | "RESET_PASSWORD" | "EMAIL_LOGIN",
+    purpose:
+      "VERIFY_EMAIL" | "RESET_PASSWORD" | "EMAIL_LOGIN" | "DELETE_ACCOUNT",
     proofHash?: string,
   ) {
     await this.outbox.enqueue(
@@ -272,11 +275,17 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     this.assertEnabled();
     const input = this.crypto.decrypt<{
       email: string;
-      purpose: "VERIFY_EMAIL" | "RESET_PASSWORD" | "EMAIL_LOGIN";
+      purpose:
+        "VERIFY_EMAIL" | "RESET_PASSWORD" | "EMAIL_LOGIN" | "DELETE_ACCOUNT";
       proofHash?: string;
     }>(job.payload as unknown as MailEnvelope);
     if (
-      !["VERIFY_EMAIL", "RESET_PASSWORD", "EMAIL_LOGIN"].includes(input.purpose)
+      ![
+        "VERIFY_EMAIL",
+        "RESET_PASSWORD",
+        "EMAIL_LOGIN",
+        "DELETE_ACCOUNT",
+      ].includes(input.purpose)
     )
       return null;
     return this.db.$transaction(async (tx) => {
@@ -323,7 +332,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
           purpose: input.purpose,
           tokenHash: this.digest(
             input.purpose,
-            `${input.email}:${code}${input.purpose === "EMAIL_LOGIN" ? `:${input.proofHash}` : ""}`,
+            `${input.email}:${code}${["EMAIL_LOGIN", "DELETE_ACCOUNT"].includes(input.purpose) ? `:${input.proofHash}` : ""}`,
           ),
           securityVersion: customer.securityVersion,
           expiresAt: job.expiresAt,
@@ -333,13 +342,18 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       const action =
         input.purpose === "VERIFY_EMAIL"
           ? "Verify your email"
-          : input.purpose === "EMAIL_LOGIN"
-            ? "Sign in to SelfX"
-            : "Reset your password";
+          : input.purpose === "DELETE_ACCOUNT"
+            ? "Confirm customer account deletion"
+            : input.purpose === "EMAIL_LOGIN"
+              ? "Sign in to SelfX"
+              : "Reset your password";
       const message = {
         to: input.email,
         subject: `${action} · SelfX`,
-        text: `Your SelfX code is ${code}.\n\nEnter it in the SelfX customer app to ${input.purpose === "VERIFY_EMAIL" ? "verify your email" : input.purpose === "EMAIL_LOGIN" ? "sign in" : "reset your password"}. It expires 10 minutes after the request and can be used once.\n\nIf you did not request this, ignore this email. Never share your code.`,
+        text:
+          input.purpose === "DELETE_ACCOUNT"
+            ? `Your SelfX code is ${code}.\n\nEnter it only on the SelfX Customer Account & Data Deletion page where you requested it, then confirm deletion. This permanently closes your customer account and removes access to its photos and saved looks. It does not delete merchant or staff accounts. The code expires 10 minutes after your request and can be used once. If you did not request deletion, ignore this email. Never share your code, including with support.`
+            : `Your SelfX code is ${code}.\n\nEnter it in the SelfX customer app to ${input.purpose === "VERIFY_EMAIL" ? "verify your email" : input.purpose === "EMAIL_LOGIN" ? "sign in" : "reset your password"}. It expires 10 minutes after the request and can be used once.\n\nIf you did not request this, ignore this email. Never share your code.`,
         html: customerCodeEmail(input.purpose, code),
         customerTokenId: token.id,
       };
@@ -641,7 +655,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         where: {
           tokenHash: this.digest(
             purpose,
-            `${email}:${code}${purpose === "EMAIL_LOGIN" ? `:${this.digest("email-login-proof", loginProof ?? "")}` : ""}`,
+            `${email}:${code}${purpose === "EMAIL_LOGIN" ? `:${this.digest("email-login-proof", loginProof ?? "")}` : purpose === "DELETE_ACCOUNT" ? `:${this.digest("deletion-proof", loginProof ?? "")}` : ""}`,
           ),
         },
       });
@@ -1401,66 +1415,134 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         "Verify your password or sign in again before deleting your account.",
         403,
       );
-    await this.db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM customers WHERE id = ${customer.id}::uuid FOR UPDATE`;
-      const current = await tx.customer.findUniqueOrThrow({
-        where: { id: customer.id },
-      });
-      if (
-        current.securityVersion !== customer.securityVersion ||
-        current.status !== "ACTIVE"
-      )
-        unauthorized();
-      const pendingMobilePayment = await tx.customerMobilePurchase.count({
-        where: {
-          customerId: customer.id,
-          status: { in: ["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN"] },
-        },
-      });
-      if (pendingMobilePayment)
-        customerError(
-          "CUSTOMER_PAYMENT_PENDING",
-          "Check your pending mobile payment before deleting your account.",
-          409,
-        );
-      await tx.customerSession.updateMany({
-        where: { customerId: customer.id, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-      await tx.customerActionToken.deleteMany({
-        where: { customerId: customer.id },
-      });
-      await tx.customerPushDevice.deleteMany({
-        where: { customerId: customer.id },
-      });
-      await tx.customerNotification.deleteMany({
-        where: { customerId: customer.id },
-      });
-      await tx.customerIdentity.deleteMany({
-        where: { customerId: customer.id },
-      });
-      await tx.customerSavedGarment.deleteMany({
-        where: { customerId: customer.id },
-      });
-      await tx.customer.update({
-        where: { id: customer.id },
-        data: {
-          email: null,
-          phoneNumber: null,
-          pendingPhoneNumber: null,
-          phoneVerifiedAt: null,
-          phoneConsentAt: null,
-          displayName: "Deleted account",
-          interests: [],
-          avatarSetupCompletedAt: null,
-          status: "DELETED",
-          deletedAt: new Date(),
-          securityVersion: { increment: 1 },
-          notifications: false,
-        },
-      });
-    });
+    await this.db.$transaction((tx) => this.deleteCustomer(tx, customer));
     return { message: "Your account has been deleted." };
+  }
+
+  async requestAccountDeletion(input: CustomerDeletionRequestDto, ip: string) {
+    await this.limit("deletion-request-ip", ip, 10);
+    const deletionProof = input.deletionProof ?? tokenSecret();
+    const response = {
+      message:
+        "If an eligible SelfX customer account uses this email, a deletion verification code will arrive shortly. Check your spam folder. No account has been deleted.",
+      deletionProof,
+      resendAfterSeconds: 60,
+    };
+    if (input.website) return response;
+    await this.assertEmailReady();
+    const email = normalize(input.email);
+    if (
+      (await this.rate("deletion-request-email", email, 3)) &&
+      (await this.rate("deletion-request-cooldown", email, 1, 60000))
+    ) {
+      await this.queueEmail(
+        this.db,
+        email,
+        "DELETE_ACCOUNT",
+        this.digest("deletion-proof", deletionProof),
+      );
+    }
+    return response;
+  }
+
+  async confirmAccountDeletion(input: CustomerDeletionConfirmDto, ip: string) {
+    // Defense in depth for callers outside Nest's DTO validation.
+    if (input.confirmation !== "DELETE")
+      customerError(
+        "CUSTOMER_CONFIRMATION_REQUIRED",
+        "Confirm account deletion.",
+      );
+    const customerId = (await this.consumeCode(
+      normalize(input.email),
+      input.code,
+      "DELETE_ACCOUNT",
+      ip,
+      async (tx, customer) => {
+        await this.deleteCustomer(tx, customer);
+        await tx.auditLog.create({
+          data: {
+            id: createSelfxId(),
+            action: "CUSTOMER_ACCOUNT_DELETED",
+            resourceType: "customer",
+            resourceId: customer.id,
+            metadata: {
+              channel: "PUBLIC_WEB",
+              verification: "DELETION_EMAIL_CODE",
+            },
+          },
+        });
+        return customer.id;
+      },
+      input.deletionProof,
+    )) as string;
+    return {
+      customerId,
+      message:
+        "Your SelfX customer account has been deleted. Photo storage cleanup is processed separately.",
+    };
+  }
+
+  private async deleteCustomer(
+    tx: Prisma.TransactionClient,
+    customer: Customer,
+  ) {
+    await tx.$queryRaw`SELECT id FROM customers WHERE id = ${customer.id}::uuid FOR UPDATE`;
+    const current = await tx.customer.findUniqueOrThrow({
+      where: { id: customer.id },
+    });
+    if (
+      current.securityVersion !== customer.securityVersion ||
+      current.status !== "ACTIVE"
+    )
+      unauthorized();
+    const pendingMobilePayment = await tx.customerMobilePurchase.count({
+      where: {
+        customerId: customer.id,
+        status: { in: ["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN"] },
+      },
+    });
+    if (pendingMobilePayment)
+      customerError(
+        "CUSTOMER_PAYMENT_PENDING",
+        "Check your pending mobile payment before deleting your account.",
+        409,
+      );
+    await tx.customerSession.updateMany({
+      where: { customerId: customer.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await tx.customerActionToken.deleteMany({
+      where: { customerId: customer.id },
+    });
+    await tx.customerPushDevice.deleteMany({
+      where: { customerId: customer.id },
+    });
+    await tx.customerNotification.deleteMany({
+      where: { customerId: customer.id },
+    });
+    await tx.customerIdentity.deleteMany({
+      where: { customerId: customer.id },
+    });
+    await tx.customerSavedGarment.deleteMany({
+      where: { customerId: customer.id },
+    });
+    await tx.customer.update({
+      where: { id: customer.id },
+      data: {
+        email: null,
+        phoneNumber: null,
+        pendingPhoneNumber: null,
+        phoneVerifiedAt: null,
+        phoneConsentAt: null,
+        displayName: "Deleted account",
+        interests: [],
+        avatarSetupCompletedAt: null,
+        status: "DELETED",
+        deletedAt: new Date(),
+        securityVersion: { increment: 1 },
+        notifications: false,
+      },
+    });
   }
   async cleanup() {
     if (!this.config.enabled) return;

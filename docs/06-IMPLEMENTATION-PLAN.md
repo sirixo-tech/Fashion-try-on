@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### Public customer account deletion (2026-11-13)
+
+The approved customer-only public deletion page and verified email-code pathway are documented in docs/CUSTOMER-ACCOUNT-DELETION-WEB.md. Reuse existing deletion/anonymization and media cleanup; keep merchant/staff boundaries and mobile reauthentication unchanged. Deletion codes use a separate purpose, durable rate limits and explicit confirmation. Retained-record deadlines require product/privacy confirmation; deployment and public acceptance remain release checks.
+
 ### CUSTOM-CREDITS-1 — Rollout (2026-10-29)
 
 Apply migration `20261029040000_custom_credit_plans` after the previous mobile migrations, deploy API and web admin, and rebuild the customer app. Configure and activate the MOBILE custom plan, then verify 1 and 1,000 credit PhonePe purchases, order amount snapshots and exactly-once grants. Verify the Store custom-plan admin API is unavailable and Store Billing has no custom-credit quote. Check that editing the Mobile custom plan does not change regular Mobile Plan prices, Store postpaid prices, completed purchases or existing billing cycles. This supersedes the earlier shared-rate rollout.

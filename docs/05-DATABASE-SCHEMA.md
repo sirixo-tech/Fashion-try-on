@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### Public customer account deletion (2026-11-13)
+
+The approved customer-only public deletion page and verified email-code pathway are documented in docs/CUSTOMER-ACCOUNT-DELETION-WEB.md. Reuse existing deletion/anonymization and media cleanup; keep merchant/staff boundaries and mobile reauthentication unchanged. Deletion codes use a separate purpose, durable rate limits and explicit confirmation. Retained-record deadlines require product/privacy confirmation; deployment and public acceptance remain release checks.
+
 ### CUSTOM-CREDITS-1 — Custom credit plans (2026-10-29)
 
 Migration `20261029040000_custom_credit_plans` adds `custom_credit_plans`, unique by channel, with name, status, currency, unit price and optimistic version. Only MOBILE is used by the application; STORE remains an enum value for compatibility with any earlier rows. `customer_mobile_purchases.custom_credit_plan_id` is nullable and refers to the Mobile plan used for custom purchases; the existing amount and quantity columns remain immutable order snapshots. The old `shared_credit_prices` table stays for migration compatibility but is inactive.

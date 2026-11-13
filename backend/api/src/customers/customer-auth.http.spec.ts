@@ -17,6 +17,7 @@ import {
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { CustomerAuthController } from "./customer-auth.controller.js";
 import { CustomerAuthService } from "./customer-auth.service.js";
+import { CustomerExperienceService } from "./customer-experience.service.js";
 import { CUSTOMER_TERMS_VERSION } from "./customer.config.js";
 
 describe("Customer HTTP validation and auth boundary", () => {
@@ -28,6 +29,8 @@ describe("Customer HTTP validation and auth boundary", () => {
     me: vi.fn(),
     updateProfile: vi.fn(),
     deleteAccount: vi.fn(),
+    requestAccountDeletion: vi.fn(),
+    confirmAccountDeletion: vi.fn(),
     refresh: vi.fn(),
     emailLogin: vi.fn(),
     requestEmailLogin: vi.fn(),
@@ -82,6 +85,120 @@ describe("Customer HTTP validation and auth boundary", () => {
   });
   afterAll(async () => {
     await app?.close();
+  });
+  it("accepts public deletion requests without auth and rejects targeting fields", async () => {
+    auth.requestAccountDeletion.mockResolvedValue({
+      message: "If eligible, check your email.",
+      deletionProof: "a".repeat(43),
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/account-deletion/request",
+      payload: { email: "customer@example.test" },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(auth.requestAccountDeletion).toHaveBeenCalledWith(
+      { email: "customer@example.test" },
+      expect.any(String),
+    );
+    for (const extra of [
+      { customerId: "victim" },
+      { storeId: "victim" },
+      { userId: "victim" },
+      { role: "ADMIN" },
+    ]) {
+      const invalid = await app.inject({
+        method: "POST",
+        url: "/api/v1/customer/account-deletion/request",
+        payload: { email: "customer@example.test", ...extra },
+      });
+      expect(invalid.statusCode).toBe(400);
+    }
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/v1/customer/account-deletion/request",
+          payload: { email: "invalid" },
+        })
+      ).statusCode,
+    ).toBe(400);
+  });
+  it("requires a bound six-digit deletion code and explicit confirmation, and never exposes the internal customer id", async () => {
+    const payload = {
+      email: "customer@example.test",
+      code: "123456",
+      deletionProof: "a".repeat(43),
+      confirmation: "DELETE",
+    };
+    for (const invalid of [
+      { ...payload, confirmation: "yes" },
+      { ...payload, code: "12345" },
+      { ...payload, deletionProof: "" },
+      { ...payload, customerId: "other" },
+    ]) {
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/api/v1/customer/account-deletion/confirm",
+            payload: invalid,
+          })
+        ).statusCode,
+      ).toBe(400);
+    }
+    expect(auth.confirmAccountDeletion).not.toHaveBeenCalled();
+    auth.confirmAccountDeletion.mockResolvedValue({
+      customerId: "private-id",
+      message: "Deleted.",
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/account-deletion/confirm",
+      payload,
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual({ message: "Deleted." });
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(auth.deleteAccount).not.toHaveBeenCalled();
+  });
+  it("uses the verified customer's existing media cleanup and tolerates retryable cleanup failure", async () => {
+    const experience = {
+      eraseCustomerPhotos: vi
+        .fn()
+        .mockRejectedValue(new Error("storage unavailable")),
+    };
+    const controller = new CustomerAuthController(
+      auth as unknown as CustomerAuthService,
+      experience as unknown as CustomerExperienceService,
+    );
+    const input = {
+      email: "customer@example.test",
+      code: "123456",
+      deletionProof: "a".repeat(43),
+      confirmation: "DELETE",
+    };
+    auth.confirmAccountDeletion.mockResolvedValue({
+      customerId: "verified-customer",
+      message: "Deleted.",
+    });
+    await expect(
+      controller.confirmDeletion(input, { ip: "127.0.0.1" } as Parameters<
+        typeof controller.confirmDeletion
+      >[1]),
+    ).resolves.toEqual({ message: "Deleted." });
+    expect(experience.eraseCustomerPhotos).toHaveBeenCalledWith(
+      "verified-customer",
+    );
+    auth.confirmAccountDeletion.mockRejectedValue(new Error("invalid code"));
+    experience.eraseCustomerPhotos.mockClear();
+    await expect(
+      controller.confirmDeletion(input, { ip: "127.0.0.1" } as Parameters<
+        typeof controller.confirmDeletion
+      >[1]),
+    ).rejects.toThrow("invalid code");
+    expect(experience.eraseCustomerPhotos).not.toHaveBeenCalled();
   });
   it("does not accept client-supplied Google email authority", async () => {
     const response = await app.inject({

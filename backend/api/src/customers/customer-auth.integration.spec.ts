@@ -152,6 +152,249 @@ describe.skipIf(!url)(
       await db.$disconnect();
       vi.unstubAllEnvs();
     });
+    it("deletes only after a deletion-purpose code and matching browser proof, revoking existing sessions", async () => {
+      const session = await register();
+      const other = await register("other@selfx.invalid");
+      const request = await auth.requestAccountDeletion({ email }, ip);
+      expect((await auth.me(bearer(session))).email).toBe(email);
+      const value = await code();
+      const input = {
+        email,
+        code: value,
+        deletionProof: request.deletionProof,
+        confirmation: "DELETE",
+      };
+      await expect(
+        auth.confirmAccountDeletion(
+          { ...input, deletionProof: "x".repeat(43) },
+          ip,
+        ),
+      ).rejects.toMatchObject({ status: 400 });
+      await expect(
+        auth.emailLogin(email, value, request.deletionProof, ip),
+      ).rejects.toMatchObject({ status: 400 });
+      await expect(
+        auth.confirmAccountDeletion({ ...input, confirmation: "yes" }, ip),
+      ).rejects.toMatchObject({ status: 400 });
+      await auth.confirmAccountDeletion(input, ip);
+      await expect(auth.me(bearer(session))).rejects.toMatchObject({
+        status: 401,
+      });
+      await expect(
+        auth.confirmAccountDeletion(input, ip),
+      ).rejects.toMatchObject({ status: 400 });
+      expect(
+        await db.customer.findUnique({ where: { id: session.customer.id } }),
+      ).toMatchObject({
+        status: "DELETED",
+        email: null,
+        phoneNumber: null,
+        displayName: "Deleted account",
+      });
+      expect(
+        await db.customerIdentity.count({
+          where: { customerId: session.customer.id },
+        }),
+      ).toBe(0);
+      expect(
+        await db.customerActionToken.count({
+          where: { customerId: session.customer.id },
+        }),
+      ).toBe(0);
+      expect((await auth.me(bearer(other))).email).toBe("other@selfx.invalid");
+    });
+    it("leaves a merchant user and Store unchanged even when the customer has the same email", async () => {
+      const user = await db.user.create({
+        data: { id: createSelfxId(), email, displayName: "Merchant" },
+      });
+      const store = await db.organization.create({
+        data: {
+          id: createSelfxId(),
+          name: "Merchant Store",
+          slug: `deletion-test-${createSelfxId()}`,
+          status: "ACTIVE",
+        },
+      });
+      try {
+        await auth.requestAccountDeletion({ email }, ip);
+        expect(await deliver()).toEqual([]);
+        await register();
+        // The first request was deliberately made before customer signup.
+        await db.passwordRecoveryRateBucket.deleteMany();
+        const request = await auth.requestAccountDeletion({ email }, ip);
+        const value = await code();
+        const result = await auth.confirmAccountDeletion(
+          {
+            email,
+            code: value,
+            deletionProof: request.deletionProof,
+            confirmation: "DELETE",
+          },
+          ip,
+        );
+        expect(await db.user.findUnique({ where: { id: user.id } })).toEqual(
+          user,
+        );
+        expect(
+          await db.organization.findUnique({ where: { id: store.id } }),
+        ).toEqual(store);
+        expect(
+          await db.auditLog.findFirst({
+            where: {
+              resourceId: result.customerId,
+              action: "CUSTOMER_ACCOUNT_DELETED",
+            },
+          }),
+        ).toMatchObject({
+          actorUserId: null,
+          organizationId: null,
+          metadata: {
+            channel: "PUBLIC_WEB",
+            verification: "DELETION_EMAIL_CODE",
+          },
+        });
+      } finally {
+        await db.organization.delete({ where: { id: store.id } });
+        await db.user.delete({ where: { id: user.id } });
+      }
+    });
+    it("preserves the pending-payment guard and rolls back code consumption until the payment resolves", async () => {
+      const session = await register();
+      const plan = await db.mobilePlan.create({
+        data: {
+          id: createSelfxId(),
+          code: `deletion-test-${createSelfxId()}`,
+          name: "Test",
+          currency: "INR",
+          priceCents: 100,
+          billingPeriod: "ONE_TIME",
+          includedCredits: 1,
+        },
+      });
+      const purchase = await db.customerMobilePurchase.create({
+        data: {
+          id: createSelfxId(),
+          customerId: session.customer.id,
+          planId: plan.id,
+          merchantOrderId: createSelfxId(),
+          requestKey: createSelfxId(),
+          status: "PENDING",
+          environment: "PRODUCTION",
+          amountMinor: 100,
+          currency: "INR",
+          credits: 1,
+          billingPeriod: "ONE_TIME",
+          encryptedPayload: "fixture",
+          initializationVector: "fixture",
+          authenticationTag: "fixture",
+          keyVersion: "fixture",
+          expiresAt: new Date(Date.now() + 600000),
+        },
+      });
+      try {
+        const request = await auth.requestAccountDeletion({ email }, ip);
+        const input = {
+          email,
+          code: await code(),
+          deletionProof: request.deletionProof,
+          confirmation: "DELETE",
+        };
+        await expect(
+          auth.confirmAccountDeletion(input, ip),
+        ).rejects.toMatchObject({ status: 409 });
+        expect((await auth.me(bearer(session))).email).toBe(email);
+        expect(
+          await db.customerActionToken.findFirst({
+            where: {
+              customerId: session.customer.id,
+              purpose: "DELETE_ACCOUNT",
+            },
+          }),
+        ).toMatchObject({ usedAt: null });
+        await db.customerMobilePurchase.update({
+          where: { id: purchase.id },
+          data: { status: "FAILED" },
+        });
+        await auth.confirmAccountDeletion(input, ip);
+        expect(
+          await db.customerMobilePurchase.count({ where: { id: purchase.id } }),
+        ).toBe(1);
+      } finally {
+        await db.customerMobilePurchase.delete({ where: { id: purchase.id } });
+        await db.mobilePlan.delete({ where: { id: plan.id } });
+      }
+    });
+    it("returns generic requests for unknown/staff contacts, suppresses duplicates and spam, and rate limits", async () => {
+      const beforeUsers = await db.user.count();
+      const beforeStores = await db.organization.count();
+      const request = await auth.requestAccountDeletion(
+        { email: "staff-only@selfx.invalid" },
+        ip,
+      );
+      expect(request.message).toMatch(/If an eligible/);
+      expect(await deliver()).toEqual([]);
+      expect(await db.customer.count()).toBe(0);
+      await register();
+      const first = await auth.requestAccountDeletion({ email }, ip);
+      expect(
+        (
+          await auth.requestAccountDeletion(
+            { email, deletionProof: first.deletionProof },
+            ip,
+          )
+        ).message,
+      ).toBe(request.message);
+      expect(await db.mailJob.count({ where: { status: "PENDING" } })).toBe(1);
+      await auth.requestAccountDeletion(
+        { email: "bot@selfx.invalid", website: "spam" },
+        ip,
+      );
+      expect(await db.mailJob.count({ where: { status: "PENDING" } })).toBe(1);
+      for (let i = 0; i < 6; i++)
+        await auth.requestAccountDeletion(
+          { email: "bot@selfx.invalid", website: "spam" },
+          ip,
+        );
+      await expect(
+        auth.requestAccountDeletion({ email }, ip),
+      ).rejects.toMatchObject({ status: 429 });
+      expect(await db.user.count()).toBe(beforeUsers);
+      expect(await db.organization.count()).toBe(beforeStores);
+    });
+    it("rejects expired and sign-in codes without consuming a valid deletion request", async () => {
+      const session = await register();
+      const login = await auth.requestEmailLogin(email, ip);
+      const loginCode = await code();
+      const request = await auth.requestAccountDeletion({ email }, ip);
+      await expect(
+        auth.confirmAccountDeletion(
+          {
+            email,
+            code: loginCode,
+            deletionProof: login.loginProof,
+            confirmation: "DELETE",
+          },
+          ip,
+        ),
+      ).rejects.toMatchObject({ status: 400 });
+      const value = await code();
+      await db.customerActionToken.updateMany({
+        where: { purpose: "DELETE_ACCOUNT" },
+        data: { expiresAt: new Date(Date.now() - 1) },
+      });
+      await expect(
+        auth.confirmAccountDeletion(
+          {
+            email,
+            code: value,
+            deletionProof: request.deletionProof,
+            confirmation: "DELETE",
+          },
+          ip,
+        ),
+      ).rejects.toMatchObject({ status: 400 });
+      expect((await auth.me(bearer(session))).email).toBe(email);
+    });
     it("email login requires six digits, its own request proof and single use without changing password or credits", async () => {
       const original = await register();
       const request = await auth.requestEmailLogin(email, ip);
@@ -330,7 +573,12 @@ describe.skipIf(!url)(
         auth.phoneLogin("synthetic-token", ip, undefined, true),
       ).rejects.toMatchObject({ status: 409 });
       await auth.linkPhone(bearer(first), "synthetic-token", ip);
-      const linked = await auth.phoneLogin("synthetic-token", ip, undefined, true);
+      const linked = await auth.phoneLogin(
+        "synthetic-token",
+        ip,
+        undefined,
+        true,
+      );
       expect(linked.customer.id).toBe(first.customer.id);
       expect(linked.customer.phoneNumber).toBe("+919876543210");
       const second = await register("other@selfx.invalid");

@@ -26,6 +26,7 @@ enum CustomerActionPurpose {
   RESET_PASSWORD
   APPLE_NONCE
   EMAIL_LOGIN
+  DELETE_ACCOUNT
 }
 
 model Customer {

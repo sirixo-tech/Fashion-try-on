@@ -45,6 +45,16 @@ export class CustomerEmailLoginRequestDto extends CustomerEmailDto {
 export class CustomerEmailLoginDto extends CustomerCodeDto {
   @Matches(/^[A-Za-z0-9_-]{43}$/) loginProof!: string;
 }
+export class CustomerDeletionRequestDto extends CustomerEmailDto {
+  @IsOptional() @Matches(/^[A-Za-z0-9_-]{43}$/) deletionProof?: string;
+  // Honeypot: real users leave this empty. Still subject to the IP limit.
+  @IsOptional() @IsString() @MaxLength(200) website?: string;
+}
+export class CustomerDeletionConfirmDto extends CustomerEmailDto {
+  @Matches(/^\d{6}$/) code!: string;
+  @Matches(/^[A-Za-z0-9_-]{43}$/) deletionProof!: string;
+  @Equals("DELETE") confirmation!: string;
+}
 export class CustomerPhoneDto {
   @IsString() @MinLength(20) @MaxLength(16384) idToken!: string;
   @IsOptional() @IsString() @MaxLength(100) deviceName?: string;

@@ -15,6 +15,8 @@ import { CustomerAuthService } from "./customer-auth.service.js";
 import { CustomerExperienceService } from "./customer-experience.service.js";
 import {
   CustomerDeleteDto,
+  CustomerDeletionRequestDto,
+  CustomerDeletionConfirmDto,
   CustomerEmailDto,
   CustomerLoginDto,
   CustomerOAuthDto,
@@ -183,6 +185,30 @@ export class CustomerAuthController {
   @Patch("me")
   update(@Body() dto: CustomerProfileDto, @Req() request: FastifyRequest) {
     return this.auth.updateProfile(request.headers.authorization, dto);
+  }
+  @Header("Cache-Control", "no-store")
+  @Post("account-deletion/request")
+  requestDeletion(
+    @Body() dto: CustomerDeletionRequestDto,
+    @Req() request: FastifyRequest,
+  ) {
+    return this.auth.requestAccountDeletion(dto, request.ip);
+  }
+  @Header("Cache-Control", "no-store")
+  @Post("account-deletion/confirm")
+  async confirmDeletion(
+    @Body() dto: CustomerDeletionConfirmDto,
+    @Req() request: FastifyRequest,
+  ) {
+    const { customerId, message } = await this.auth.confirmAccountDeletion(
+      dto,
+      request.ip,
+    );
+    if (this.experience)
+      await this.experience
+        .eraseCustomerPhotos(customerId)
+        .catch(() => undefined);
+    return { message };
   }
   @Header("Cache-Control", "no-store")
   @Delete("me")

@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### Public customer account deletion (2026-11-13)
+
+The approved customer-only public deletion page and verified email-code pathway are documented in docs/CUSTOMER-ACCOUNT-DELETION-WEB.md. Reuse existing deletion/anonymization and media cleanup; keep merchant/staff boundaries and mobile reauthentication unchanged. Deletion codes use a separate purpose, durable rate limits and explicit confirmation. Retained-record deadlines require product/privacy confirmation; deployment and public acceptance remain release checks.
+
 ### MAIL-2 — Branded responsive email rendering (2026-11-01)
 
 Send HTML and plain-text alternatives through the existing SMTP sender and
