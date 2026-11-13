@@ -7,8 +7,21 @@ $readme = Get-Content -LiteralPath (Join-Path $pluginRoot 'readme.txt') -Raw
 if ($header -notmatch '(?m)^ \* Version: (\d+\.\d+\.\d+)\s*$') { throw 'Plugin version missing.' }
 $version = $Matches[1]
 if ($readme -notmatch "(?m)^Stable tag: $([regex]::Escape($version))\s*$") { throw 'Stable tag must match plugin version.' }
+if ($readme -notmatch "(?m)^= $([regex]::Escape($version)) =\s*$") { throw 'Current version must have a changelog entry.' }
 foreach ($required in @('Requires at least:', 'Requires PHP:', 'License:', 'License URI:', '= External service and privacy =', '= Account, plans and pricing =', '[Privacy policy]', '[Terms of service]', '[Support]')) {
     if (!$readme.Contains($required)) { throw "Missing release disclosure: $required" }
+}
+# Check the literal domains of the PHP/JavaScript translation functions used here.
+# Compatibility identifiers (admin routes, scheduler group, source paths) are unrelated.
+$translationPattern = '(?s)\b(?:__|esc_html__)\(\s*([''"])(.*?)\1\s*,\s*([''"])(?<domain>[^''"]+)\3'
+Get-ChildItem -LiteralPath $pluginRoot -Recurse -File | Where-Object { $_.Extension -in '.php', '.js' } | ForEach-Object {
+    $source = Get-Content -LiteralPath $_.FullName -Raw
+    $calls = [regex]::Matches($source, '\b(?:__|esc_html__)\s*\(')
+    $translations = [regex]::Matches($source, $translationPattern)
+    if ($calls.Count -ne $translations.Count) { throw "Unvalidated translation call in $($_.FullName)" }
+    foreach ($translation in $translations) {
+        if ($translation.Groups['domain'].Value -cne 'selfx-tryon') { throw "Translation domain must be selfx-tryon in $($_.FullName)" }
+    }
 }
 Get-ChildItem -LiteralPath $pluginRoot -Recurse -Filter '*.php' | ForEach-Object {
     & $PhpPath -l $_.FullName

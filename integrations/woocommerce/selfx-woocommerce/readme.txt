@@ -3,7 +3,7 @@ Tags: woocommerce, catalog, virtual-try-on, kiosk
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.5.2
+Stable tag: 0.5.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -56,6 +56,10 @@ Automatic classic placement and shortcodes retain theme styling; these editor
 controls apply to the SelfX Try-On block. Use one placement to avoid duplicates.
 
 == Changelog ==
+
+= 0.5.3 =
+* Set the WordPress.org package folder and translation domain to the requested selfx-tryon slug.
+* Retained SelfX for WooCommerce as the plugin name and preserved existing connection settings, hooks and API identifiers.
 
 = 0.5.2 =
 * Matched the WordPress.org plugin folder and translation domain to selfx-for-woocommerce.

@@ -1,4 +1,6 @@
-# SelfX for WooCommerce — 0.5.2
+# SelfX for WooCommerce — 0.5.3
+
+The WordPress.org submission build is `dist/selfx-tryon-0.5.3-wordpress-org.zip`, containing one `selfx-tryon/` folder. The display name remains **SelfX for WooCommerce**. Use `scripts/release-check.ps1 -Submission` to build it without copying or changing the dashboard download. See [RELEASE.md](RELEASE.md) for the old-folder transition and verification results; do not run WordPress's Delete action on an old copy when preserving its connection.
 
 One-way website catalog → SelfX Store → assigned kiosks, plus a storefront **Try it on** button. WooCommerce owns products, size/color choices, prices, inventory, cart, checkout and orders. SelfX imports one parent product reference with its image and runs Virtual Try-On through the central backend. There is no stock/order writeback or SelfX checkout for imported products.
 

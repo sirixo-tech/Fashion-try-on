@@ -6,10 +6,13 @@ $pluginRoot = Join-Path $wooRoot 'selfx-woocommerce'
 $header = Get-Content -LiteralPath (Join-Path $pluginRoot 'selfx-woocommerce.php') -Raw
 if ($header -notmatch '(?m)^ \* Version: (\d+\.\d+\.\d+)\s*$') { throw 'Plugin version missing.' }
 $version = $Matches[1]
-$slug = 'selfx-for-woocommerce'
-if ($header -notmatch "(?m)^ \* Text Domain: $([regex]::Escape($slug))\s*$") { throw 'Plugin text domain must match the assigned WordPress.org slug.' }
+$slug = 'selfx-tryon'
+if ($header -notmatch "(?m)^ \* Text Domain: $([regex]::Escape($slug))\s*$") { throw 'Plugin text domain must match the requested WordPress.org slug.' }
+$readme = Get-Content -LiteralPath (Join-Path $pluginRoot 'readme.txt') -Raw
+if ($readme -notmatch "(?m)^Stable tag: $([regex]::Escape($version))\s*$") { throw 'Stable tag must match plugin version.' }
+if ($header -notmatch "define\('SELFX_WC_VERSION', '$([regex]::Escape($version))'\)") { throw 'Runtime version must match plugin header.' }
 $block = Get-Content -LiteralPath (Join-Path $pluginRoot 'assets/block.json') -Raw | ConvertFrom-Json
-if ($block.textdomain -cne $slug) { throw 'Block text domain must match the assigned WordPress.org slug.' }
+if ($block.textdomain -cne $slug) { throw 'Block text domain must match the requested WordPress.org slug.' }
 $outputRoot = Join-Path $wooRoot 'dist'
 $publicRoot = Join-Path $repoRoot 'frontend/web/public/downloads'
 New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null

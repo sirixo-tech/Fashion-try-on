@@ -61,7 +61,7 @@ function esc_html($value) { return htmlspecialchars((string) $value, ENT_QUOTES)
 function esc_attr($value) { return esc_html($value); }
 function esc_url($value) { return esc_html($value); }
 function admin_url($path) { return 'https://website.example/wp-admin/' . $path; }
-function plugins_url($path, $file) { return 'https://website.example/wp-content/plugins/selfx-for-woocommerce/assets/block.js'; }
+function plugins_url($path, $file) { return 'https://website.example/wp-content/plugins/selfx-tryon/assets/block.js'; }
 function wp_register_script($handle, $url, $deps, $version, $footer) {
     global $block_script; $block_script = compact('handle', 'url', 'deps', 'version', 'footer');
 }
@@ -219,12 +219,22 @@ test('ineligible and unpublished products hide the storefront button', function 
     $response_hook = fn() => array('code' => 200, 'body' => '{"available":false}'); equal($front->button(), '');
 });
 
+test('submission slug changes preserve existing connection and scheduler identifiers', function () {
+    equal(SelfX_WC_Plugin::CONFIG, 'selfx_wc_connection');
+    equal(SelfX_WC_Plugin::BOUND_STORE, 'selfx_wc_bound_store');
+    equal(SelfX_WC_Plugin::PENDING, 'selfx_wc_pending_link');
+    equal(SelfX_WC_Plugin::STATE, 'selfx_wc_sync_state');
+    equal(SelfX_WC_Plugin::DIRTY, 'selfx_wc_dirty_');
+    equal(SelfX_WC_Plugin::RUN, 'selfx_wc_run');
+    equal(SelfX_WC_Plugin::GROUP, 'selfx-woocommerce');
+});
+
 test('block render applies native styles to the submit button and preserves secure launch fields', function () {
     setup(); add_product(10); $front = new SelfX_WC_Storefront(); $front->block();
     global $block_registration, $block_script, $native_button_attributes;
     equal(in_array('wp-block-editor', $block_script['deps'], true), true);
     equal($block_registration['name'], 'selfx/try-on');
-    equal($block_registration['textdomain'], 'selfx-for-woocommerce');
+    equal($block_registration['textdomain'], 'selfx-tryon');
     equal($block_registration['supports']['color']['gradients'], true);
     equal($block_registration['supports']['spacing']['padding'], true);
     equal($block_registration['supports']['__experimentalBorder']['radius'], true);

@@ -37,7 +37,7 @@ final class SelfX_WC_Plugin {
     private function config(): array { $value = get_option(self::CONFIG, array()); return is_array($value) ? $value : array(); }
     private function state(): array { $value = get_option(self::STATE, array()); return is_array($value) ? $value : array(); }
     private function require_manager(): void {
-        if (!current_user_can('manage_woocommerce')) { wp_die(esc_html__('You cannot manage this connection.', 'selfx-for-woocommerce'), '', array('response' => 403)); }
+        if (!current_user_can('manage_woocommerce')) { wp_die(esc_html__('You cannot manage this connection.', 'selfx-tryon'), '', array('response' => 403)); }
     }
     private function authorize(string $action): void {
         $this->require_manager();
@@ -113,7 +113,7 @@ final class SelfX_WC_Plugin {
         if (!is_array($pending) || empty($pending['returnStateHash'])
             || !is_string($return_state) || !preg_match('/^[A-Za-z0-9_-]{43}$/D', $return_state)
             || !hash_equals($pending['returnStateHash'], hash('sha256', $return_state))) {
-            wp_die(esc_html__('This SelfX connection return could not be verified. Open WooCommerce → SelfX and use Retry connection.', 'selfx-for-woocommerce'), '', array('response' => 403, 'back_link' => true));
+            wp_die(esc_html__('This SelfX connection return could not be verified. Open WooCommerce → SelfX and use Retry connection.', 'selfx-tryon'), '', array('response' => 403, 'back_link' => true));
         }
         $this->complete_pending_link();
         $this->redirect();
@@ -196,7 +196,7 @@ final class SelfX_WC_Plugin {
         $this->authorize('disconnect');
         if (!empty($this->config()['storeId'])) { update_option(self::BOUND_STORE, $this->config()['storeId'], false); }
         $lock = $this->lock();
-        if (!$lock) { wp_die(esc_html__('A catalog batch is running. Try disconnecting again shortly.', 'selfx-for-woocommerce'), '', array('response' => 409)); }
+        if (!$lock) { wp_die(esc_html__('A catalog batch is running. Try disconnecting again shortly.', 'selfx-tryon'), '', array('response' => 409)); }
         self::unschedule(); self::clear_dirty();
         delete_option(self::CONFIG); delete_option(self::PENDING); delete_option('selfx_wc_reconcile_needed');
         update_option(self::STATE, array('status' => 'DISCONNECTED', 'message' => 'Disconnected on this website. The SelfX catalog is retained; revoke the credential or disconnect the integration in SelfX to disable its access.'), false);
@@ -206,7 +206,7 @@ final class SelfX_WC_Plugin {
     public function manual(): void {
         $this->authorize('sync');
         $lock = $this->lock();
-        if (!$lock) { wp_die(esc_html__('A catalog batch is running. Try again shortly.', 'selfx-for-woocommerce'), '', array('response' => 409)); }
+        if (!$lock) { wp_die(esc_html__('A catalog batch is running. Try again shortly.', 'selfx-tryon'), '', array('response' => 409)); }
         if ($this->config()) {
             // Do not replace an active snapshot; retry its unacknowledged batch.
             $state = $this->state();

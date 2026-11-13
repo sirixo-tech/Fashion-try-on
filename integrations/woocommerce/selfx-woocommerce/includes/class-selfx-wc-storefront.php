@@ -55,7 +55,7 @@ final class SelfX_WC_Storefront {
         }
         if (($ready['available'] ?? false) !== true) { return ''; }
         $label = isset($attributes['label']) && is_string($attributes['label']) ? trim(wp_strip_all_tags($attributes['label'])) : '';
-        if ($label === '') { $label = __('Try it on', 'selfx-for-woocommerce'); }
+        if ($label === '') { $label = __('Try it on', 'selfx-tryon'); }
         // Only the block callback supplies WordPress-generated, escaped attributes.
         // Shortcodes inside other blocks must not inherit the parent block's styles.
         $button_attributes = $block_button_attributes ?? 'class="button"';
@@ -66,7 +66,7 @@ final class SelfX_WC_Storefront {
         $id = ctype_digit($raw_id) ? absint($raw_id) : 0;
         $nonce = sanitize_text_field(wp_unslash($_POST['_wpnonce'] ?? ''));
         if (!$id || !wp_verify_nonce($nonce, 'selfx_wc_try_on_' . $id) || !$this->product($id)) {
-            wp_die(esc_html__('This Try-On link has expired. Reload the product page and try again.', 'selfx-for-woocommerce'), '', array('response' => 403));
+            wp_die(esc_html__('This Try-On link has expired. Reload the product page and try again.', 'selfx-tryon'), '', array('response' => 403));
         }
         try {
             $address = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? ''));
