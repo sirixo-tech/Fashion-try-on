@@ -656,5 +656,12 @@
   "Use cropped photo": "Use cropped photo",
   "Preparing photo…": "Preparing photo…",
   "This photo could not be opened. Choose another.": "This photo could not be opened. Choose another.",
-  "The photo could not be cropped. Please try again.": "The photo could not be cropped. Please try again."
+  "The photo could not be cropped. Please try again.": "The photo could not be cropped. Please try again.",
+  "An account already exists with this email. Please sign in or reset your password.": "An account already exists with this email. Please sign in or reset your password.",
+  "No SelfX customer account was found with this email. Please check the address or create an account.": "No SelfX customer account was found with this email. Please check the address or create an account.",
+  "Complete account creation and verify your email before resetting your password.": "Complete account creation and verify your email before resetting your password.",
+  "This customer account is unavailable. Please contact SelfX support.": "This customer account is unavailable. Please contact SelfX support.",
+  "Start account creation again to request a new verification code.": "Start account creation again to request a new verification code.",
+  "Too many code requests. Please try again in 15 minutes.": "Too many code requests. Please try again in 15 minutes.",
+  "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.": "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too."
 }

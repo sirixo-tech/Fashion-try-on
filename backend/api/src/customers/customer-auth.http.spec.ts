@@ -34,6 +34,7 @@ describe("Customer HTTP validation and auth boundary", () => {
     refresh: vi.fn(),
     emailLogin: vi.fn(),
     requestEmailLogin: vi.fn(),
+    requestCode: vi.fn(),
     phoneRequest: vi.fn(),
     phoneLogin: vi.fn(),
     linkPhone: vi.fn(),
@@ -85,6 +86,62 @@ describe("Customer HTTP validation and auth boundary", () => {
   });
   afterAll(async () => {
     await app?.close();
+  });
+  it("returns explicit account feedback and code throttling without a success proof", async () => {
+    auth.signup.mockRejectedValue(
+      new ApiErrorException(
+        409,
+        "CUSTOMER_ACCOUNT_EXISTS",
+        "An account already exists with this email. Please sign in or reset your password.",
+      ),
+    );
+    const signup = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/auth/signup",
+      payload: {
+        email: "customer@example.test",
+        displayName: "Ava",
+        password: "safe-test-password",
+        acceptTerms: true,
+        termsVersion: CUSTOMER_TERMS_VERSION,
+      },
+    });
+    expect(signup.statusCode).toBe(409);
+    expect(signup.json()).toMatchObject({
+      error: { code: "CUSTOMER_ACCOUNT_EXISTS" },
+    });
+    expect(signup.json()).not.toHaveProperty("signupProof");
+    auth.requestCode.mockRejectedValue(
+      new ApiErrorException(
+        404,
+        "CUSTOMER_ACCOUNT_NOT_FOUND",
+        "No SelfX customer account was found with this email. Please check the address or create an account.",
+      ),
+    );
+    const missing = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/auth/forgot-password",
+      payload: { email: "unknown@example.test" },
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.headers["cache-control"]).toBe("no-store");
+    auth.requestCode.mockRejectedValue(
+      new ApiErrorException(
+        429,
+        "CUSTOMER_CODE_RATE_LIMITED",
+        "Too many code requests. Please try again in 15 minutes.",
+        900,
+      ),
+    );
+    const limited = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/auth/forgot-password",
+      payload: { email: "customer@example.test" },
+    });
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({
+      error: { code: "CUSTOMER_CODE_RATE_LIMITED", retryAfterSeconds: 900 },
+    });
   });
   it("accepts public deletion requests without auth and rejects targeting fields", async () => {
     auth.requestAccountDeletion.mockResolvedValue({

@@ -36,9 +36,9 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   int resendWait = 0;
   int mobileCooldown = 0, mobileGuesses = 0;
   CustomerPhoneChallenge? mobileChallenge;
-  void startResendWait() {
+  void startResendWait([int seconds = 60]) {
     resendTimer?.cancel();
-    resendWait = 60;
+    resendWait = seconds;
     resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -55,6 +55,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   bool obscure = true, busy = false, acceptedPolicy = false;
   bool mobileOtp = false, mobileCodeSent = false;
   String? error, notice, signupProof, policyError;
+  String? accountErrorCode;
   String? phoneDiagnostic;
   String phoneStage = 'SELFX_PREFLIGHT';
   CustomerController get auth => widget.controller;
@@ -88,6 +89,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       policyError = null;
       phoneDiagnostic = null;
       error = null;
+      accountErrorCode = null;
       notice = null;
       password.clear();
       code.clear();
@@ -398,6 +400,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     setState(() {
       busy = true;
       error = null;
+      accountErrorCode = null;
       notice = null;
     });
     try {
@@ -406,6 +409,11 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       if (mounted) {
         setState(() {
           error = caught.code == 'OAUTH_CANCELLED' ? null : caught.message;
+          accountErrorCode = caught.code;
+          if (caught.code == 'CUSTOMER_CODE_COOLDOWN' ||
+              caught.code == 'CUSTOMER_CODE_RATE_LIMITED') {
+            startResendWait(caught.retryAfterSeconds ?? 60);
+          }
           if (caught.code == 'CUSTOMER_SIGNUP_REQUIRED') {
             view = CustomerAuthView.signUp;
           }
@@ -418,6 +426,14 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  void followAccountAction(CustomerAuthView next) {
+    final address = numberSignup
+        ? verificationEmail.text.trim()
+        : email.text.trim();
+    change(next);
+    email.text = address;
   }
 
   Future<void> submit() async {
@@ -731,6 +747,44 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                             SizedBox(height: compact ? 18 : 24),
                             if (error != null) ...[
                               CustomerNotice(error!, error: true),
+                              if (accountErrorCode == 'CUSTOMER_ACCOUNT_EXISTS')
+                                Wrap(
+                                  spacing: 8,
+                                  children: [
+                                    TextButton(
+                                      onPressed: busy
+                                          ? null
+                                          : () => followAccountAction(
+                                              CustomerAuthView.signIn,
+                                            ),
+                                      child: const CustomerText('Sign in'),
+                                    ),
+                                    TextButton(
+                                      onPressed: busy
+                                          ? null
+                                          : () => followAccountAction(
+                                              CustomerAuthView.forgot,
+                                            ),
+                                      child: const CustomerText(
+                                        'Forgot password?',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              if (accountErrorCode ==
+                                      'CUSTOMER_ACCOUNT_NOT_FOUND' ||
+                                  accountErrorCode ==
+                                      'CUSTOMER_EMAIL_VERIFICATION_REQUIRED' ||
+                                  accountErrorCode ==
+                                      'CUSTOMER_VERIFICATION_RESTART_REQUIRED')
+                                TextButton(
+                                  onPressed: busy
+                                      ? null
+                                      : () => followAccountAction(
+                                          CustomerAuthView.signUp,
+                                        ),
+                                  child: const CustomerText('Create account'),
+                                ),
                               const SizedBox(height: 16),
                             ],
                             if (notice != null) ...[

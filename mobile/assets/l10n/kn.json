@@ -656,5 +656,12 @@
   "Use cropped photo": "ಕ್ರಾಪ್ ಮಾಡಿದ ಫೋಟೋ ಬಳಸಿ",
   "Preparing photo…": "ಫೋಟೋ ಸಿದ್ಧವಾಗುತ್ತಿದೆ…",
   "This photo could not be opened. Choose another.": "ಈ ಫೋಟೋ ತೆರೆಯಲಾಗಲಿಲ್ಲ. ಬೇರೆ ಫೋಟೋ ಆಯ್ಕೆಮಾಡಿ.",
-  "The photo could not be cropped. Please try again.": "ಫೋಟೋ ಕ್ರಾಪ್ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ."
+  "The photo could not be cropped. Please try again.": "ಫೋಟೋ ಕ್ರಾಪ್ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+  "An account already exists with this email. Please sign in or reset your password.": "ಈ ಇಮೇಲ್‌ನೊಂದಿಗೆ ಈಗಾಗಲೇ ಖಾತೆ ಇದೆ. ದಯವಿಟ್ಟು ಸೈನ್ ಇನ್ ಮಾಡಿ ಅಥವಾ ಪಾಸ್‌ವರ್ಡ್ ಮರುಹೊಂದಿಸಿ.",
+  "No SelfX customer account was found with this email. Please check the address or create an account.": "ಈ ಇಮೇಲ್‌ನೊಂದಿಗೆ SelfX ಗ್ರಾಹಕ ಖಾತೆ ಕಂಡುಬಂದಿಲ್ಲ. ವಿಳಾಸವನ್ನು ಪರಿಶೀಲಿಸಿ ಅಥವಾ ಖಾತೆ ರಚಿಸಿ.",
+  "Complete account creation and verify your email before resetting your password.": "ಪಾಸ್‌ವರ್ಡ್ ಮರುಹೊಂದಿಸುವ ಮೊದಲು ಖಾತೆ ರಚನೆಯನ್ನು ಪೂರ್ಣಗೊಳಿಸಿ ಮತ್ತು ಇಮೇಲ್ ದೃಢೀಕರಿಸಿ.",
+  "This customer account is unavailable. Please contact SelfX support.": "ಈ ಗ್ರಾಹಕ ಖಾತೆ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು SelfX ಬೆಂಬಲವನ್ನು ಸಂಪರ್ಕಿಸಿ.",
+  "Start account creation again to request a new verification code.": "ಹೊಸ ದೃಢೀಕರಣ ಕೋಡ್ ಕೇಳಲು ಖಾತೆ ರಚನೆಯನ್ನು ಮತ್ತೆ ಪ್ರಾರಂಭಿಸಿ.",
+  "Too many code requests. Please try again in 15 minutes.": "ಕೋಡ್‌ಗಾಗಿ ತುಂಬಾ ವಿನಂತಿಗಳು ಬಂದಿವೆ. ದಯವಿಟ್ಟು 15 ನಿಮಿಷಗಳ ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+  "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.": "6 ಅಂಕೆಗಳ ಕೋಡ್‌ಗಾಗಿ ನಿಮ್ಮ ಇಮೇಲ್ ಪರಿಶೀಲಿಸಿ. ವಿನಂತಿಸಿದ 10 ನಿಮಿಷಗಳ ನಂತರ ಅದರ ಅವಧಿ ಮುಗಿಯುತ್ತದೆ. ಸ್ಪ್ಯಾಮ್ ಫೋಲ್ಡರ್ ಕೂಡ ಪರಿಶೀಲಿಸಿ."
 }

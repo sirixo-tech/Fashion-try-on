@@ -656,5 +656,12 @@
   "Use cropped photo": "Gunakan foto yang dipangkas",
   "Preparing photo…": "Menyiapkan foto…",
   "This photo could not be opened. Choose another.": "Foto ini tidak dapat dibuka. Pilih foto lain.",
-  "The photo could not be cropped. Please try again.": "Foto tidak dapat dipangkas. Silakan coba lagi."
+  "The photo could not be cropped. Please try again.": "Foto tidak dapat dipangkas. Silakan coba lagi.",
+  "An account already exists with this email. Please sign in or reset your password.": "Akun dengan email ini sudah ada. Silakan masuk atau atur ulang kata sandi Anda.",
+  "No SelfX customer account was found with this email. Please check the address or create an account.": "Akun pelanggan SelfX dengan email ini tidak ditemukan. Periksa alamatnya atau buat akun.",
+  "Complete account creation and verify your email before resetting your password.": "Selesaikan pembuatan akun dan verifikasi email sebelum mengatur ulang kata sandi.",
+  "This customer account is unavailable. Please contact SelfX support.": "Akun pelanggan ini tidak tersedia. Hubungi dukungan SelfX.",
+  "Start account creation again to request a new verification code.": "Mulai kembali pembuatan akun untuk meminta kode verifikasi baru.",
+  "Too many code requests. Please try again in 15 minutes.": "Terlalu banyak permintaan kode. Coba lagi dalam 15 menit.",
+  "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.": "Periksa email Anda untuk kode 6 digit. Kode berlaku hingga 10 menit setelah permintaan. Periksa juga folder spam."
 }

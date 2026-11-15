@@ -656,5 +656,12 @@
   "Use cropped photo": "Использовать обрезанное фото",
   "Preparing photo…": "Подготовка фото…",
   "This photo could not be opened. Choose another.": "Не удалось открыть это фото. Выберите другое.",
-  "The photo could not be cropped. Please try again.": "Не удалось обрезать фото. Попробуйте еще раз."
+  "The photo could not be cropped. Please try again.": "Не удалось обрезать фото. Попробуйте еще раз.",
+  "An account already exists with this email. Please sign in or reset your password.": "Аккаунт с этим адресом электронной почты уже существует. Войдите или сбросьте пароль.",
+  "No SelfX customer account was found with this email. Please check the address or create an account.": "Аккаунт клиента SelfX с этим адресом электронной почты не найден. Проверьте адрес или создайте аккаунт.",
+  "Complete account creation and verify your email before resetting your password.": "Завершите создание аккаунта и подтвердите электронную почту, прежде чем сбрасывать пароль.",
+  "This customer account is unavailable. Please contact SelfX support.": "Этот аккаунт клиента недоступен. Обратитесь в службу поддержки SelfX.",
+  "Start account creation again to request a new verification code.": "Начните создание аккаунта заново, чтобы запросить новый код подтверждения.",
+  "Too many code requests. Please try again in 15 minutes.": "Слишком много запросов кода. Повторите попытку через 15 минут.",
+  "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.": "Проверьте почту, чтобы получить 6-значный код. Он действует 10 минут с момента запроса. Проверьте также папку «Спам»."
 }

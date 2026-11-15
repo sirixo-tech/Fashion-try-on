@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import {
   afterAll,
   beforeAll,
@@ -81,6 +81,18 @@ describe.skipIf(!url)(
       const last = messages.at(-1);
       expect(last?.to).toBe(email);
       return last!.text.match(/code is (\d{6})/)![1]!;
+    }
+    async function expireCooldown(
+      purpose: "VERIFY_EMAIL" | "RESET_PASSWORD",
+      address = email,
+    ) {
+      const key = createHmac("sha256", auth.config.secret)
+        .update(`customer:rate:email-cooldown-${purpose}:${address}`)
+        .digest("hex");
+      await db.passwordRecoveryRateBucket.updateMany({
+        where: { key },
+        data: { expiresAt: new Date(Date.now() - 1) },
+      });
     }
     async function register(address = email) {
       const result = await auth.signup(signup(address), ip);
@@ -704,6 +716,7 @@ describe.skipIf(!url)(
         ip,
       );
       const oldCode = await code();
+      await expireCooldown("VERIFY_EMAIL");
       const victim = await auth.signup(signup(), ip);
       const currentCode = await code();
       await expect(
@@ -720,26 +733,185 @@ describe.skipIf(!url)(
         "accessToken",
       );
     });
-    it("does not replace an active password and returns generic email responses for unknown addresses", async () => {
+    it("reports existing and missing customer accounts without replacing credentials or creating merchant records", async () => {
       await register();
-      await auth.signup(
-        { ...signup(), password: "another-strong-password" },
-        ip,
-      );
+      await expect(
+        auth.signup({ ...signup(), password: "another-strong-password" }, ip),
+      ).rejects.toMatchObject({
+        status: 409,
+        response: { error: { code: "CUSTOMER_ACCOUNT_EXISTS" } },
+      });
       expect(await deliver()).toHaveLength(0);
       expect(await auth.login(email, password, ip)).toHaveProperty(
         "accessToken",
       );
-      const known = await auth.requestCode(email, "RESET_PASSWORD", ip);
-      const unknown = await auth.requestCode(
-        "unknown@selfx.invalid",
-        "RESET_PASSWORD",
-        ip,
-      );
-      expect(known).toEqual(unknown);
+      await auth.requestCode(email, "RESET_PASSWORD", ip);
+      await expect(
+        auth.requestCode("unknown@selfx.invalid", "RESET_PASSWORD", ip),
+      ).rejects.toMatchObject({
+        status: 404,
+        response: { error: { code: "CUSTOMER_ACCOUNT_NOT_FOUND" } },
+      });
       expect((await deliver()).every((message) => message.to === email)).toBe(
         true,
       );
+    });
+    it("allows five sends per flow independently and reports the sixth without silently queueing", async () => {
+      const request = await auth.signup(signup(), ip);
+      let value = await code();
+      for (let i = 1; i < 5; i++) {
+        await expireCooldown("VERIFY_EMAIL");
+        await auth.requestCode(email, "VERIFY_EMAIL", ip, request.signupProof);
+        value = await code();
+      }
+      await expireCooldown("VERIFY_EMAIL");
+      await expect(
+        auth.requestCode(email, "VERIFY_EMAIL", ip, request.signupProof),
+      ).rejects.toMatchObject({
+        status: 429,
+        response: {
+          error: { code: "CUSTOMER_CODE_RATE_LIMITED", retryAfterSeconds: 900 },
+        },
+      });
+      expect(await deliver()).toHaveLength(0);
+      await auth.verifyEmail(email, value, ip, request.signupProof);
+      for (let i = 0; i < 5; i++) {
+        await expireCooldown("RESET_PASSWORD");
+        const result = await auth.requestCode(
+          email,
+          "RESET_PASSWORD",
+          "127.0.0.2",
+        );
+        expect(result.message).not.toContain("If this address");
+        expect(await deliver()).toHaveLength(1);
+      }
+      await expireCooldown("RESET_PASSWORD");
+      await expect(
+        auth.requestCode(email, "RESET_PASSWORD", "127.0.0.2"),
+      ).rejects.toMatchObject({
+        status: 429,
+        response: { error: { code: "CUSTOMER_CODE_RATE_LIMITED" } },
+      });
+      await auth.requestEmailLogin(email, ip);
+      expect(await deliver()).toHaveLength(1);
+    });
+    it("cooldown failures keep the earlier signup proof, password and email code usable", async () => {
+      const request = await auth.signup(signup(), ip);
+      const value = await code();
+      const before = await db.customer.findUniqueOrThrow({ where: { email } });
+      await expect(
+        auth.signup({ ...signup(), password: "different-password" }, ip),
+      ).rejects.toMatchObject({
+        status: 429,
+        response: {
+          error: { code: "CUSTOMER_CODE_COOLDOWN", retryAfterSeconds: 60 },
+        },
+      });
+      await expect(
+        auth.requestCode(email, "VERIFY_EMAIL", ip, request.signupProof),
+      ).rejects.toMatchObject({ status: 429 });
+      await expect(auth.login(email, password, ip)).rejects.toMatchObject({
+        status: 429,
+      });
+      expect(
+        (await db.customer.findUniqueOrThrow({ where: { email } }))
+          .verificationProofHash,
+      ).toBe(before.verificationProofHash);
+      expect(await deliver()).toHaveLength(0);
+      await auth.verifyEmail(email, value, ip, request.signupProof);
+      await expect(auth.login(email, password, ip)).resolves.toHaveProperty(
+        "accessToken",
+      );
+    });
+    it("rejects incomplete/suspended accounts and stale resend proofs without sending mail", async () => {
+      const request = await auth.signup(signup(), ip);
+      await code();
+      await expect(
+        auth.requestCode(email, "RESET_PASSWORD", ip),
+      ).rejects.toMatchObject({
+        status: 409,
+        response: { error: { code: "CUSTOMER_EMAIL_VERIFICATION_REQUIRED" } },
+      });
+      await expect(
+        auth.requestCode(email, "VERIFY_EMAIL", ip, "x".repeat(43)),
+      ).rejects.toMatchObject({
+        status: 400,
+        response: { error: { code: "CUSTOMER_VERIFICATION_RESTART_REQUIRED" } },
+      });
+      await db.customer.update({
+        where: { email },
+        data: { status: "SUSPENDED" },
+      });
+      await expect(
+        auth.requestCode(email, "RESET_PASSWORD", ip),
+      ).rejects.toMatchObject({ status: 403 });
+      await expect(auth.signup(signup(), ip)).rejects.toMatchObject({
+        status: 403,
+      });
+      expect(await deliver()).toHaveLength(0);
+      expect(request.signupProof).toHaveLength(43);
+    });
+    it("serializes a competing signup and resend without invalidating the winning proof or deadlocking", async () => {
+      const initial = await auth.signup(signup(), ip);
+      await code();
+      await expireCooldown("VERIFY_EMAIL");
+      const results = await Promise.allSettled([
+        auth.signup(signup(), ip),
+        auth.requestCode(
+          email,
+          "VERIFY_EMAIL",
+          "127.0.0.2",
+          initial.signupProof,
+        ),
+      ]);
+      expect(
+        results.filter((result) => result.status === "fulfilled"),
+      ).toHaveLength(1);
+      for (const result of results) {
+        if (result.status === "rejected")
+          expect([400, 429]).toContain(result.reason.status);
+      }
+      const winner = results[0]!;
+      const proof =
+        winner.status === "fulfilled"
+          ? winner.value.signupProof
+          : initial.signupProof;
+      await auth.verifyEmail(email, await code(), ip, proof);
+    });
+    it("rolls back signup and mailbox limits when queueing fails, allowing a safe retry", async () => {
+      const enqueue = vi
+        .spyOn(outbox, "enqueue")
+        .mockRejectedValueOnce(new Error("Simulated queue failure"));
+      await expect(auth.signup(signup(), ip)).rejects.toThrow(
+        "Simulated queue failure",
+      );
+      enqueue.mockRestore();
+      expect(await db.customer.count()).toBe(0);
+      const request = await auth.signup(signup(), ip);
+      await auth.verifyEmail(email, await code(), ip, request.signupProof);
+    });
+    it("retries a failed reset-code delivery with the same valid token instead of losing the request", async () => {
+      await register();
+      await auth.requestCode(email, "RESET_PASSWORD", ip);
+      sender.send.mockRejectedValueOnce(
+        new MailDeliveryError("MAIL_DELIVERY_UNAVAILABLE"),
+      );
+      await outbox.processNext();
+      const job = await db.mailJob.findFirstOrThrow({
+        where: { status: "PENDING", kind: "MESSAGE" },
+      });
+      expect(job.failureCode).toBe("MAIL_DELIVERY_UNAVAILABLE");
+      await db.mailJob.update({
+        where: { id: job.id },
+        data: { availableAt: new Date() },
+      });
+      const messages = await deliver();
+      expect(messages).toHaveLength(1);
+      const value = messages[0]!.text.match(/code is (\d{6})/)![1]!;
+      await auth.resetPassword(email, value, "new-password-verified", ip);
+      await expect(
+        auth.login(email, "new-password-verified", ip),
+      ).resolves.toHaveProperty("accessToken");
     });
     it("rotates refresh tokens, revokes the old access session and persists family revocation on replay", async () => {
       const first = await register();

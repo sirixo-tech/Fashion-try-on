@@ -656,5 +656,12 @@
   "Use cropped photo": "Usar foto recortada",
   "Preparing photo…": "Preparando foto…",
   "This photo could not be opened. Choose another.": "No se pudo abrir esta foto. Elige otra.",
-  "The photo could not be cropped. Please try again.": "No se pudo recortar la foto. Inténtalo de nuevo."
+  "The photo could not be cropped. Please try again.": "No se pudo recortar la foto. Inténtalo de nuevo.",
+  "An account already exists with this email. Please sign in or reset your password.": "Ya existe una cuenta con este correo electrónico. Inicia sesión o restablece tu contraseña.",
+  "No SelfX customer account was found with this email. Please check the address or create an account.": "No se encontró ninguna cuenta de cliente de SelfX con este correo. Comprueba la dirección o crea una cuenta.",
+  "Complete account creation and verify your email before resetting your password.": "Completa la creación de la cuenta y verifica tu correo antes de restablecer la contraseña.",
+  "This customer account is unavailable. Please contact SelfX support.": "Esta cuenta de cliente no está disponible. Contacta con el soporte de SelfX.",
+  "Start account creation again to request a new verification code.": "Vuelve a empezar la creación de la cuenta para solicitar un nuevo código de verificación.",
+  "Too many code requests. Please try again in 15 minutes.": "Demasiadas solicitudes de código. Inténtalo de nuevo en 15 minutos.",
+  "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.": "Revisa tu correo para obtener el código de 6 dígitos. Caduca 10 minutos después de solicitarlo. Revisa también la carpeta de correo no deseado."
 }

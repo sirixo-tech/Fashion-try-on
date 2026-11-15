@@ -656,5 +656,12 @@
   "Use cropped photo": "切り抜いた写真を使用",
   "Preparing photo…": "写真を準備しています…",
   "This photo could not be opened. Choose another.": "この写真を開けませんでした。別の写真を選んでください。",
-  "The photo could not be cropped. Please try again.": "写真を切り抜けませんでした。もう一度お試しください。"
+  "The photo could not be cropped. Please try again.": "写真を切り抜けませんでした。もう一度お試しください。",
+  "An account already exists with this email. Please sign in or reset your password.": "このメールアドレスのアカウントはすでに存在します。ログインするか、パスワードを再設定してください。",
+  "No SelfX customer account was found with this email. Please check the address or create an account.": "このメールアドレスのSelfXカスタマーアカウントが見つかりません。アドレスを確認するか、アカウントを作成してください。",
+  "Complete account creation and verify your email before resetting your password.": "パスワードを再設定する前に、アカウント作成を完了してメールアドレスを確認してください。",
+  "This customer account is unavailable. Please contact SelfX support.": "このカスタマーアカウントは利用できません。SelfXサポートにお問い合わせください。",
+  "Start account creation again to request a new verification code.": "新しい確認コードをリクエストするには、アカウント作成を最初からやり直してください。",
+  "Too many code requests. Please try again in 15 minutes.": "コードのリクエストが多すぎます。15分後にもう一度お試しください。",
+  "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.": "メールで6桁のコードを確認してください。リクエストから10分後に有効期限が切れます。迷惑メールフォルダも確認してください。"
 }

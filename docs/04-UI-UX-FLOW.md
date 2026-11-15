@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### Customer signup/reset feedback and code limits (2026-11-15)
+
+The user approves explicit customer account-existence feedback for signup and forgot password, accepting that it reveals registration status. Signup/verification and reset each allow five requests per email per 15 minutes, with a 60-second cooldown and existing IP/guess protections. Rejections return explicit errors and preserve earlier proofs/codes. See docs/CUSTOMER-AUTH-CODE-FEEDBACK.md; this supersedes earlier generic-response requirements for these flows only.
+
 ### Public customer account deletion (2026-11-13)
 
 The approved customer-only public deletion page and verified email-code pathway are documented in docs/CUSTOMER-ACCOUNT-DELETION-WEB.md. Reuse existing deletion/anonymization and media cleanup; keep merchant/staff boundaries and mobile reauthentication unchanged. Deletion codes use a separate purpose, durable rate limits and explicit confirmation. Retained-record deadlines require product/privacy confirmation; deployment and public acceptance remain release checks.

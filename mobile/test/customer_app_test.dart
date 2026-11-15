@@ -307,6 +307,7 @@ void main() {
         'customer@example.test',
       );
       await tester.enterText(find.byType(TextFormField).at(2), 'Abcd123');
+      await tap(tester, find.byType(Checkbox));
       await tap(tester, find.widgetWithText(FilledButton, 'Create account'));
       expect(find.text('Use at least 8 characters.'), findsOneWidget);
       expect(api.calls.where((call) => call.path == '/auth/signup'), isEmpty);
@@ -329,6 +330,118 @@ void main() {
       );
       expect(find.text('Email verified. You can now sign in.'), findsOneWidget);
       expect(store.saved, isEmpty);
+    },
+  );
+  testWidgets(
+    'existing signup offers sign in and password recovery without opening verification',
+    (tester) async {
+      await mount(tester, size: const Size(320, 700));
+      await tap(tester, find.text('Create an account'));
+      await tester.enterText(find.byType(TextFormField).at(0), 'Ava');
+      await tester.enterText(
+        find.byType(TextFormField).at(1),
+        'customer@example.test',
+      );
+      await tester.enterText(find.byType(TextFormField).at(2), 'Abcd1234');
+      await tap(tester, find.byType(Checkbox));
+      api.handler = (path, method, body) async => throw const CustomerApiException(
+        'CUSTOMER_ACCOUNT_EXISTS',
+        'An account already exists with this email. Please sign in or reset your password.',
+        409,
+      );
+      await tap(tester, find.widgetWithText(FilledButton, 'Create account'));
+      expect(find.text('Check your inbox.'), findsNothing);
+      expect(
+        find.text(
+          'An account already exists with this email. Please sign in or reset your password.',
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await tap(tester, find.widgetWithText(TextButton, 'Forgot password?'));
+      expect(
+        find.widgetWithText(FilledButton, 'Send reset code'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<TextFormField>(find.byType(TextFormField).first)
+            .controller!
+            .text,
+        'customer@example.test',
+      );
+    },
+  );
+  testWidgets(
+    'missing password-reset account stays on request screen and offers create account',
+    (tester) async {
+      await mount(tester);
+      await tap(tester, find.text('Forgot password?'));
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'unknown@example.test',
+      );
+      api.handler = (path, method, body) async => throw const CustomerApiException(
+        'CUSTOMER_ACCOUNT_NOT_FOUND',
+        'No SelfX customer account was found with this email. Please check the address or create an account.',
+        404,
+      );
+      await tap(tester, find.widgetWithText(FilledButton, 'Send reset code'));
+      expect(find.text('A fresh start.'), findsNothing);
+      expect(
+        find.widgetWithText(FilledButton, 'Send reset code'),
+        findsOneWidget,
+      );
+      await tap(tester, find.widgetWithText(TextButton, 'Create account'));
+      expect(
+        find.widgetWithText(FilledButton, 'Create account'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<TextFormField>(find.byType(TextFormField).at(1))
+            .controller!
+            .text,
+        'unknown@example.test',
+      );
+    },
+  );
+  testWidgets(
+    'blocked resend shows the rate error and retry timer while preserving entered code',
+    (tester) async {
+      await mount(tester);
+      await tap(tester, find.text('Forgot password?'));
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'customer@example.test',
+      );
+      await tap(tester, find.widgetWithText(FilledButton, 'Send reset code'));
+      await tester.enterText(find.byType(TextFormField).at(1), '123456');
+      await tester.pump(const Duration(seconds: 61));
+      api.handler = (path, method, body) async =>
+          throw const CustomerApiException(
+            'CUSTOMER_CODE_RATE_LIMITED',
+            'Too many code requests. Please try again in 15 minutes.',
+            429,
+            900,
+          );
+      await tap(tester, find.widgetWithText(TextButton, 'Send a new code'));
+      expect(
+        find.text('Too many code requests. Please try again in 15 minutes.'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<TextFormField>(find.byType(TextFormField).at(1))
+            .controller!
+            .text,
+        '123456',
+      );
+      final resend = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Resend in 900s'),
+      );
+      expect(resend.onPressed, isNull);
+      expect(find.textContaining('If this address is eligible'), findsNothing);
     },
   );
   testWidgets(

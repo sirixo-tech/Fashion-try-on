@@ -86,6 +86,28 @@ void main() {
       }
     }
   });
+  test('account status and code-limit feedback stay specific in all languages', () {
+    const messages = [
+      'An account already exists with this email. Please sign in or reset your password.',
+      'No SelfX customer account was found with this email. Please check the address or create an account.',
+      'Complete account creation and verify your email before resetting your password.',
+      'This customer account is unavailable. Please contact SelfX support.',
+      'Start account creation again to request a new verification code.',
+      'Too many code requests. Please try again in 15 minutes.',
+      'Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.',
+    ];
+    for (final language in CustomerLanguage.all) {
+      final values = catalog(language.code);
+      final copy = CustomerCopy(language.code, values);
+      for (final message in messages) {
+        expect(copy.text(message, error: true), values[message]);
+        expect(
+          copy.text(message, error: true),
+          isNot(values['Something went wrong. Please try again.']),
+        );
+      }
+    }
+  });
   test(
     'new Home, Try-On and payment copy changes with the selected language',
     () {

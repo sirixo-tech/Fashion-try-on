@@ -656,5 +656,12 @@
   "Use cropped photo": "ক্রপ করা ছবি ব্যবহার করুন",
   "Preparing photo…": "ছবি প্রস্তুত করা হচ্ছে…",
   "This photo could not be opened. Choose another.": "এই ছবিটি খোলা যায়নি। অন্য একটি বেছে নিন।",
-  "The photo could not be cropped. Please try again.": "ছবিটি ক্রপ করা যায়নি। আবার চেষ্টা করুন।"
+  "The photo could not be cropped. Please try again.": "ছবিটি ক্রপ করা যায়নি। আবার চেষ্টা করুন।",
+  "An account already exists with this email. Please sign in or reset your password.": "এই ইমেইলে ইতিমধ্যে একটি অ্যাকাউন্ট আছে। সাইন ইন করুন অথবা পাসওয়ার্ড রিসেট করুন।",
+  "No SelfX customer account was found with this email. Please check the address or create an account.": "এই ইমেইলে কোনো SelfX গ্রাহক অ্যাকাউন্ট পাওয়া যায়নি। ঠিকানাটি পরীক্ষা করুন অথবা অ্যাকাউন্ট তৈরি করুন।",
+  "Complete account creation and verify your email before resetting your password.": "পাসওয়ার্ড রিসেট করার আগে অ্যাকাউন্ট তৈরি সম্পূর্ণ করুন এবং ইমেইল যাচাই করুন।",
+  "This customer account is unavailable. Please contact SelfX support.": "এই গ্রাহক অ্যাকাউন্টটি উপলব্ধ নয়। SelfX সহায়তার সঙ্গে যোগাযোগ করুন।",
+  "Start account creation again to request a new verification code.": "নতুন যাচাইকরণ কোড চাইতে আবার অ্যাকাউন্ট তৈরি শুরু করুন।",
+  "Too many code requests. Please try again in 15 minutes.": "কোডের জন্য অনেক অনুরোধ করা হয়েছে। 15 মিনিট পরে আবার চেষ্টা করুন।",
+  "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.": "6 সংখ্যার কোডের জন্য ইমেইল দেখুন। অনুরোধের 10 মিনিট পরে এর মেয়াদ শেষ হবে। স্প্যাম ফোল্ডারও দেখুন।"
 }

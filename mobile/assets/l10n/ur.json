@@ -656,5 +656,12 @@
   "Use cropped photo": "تراشی ہوئی تصویر استعمال کریں",
   "Preparing photo…": "تصویر تیار کی جا رہی ہے…",
   "This photo could not be opened. Choose another.": "یہ تصویر نہیں کھل سکی۔ کوئی اور تصویر منتخب کریں۔",
-  "The photo could not be cropped. Please try again.": "تصویر تراشی نہیں جا سکی۔ دوبارہ کوشش کریں۔"
+  "The photo could not be cropped. Please try again.": "تصویر تراشی نہیں جا سکی۔ دوبارہ کوشش کریں۔",
+  "An account already exists with this email. Please sign in or reset your password.": "اس ای میل کے ساتھ پہلے سے اکاؤنٹ موجود ہے۔ براہ کرم سائن ان کریں یا پاس ورڈ ری سیٹ کریں۔",
+  "No SelfX customer account was found with this email. Please check the address or create an account.": "اس ای میل کے ساتھ کوئی SelfX کسٹمر اکاؤنٹ نہیں ملا۔ پتہ چیک کریں یا اکاؤنٹ بنائیں۔",
+  "Complete account creation and verify your email before resetting your password.": "پاس ورڈ ری سیٹ کرنے سے پہلے اکاؤنٹ بنانا مکمل کریں اور ای میل کی تصدیق کریں۔",
+  "This customer account is unavailable. Please contact SelfX support.": "یہ کسٹمر اکاؤنٹ دستیاب نہیں ہے۔ براہ کرم SelfX سپورٹ سے رابطہ کریں۔",
+  "Start account creation again to request a new verification code.": "نیا تصدیقی کوڈ مانگنے کے لیے اکاؤنٹ بنانا دوبارہ شروع کریں۔",
+  "Too many code requests. Please try again in 15 minutes.": "کوڈ کی بہت زیادہ درخواستیں کی گئی ہیں۔ براہ کرم 15 منٹ بعد دوبارہ کوشش کریں۔",
+  "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.": "6 ہندسوں کے کوڈ کے لیے ای میل چیک کریں۔ درخواست کے 10 منٹ بعد اس کی میعاد ختم ہو جاتی ہے۔ اسپیم فولڈر بھی چیک کریں۔"
 }

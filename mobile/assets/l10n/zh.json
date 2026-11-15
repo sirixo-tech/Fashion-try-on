@@ -656,5 +656,12 @@
   "Use cropped photo": "使用裁剪后的照片",
   "Preparing photo…": "正在准备照片…",
   "This photo could not be opened. Choose another.": "无法打开此照片。请选择其他照片。",
-  "The photo could not be cropped. Please try again.": "无法裁剪照片。请重试。"
+  "The photo could not be cropped. Please try again.": "无法裁剪照片。请重试。",
+  "An account already exists with this email. Please sign in or reset your password.": "此邮箱已有关联账户。请登录或重置密码。",
+  "No SelfX customer account was found with this email. Please check the address or create an account.": "未找到与此邮箱关联的 SelfX 客户账户。请检查邮箱地址或创建账户。",
+  "Complete account creation and verify your email before resetting your password.": "重置密码前，请先完成账户创建并验证邮箱。",
+  "This customer account is unavailable. Please contact SelfX support.": "此客户账户不可用。请联系 SelfX 支持团队。",
+  "Start account creation again to request a new verification code.": "请重新开始创建账户，以申请新的验证码。",
+  "Too many code requests. Please try again in 15 minutes.": "验证码请求过多。请在 15 分钟后重试。",
+  "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.": "请查收邮件中的 6 位验证码。验证码在请求后 10 分钟过期。也请检查垃圾邮件文件夹。"
 }

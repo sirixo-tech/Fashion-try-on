@@ -656,5 +656,12 @@
   "Use cropped photo": "استخدم الصورة بعد قصّها",
   "Preparing photo…": "جارٍ تجهيز الصورة…",
   "This photo could not be opened. Choose another.": "تعذّر فتح هذه الصورة. اختر صورة أخرى.",
-  "The photo could not be cropped. Please try again.": "تعذّر قص الصورة. يُرجى المحاولة مرة أخرى."
+  "The photo could not be cropped. Please try again.": "تعذّر قص الصورة. يُرجى المحاولة مرة أخرى.",
+  "An account already exists with this email. Please sign in or reset your password.": "يوجد حساب بهذا البريد الإلكتروني بالفعل. يرجى تسجيل الدخول أو إعادة تعيين كلمة المرور.",
+  "No SelfX customer account was found with this email. Please check the address or create an account.": "لم يتم العثور على حساب عميل SelfX بهذا البريد الإلكتروني. تحقق من العنوان أو أنشئ حسابًا.",
+  "Complete account creation and verify your email before resetting your password.": "أكمل إنشاء الحساب وتحقق من بريدك الإلكتروني قبل إعادة تعيين كلمة المرور.",
+  "This customer account is unavailable. Please contact SelfX support.": "حساب العميل هذا غير متاح. يرجى التواصل مع دعم SelfX.",
+  "Start account creation again to request a new verification code.": "ابدأ إنشاء الحساب من جديد لطلب رمز تحقق جديد.",
+  "Too many code requests. Please try again in 15 minutes.": "تم إرسال طلبات كثيرة للرمز. يرجى المحاولة مجددًا بعد 15 دقيقة.",
+  "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.": "تحقق من بريدك الإلكتروني للحصول على الرمز المكوّن من 6 أرقام. تنتهي صلاحيته بعد 10 دقائق من الطلب. تحقق أيضًا من مجلد الرسائل غير المرغوب فيها."
 }

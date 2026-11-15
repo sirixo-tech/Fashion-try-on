@@ -48,6 +48,11 @@ const genericEmail = {
     "If this address is eligible, an email with a 6-digit code will arrive shortly. Check your spam folder too.",
   resendAfterSeconds: 60,
 };
+const requestedEmailCode = {
+  message:
+    "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.",
+  resendAfterSeconds: 60,
+};
 const tokenSecret = () => randomBytes(32).toString("base64url");
 const normalize = (email: string) => email.trim().toLowerCase();
 const unauthorized = (): never =>
@@ -126,11 +131,12 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     value: string,
     maximum: number,
     windowMs = 15 * 60000,
+    tx: Prisma.TransactionClient = this.db,
   ) {
     this.assertEnabled();
     const key = this.digest(`rate:${scope}`, value),
       expires = new Date(Date.now() + windowMs);
-    const rows = await this.db.$queryRaw<Array<{ count: number }>>`
+    const rows = await tx.$queryRaw<Array<{ count: number }>>`
       INSERT INTO password_recovery_rate_buckets (key, count, expires_at) VALUES (${key}, 1, ${expires})
       ON CONFLICT (key) DO UPDATE SET count = CASE WHEN password_recovery_rate_buckets.expires_at <= NOW() THEN 1 ELSE password_recovery_rate_buckets.count + 1 END,
       expires_at = CASE WHEN password_recovery_rate_buckets.expires_at <= NOW() THEN EXCLUDED.expires_at ELSE password_recovery_rate_buckets.expires_at END RETURNING count`;
@@ -192,6 +198,62 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       tx,
     );
   }
+  private async admitEmailCode(
+    tx: Prisma.TransactionClient,
+    email: string,
+    purpose: "VERIFY_EMAIL" | "RESET_PASSWORD",
+  ) {
+    // Both buckets and the mail/proof mutation share one transaction. A denied
+    // cooldown cannot spend the send budget or replace a still-usable proof.
+    if (
+      !(await this.rate(`email-request-${purpose}`, email, 5, 15 * 60000, tx))
+    )
+      throw new ApiErrorException(
+        429,
+        "CUSTOMER_CODE_RATE_LIMITED",
+        "Too many code requests. Please try again in 15 minutes.",
+        15 * 60,
+      );
+    if (!(await this.rate(`email-cooldown-${purpose}`, email, 1, 60000, tx)))
+      throw new ApiErrorException(
+        429,
+        "CUSTOMER_CODE_COOLDOWN",
+        "Please wait one minute before requesting another code.",
+        60,
+      );
+  }
+  private assertEmailAccount(
+    customer: Customer | null,
+    purpose: "VERIFY_EMAIL" | "RESET_PASSWORD",
+  ) {
+    if (!customer)
+      customerError(
+        "CUSTOMER_ACCOUNT_NOT_FOUND",
+        "No SelfX customer account was found with this email. Please check the address or create an account.",
+        404,
+      );
+    if (purpose === "VERIFY_EMAIL" && customer!.status === "ACTIVE")
+      customerError(
+        "CUSTOMER_ACCOUNT_EXISTS",
+        "An account already exists with this email. Please sign in or reset your password.",
+        409,
+      );
+    if (
+      purpose === "RESET_PASSWORD" &&
+      customer!.status === "PENDING_VERIFICATION"
+    )
+      customerError(
+        "CUSTOMER_EMAIL_VERIFICATION_REQUIRED",
+        "Complete account creation and verify your email before resetting your password.",
+        409,
+      );
+    if (!["ACTIVE", "PENDING_VERIFICATION"].includes(customer!.status))
+      customerError(
+        "CUSTOMER_ACCOUNT_UNAVAILABLE",
+        "This customer account is unavailable. Please contact SelfX support.",
+        403,
+      );
+  }
   async signup(input: CustomerSignupDto, ip: string) {
     this.assertEnabled();
     await this.limit("signup-ip", ip, 10);
@@ -200,11 +262,12 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     const signupProof = tokenSecret(),
       proofHash = this.digest("signup-proof", signupProof);
     const passwordHash = await this.passwords.hashPassword(input.password);
-    if (!(await this.rate("email-request", email, 3)))
-      return { ...genericEmail, signupProof };
     await this.db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('selfx.customer.email'), hashtext(${email}))`;
+      await tx.$queryRaw`SELECT id FROM customers WHERE email = ${email} FOR UPDATE`;
       const existing = await tx.customer.findUnique({ where: { email } });
+      if (existing) this.assertEmailAccount(existing, "VERIFY_EMAIL");
+      await this.admitEmailCode(tx, email, "VERIFY_EMAIL");
       if (!existing) {
         await tx.customer.create({
           data: {
@@ -248,7 +311,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       }
       await this.queueEmail(tx, email, "VERIFY_EMAIL", proofHash);
     });
-    return { ...genericEmail, signupProof };
+    return { ...requestedEmailCode, signupProof };
   }
   async requestCode(
     emailInput: string,
@@ -259,17 +322,29 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     await this.limit("email-ip", ip, 10);
     await this.assertEmailReady();
     const email = normalize(emailInput);
-    if (
-      (await this.rate("email-request", email, 3)) &&
-      (await this.rate(`email-cooldown-${purpose}`, email, 1, 60000))
-    )
+    await this.db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM customers WHERE email = ${email} FOR UPDATE`;
+      const customer = await tx.customer.findUnique({ where: { email } });
+      this.assertEmailAccount(customer, purpose);
+      if (
+        purpose === "VERIFY_EMAIL" &&
+        (!signupProof ||
+          customer!.verificationProofHash !==
+            this.digest("signup-proof", signupProof))
+      )
+        customerError(
+          "CUSTOMER_VERIFICATION_RESTART_REQUIRED",
+          "Start account creation again to request a new verification code.",
+        );
+      await this.admitEmailCode(tx, email, purpose);
       await this.queueEmail(
-        this.db,
+        tx,
         email,
         purpose,
         signupProof ? this.digest("signup-proof", signupProof) : undefined,
       );
-    return genericEmail;
+    });
+    return requestedEmailCode;
   }
   async prepareMail(job: MailJob): Promise<MailJob | null> {
     this.assertEnabled();
@@ -840,6 +915,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         proofHash = this.digest("signup-proof", signupProof);
       await this.db.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM customers WHERE id = ${identity!.customerId}::uuid FOR UPDATE`;
+        await this.admitEmailCode(tx, email, "VERIFY_EMAIL");
         const claimed = await tx.customer.updateMany({
           where: {
             id: identity!.customerId,
@@ -849,14 +925,13 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
           data: { verificationProofHash: proofHash },
         });
         if (claimed.count !== 1) unauthorized();
-        if (await this.rate("email-request", email, 3))
-          await this.queueEmail(tx, email, "VERIFY_EMAIL", proofHash);
+        await this.queueEmail(tx, email, "VERIFY_EMAIL", proofHash);
       });
       return {
         verificationRequired: true,
         signupProof,
         email,
-        message: "Verify your email before signing in.",
+        ...requestedEmailCode,
       };
     }
     return this.newSession(

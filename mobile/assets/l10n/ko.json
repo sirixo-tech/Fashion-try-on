@@ -656,5 +656,12 @@
   "Use cropped photo": "자른 사진 사용",
   "Preparing photo…": "사진 준비 중…",
   "This photo could not be opened. Choose another.": "이 사진을 열 수 없습니다. 다른 사진을 선택하세요.",
-  "The photo could not be cropped. Please try again.": "사진을 자를 수 없습니다. 다시 시도해 주세요."
+  "The photo could not be cropped. Please try again.": "사진을 자를 수 없습니다. 다시 시도해 주세요.",
+  "An account already exists with this email. Please sign in or reset your password.": "이 이메일로 등록된 계정이 이미 있습니다. 로그인하거나 비밀번호를 재설정해 주세요.",
+  "No SelfX customer account was found with this email. Please check the address or create an account.": "이 이메일로 등록된 SelfX 고객 계정을 찾을 수 없습니다. 주소를 확인하거나 계정을 만들어 주세요.",
+  "Complete account creation and verify your email before resetting your password.": "비밀번호를 재설정하기 전에 계정 생성을 완료하고 이메일을 인증해 주세요.",
+  "This customer account is unavailable. Please contact SelfX support.": "이 고객 계정을 사용할 수 없습니다. SelfX 지원팀에 문의해 주세요.",
+  "Start account creation again to request a new verification code.": "새 인증 코드를 요청하려면 계정 생성을 다시 시작해 주세요.",
+  "Too many code requests. Please try again in 15 minutes.": "코드 요청이 너무 많습니다. 15분 후에 다시 시도해 주세요.",
+  "Check your email for the 6-digit code. It expires 10 minutes after your request. Check your spam folder too.": "이메일에서 6자리 코드를 확인해 주세요. 요청 후 10분이 지나면 만료됩니다. 스팸 폴더도 확인해 주세요."
 }
