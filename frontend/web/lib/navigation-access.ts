@@ -45,6 +45,10 @@ export function navigationAccess({
 }
 
 const platformPermissionsByHref: Record<string, string[]> = {
+  "/app/platform/content-reports": [
+    "CONTENT_REPORTS_VIEW",
+    "CONTENT_REPORTS_MANAGE",
+  ],
   "/app/dashboard/mobile": ["USAGE_VIEW"],
   "/app/stores": ["STORES_VIEW"],
   "/app/locations": ["STORES_VIEW"],

@@ -143,7 +143,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     return (rows[0]?.count ?? maximum + 1) <= maximum;
   }
   async limitExperience(
-    scope: "upload" | "run" | "session" | "store",
+    scope: "upload" | "run" | "session" | "store" | "report",
     customerId: string,
     ip: string,
   ) {
@@ -1599,6 +1599,9 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       where: { customerId: customer.id },
     });
     await tx.customerSavedGarment.deleteMany({
+      where: { customerId: customer.id },
+    });
+    await tx.contentReport.deleteMany({
       where: { customerId: customer.id },
     });
     await tx.customer.update({

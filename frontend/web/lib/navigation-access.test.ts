@@ -65,6 +65,34 @@ const baseAccess: NavigationAccess = {
   storeFeatureKeys: [],
   hasActiveStore: false,
 };
+it("limits content reports to explicit platform permissions", () => {
+  const href = "/app/platform/content-reports";
+  expect(canSeeHref(href, baseAccess)).toBe(false);
+  expect(
+    canSeeHref(href, {
+      ...baseAccess,
+      hasActiveStore: true,
+      storePermissions: ["CONTENT_REPORTS_VIEW"],
+      storePlatformBypass: true,
+    }),
+  ).toBe(false);
+  expect(
+    canSeeHref(href, {
+      ...baseAccess,
+      hasPlatformAccess: true,
+      platformPermissions: ["USAGE_VIEW"],
+    }),
+  ).toBe(false);
+  for (const permission of ["CONTENT_REPORTS_VIEW", "CONTENT_REPORTS_MANAGE"]) {
+    expect(
+      canSeeHref(href, {
+        ...baseAccess,
+        hasPlatformAccess: true,
+        platformPermissions: [permission],
+      }),
+    ).toBe(true);
+  }
+});
 it("shows Mobile Plans only with platform pricing access", () => {
   expect(canSeeHref("/app/platform/mobile-plans", baseAccess)).toBe(false);
   expect(

@@ -7,6 +7,7 @@ import {
   resolveBrowserApiBase,
   setAuthSessionHooks,
   selfxApi,
+  selfxApiBlob,
   selfxApiBaseUrl,
   selfxApiUrl,
 } from "@/lib/api";
@@ -19,6 +20,35 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe("selfx web API routing", () => {
+  it("refreshes authentication for private binary previews without caching their bytes", async () => {
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: "AUTH_ACCESS_TOKEN_INVALID" } }, 401),
+      )
+      .mockResolvedValueOnce(
+        new Response("private-image", {
+          headers: { "content-type": "image/png" },
+        }),
+      );
+    const refreshSession = vi.fn().mockResolvedValue("fresh-token");
+    setAuthSessionHooks({
+      getAccessToken: () => "old-token",
+      refreshSession,
+      handleTerminalAuthFailure: vi.fn(),
+    });
+    const blob = await selfxApiBlob(
+      "/api/v1/admin/content-reports/result/image",
+      { accessToken: "old-token" },
+    );
+    expect(blob.type).toBe("image/png");
+    expect(blob.size).toBe(13);
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[1]?.[1]?.cache).toBe("no-store");
+    expect(
+      new Headers(fetcher.mock.calls[1]?.[1]?.headers).get("Authorization"),
+    ).toBe("Bearer fresh-token");
+  });
   afterEach(() => {
     setAuthSessionHooks(null);
     vi.unstubAllEnvs();

@@ -63,6 +63,18 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
+          <h2 className="text-xl font-semibold">Content Reports</h2>
+          <p className="leading-7 text-muted-foreground">
+            If you report a generated image, authorized SelfX platform reviewers
+            can access your report, optional comment and that generated result
+            while it remains available. Reporting does not extend image storage
+            or give reviewers access to your original photos. Report metadata
+            and internal review notes remain for review while your account
+            exists and are removed when you delete your account.
+          </p>
+        </section>
+
+        <section className="space-y-3">
           <h2 className="text-xl font-semibold">Customer Images</h2>
           <p className="leading-7 text-muted-foreground">
             Photos used for try-on and generated images are treated as sensitive

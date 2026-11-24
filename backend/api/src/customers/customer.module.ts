@@ -1,4 +1,9 @@
 import { Module } from "@nestjs/common";
+import {
+  AdminContentReportsController,
+  CustomerContentReportsController,
+} from "../content-reports/content-reports.controller.js";
+import { ContentReportsService } from "../content-reports/content-reports.service.js";
 import { JwtService } from "@nestjs/jwt";
 import { DatabaseModule } from "../database/database.module.js";
 import { MailModule } from "../mail/mail.module.js";
@@ -35,7 +40,10 @@ import { CustomerProfilePhotoService } from "./customer-profile-photo.service.js
 import { CustomerAvatarController } from "./customer-avatar.controller.js";
 import { CustomerMobilePlansController } from "./customer-mobile-plans.controller.js";
 import { CustomerMobilePaymentsService } from "./customer-mobile-payments.service.js";
-import { CustomerMobilePaymentsController, AdminMobilePaymentsController } from "./customer-mobile-payments.controller.js";
+import {
+  CustomerMobilePaymentsController,
+  AdminMobilePaymentsController,
+} from "./customer-mobile-payments.controller.js";
 @Module({
   imports: [
     DatabaseModule,
@@ -48,6 +56,8 @@ import { CustomerMobilePaymentsController, AdminMobilePaymentsController } from 
     AppsModule,
   ],
   controllers: [
+    AdminContentReportsController,
+    CustomerContentReportsController,
     CustomerAvatarController,
     CustomerMobilePlansController,
     CustomerMobilePaymentsController,
@@ -61,6 +71,7 @@ import { CustomerMobilePaymentsController, AdminMobilePaymentsController } from 
     CustomerNotificationsController,
   ],
   providers: [
+    ContentReportsService,
     CustomerProfilePhotoService,
     CustomerMobilePaymentsService,
     CustomerPhoneClient,

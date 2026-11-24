@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CONTENT-REPORTS-1 — Application-side reporting (2026-11-23)
+
+User-approved scope: database migration, customer submission API, platform-only
+permissions and web review workspace. Verify ownership, authorization, duplicate
+and concurrent writes, private media expiry/deletion, Store purge and account
+deletion. Deploy migration before API/web. Mobile reporting and the Play Store
+resubmission remain subsequent work. See `CONTENT-REPORTS-1.md`.
+
 ### Customer signup/reset feedback and code limits (2026-11-15)
 
 The user approves explicit customer account-existence feedback for signup and forgot password, accepting that it reveals registration status. Signup/verification and reset each allow five requests per email per 15 minutes, with a 60-second cooldown and existing IP/guess protections. Rejections return explicit errors and preserve earlier proofs/codes. See docs/CUSTOMER-AUTH-CODE-FEEDBACK.md; this supersedes earlier generic-response requirements for these flows only.

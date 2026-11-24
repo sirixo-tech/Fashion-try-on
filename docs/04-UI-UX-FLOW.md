@@ -1,5 +1,12 @@
 ## Document Evolution
 
+### CONTENT-REPORTS-1 — Content Reports workspace (2026-11-23)
+
+Add a permission-filtered platform sidebar item and shared-component report list
+with status/reason filters, pagination and a review dialog. Include unavailable
+image, loading, permission, retry, conflict and saved states. View-only users
+cannot edit reviews. Flutter UI is deferred. See `CONTENT-REPORTS-1.md`.
+
 ### Customer signup/reset feedback and code limits (2026-11-15)
 
 The user approves explicit customer account-existence feedback for signup and forgot password, accepting that it reveals registration status. Signup/verification and reset each allow five requests per email per 15 minutes, with a 60-second cooldown and existing IP/guess protections. Rejections return explicit errors and preserve earlier proofs/codes. See docs/CUSTOMER-AUTH-CODE-FEEDBACK.md; this supersedes earlier generic-response requirements for these flows only.

@@ -41,6 +41,8 @@ export const PLATFORM_PERMISSIONS = {
   platformUsersManage: "PLATFORM_USERS_MANAGE",
   appReleasesView: "APP_RELEASES_VIEW",
   appReleasesManage: "APP_RELEASES_MANAGE",
+  contentReportsView: "CONTENT_REPORTS_VIEW",
+  contentReportsManage: "CONTENT_REPORTS_MANAGE",
 } as const;
 
 export type PlatformPermission =
@@ -57,6 +59,23 @@ export type PlatformPermissionDefinition = {
 
 export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition[] =
   [
+    {
+      code: PLATFORM_PERMISSIONS.contentReportsView,
+      module: "platform.content_reports",
+      action: "view",
+      label: "View Content Reports",
+      description: "View reported AI-generated results and customer feedback.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
+      code: PLATFORM_PERMISSIONS.contentReportsManage,
+      module: "platform.content_reports",
+      action: "manage",
+      label: "Manage Content Reports",
+      description:
+        "Review content reports, record internal notes and update status.",
+      applicability: "PLATFORM_ONLY",
+    },
     {
       code: PLATFORM_PERMISSIONS.appReleasesView,
       module: "platform.apps",
@@ -310,6 +329,8 @@ const STAFF_ADMIN_PERMISSIONS: readonly PlatformPermission[] =
       permission !== PLATFORM_PERMISSIONS.pricingView &&
       permission !== PLATFORM_PERMISSIONS.pricingManage &&
       permission !== PLATFORM_PERMISSIONS.appReleasesManage &&
+      permission !== PLATFORM_PERMISSIONS.contentReportsView &&
+      permission !== PLATFORM_PERMISSIONS.contentReportsManage &&
       permission !== PLATFORM_PERMISSIONS.appReleasesView,
   );
 

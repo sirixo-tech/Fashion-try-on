@@ -30,6 +30,7 @@ enum CustomerActionPurpose {
 }
 
 model Customer {
+  contentReports         ContentReport[]
   savedGarments          CustomerSavedGarment[]
   profilePhotos          CustomerProfilePhoto[]
   pushDevices            CustomerPushDevice[]
@@ -67,6 +68,47 @@ model Customer {
 
   @@index([pendingPhoneNumber])
   @@map("customers")
+}
+
+enum ContentReportReason {
+  SEXUAL_CONTENT
+  CHILD_SAFETY
+  VIOLENCE
+  HATE_HARASSMENT
+  PRIVACY_NON_CONSENSUAL
+  OTHER
+}
+
+enum ContentReportStatus {
+  NEW
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+model ContentReport {
+  id                 String              @id @db.Uuid
+  customerId         String              @map("customer_id") @db.Uuid
+  customer           Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  // Snapshot references deliberately have no FK to expiring or Store-purgeable media.
+  runId              String              @map("run_id") @db.Uuid
+  resultAssetId      String              @map("result_asset_id") @db.Uuid
+  reason             ContentReportReason
+  comment            String?             @db.VarChar(2000)
+  requestFingerprint String              @map("request_fingerprint") @db.Char(64)
+  status             ContentReportStatus @default(NEW)
+  reviewNotes        String?             @map("review_notes") @db.VarChar(4000)
+  reviewedByUserId   String?             @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt         DateTime?           @map("reviewed_at") @db.Timestamptz(3)
+  version            Int                 @default(1)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([customerId, resultAssetId])
+  @@index([status, createdAt, id])
+  @@index([reason, createdAt, id])
+  @@index([createdAt, id])
+  @@map("content_reports")
 }
 
 model CustomerSavedGarment {

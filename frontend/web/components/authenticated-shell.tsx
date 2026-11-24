@@ -9,6 +9,7 @@ import {
   DownloadIcon,
   CreditCardIcon,
   FlaskConicalIcon,
+  FlagIcon,
   GemIcon,
   LayersIcon,
   LayoutDashboardIcon,
@@ -101,7 +102,11 @@ const navItems: SelfxNavItem[] = [
         label: "WooCommerce",
         icon: BlocksIcon,
       },
-      { href: "/app/integrations/store-qr", label: "Store QR", icon: QrCodeIcon },
+      {
+        href: "/app/integrations/store-qr",
+        label: "Store QR",
+        icon: QrCodeIcon,
+      },
     ],
   },
   {
@@ -132,6 +137,11 @@ const navItems: SelfxNavItem[] = [
     ],
   },
   { href: "/app/analytics", label: "Analytics", icon: BarChart3Icon },
+  {
+    href: "/app/platform/content-reports",
+    label: "Content Reports",
+    icon: FlagIcon,
+  },
   { href: "/app/activity", label: "Activity", icon: ActivityIcon },
   { href: "/app/developer", label: "Developer / API", icon: Code2Icon },
   { href: "/app/billing", label: "Usage & Billing", icon: CreditCardIcon },

@@ -32,6 +32,8 @@ import type { Prisma } from "@prisma/client";
 import { CustomerMetricsService } from "./customer-metrics.service.js";
 import { CustomerProfilePhotoService } from "./customer-profile-photo.service.js";
 import { AVATAR_PHOTO_VERSION } from "./customer-profile-photo.service.js";
+import { ContentReportsService } from "../content-reports/content-reports.service.js";
+import { ContentReportsQuery } from "../content-reports/content-reports.dto.js";
 import { CustomerAvatarController } from "./customer-avatar.controller.js";
 import type { CustomerAuthService } from "./customer-auth.service.js";
 import type { FastifyRequest } from "fastify";
@@ -272,6 +274,155 @@ describe.skipIf(!url)(
     afterAll(async () => {
       service?.onModuleDestroy();
       await db.$disconnect();
+    });
+    function reportsService() {
+      return new ContentReportsService(
+        db as PrismaService,
+        storage as unknown as ObjectStorageService,
+      );
+    }
+    async function reportedResult() {
+      const input = await inputs();
+      const run = await service.createRun(customer, input);
+      await complete();
+      await service.summary(customer);
+      const saved = await db.kioskTryOnRun.findUniqueOrThrow({
+        where: { id: run.id },
+      });
+      return { input, runId: run.id, resultAssetId: saved.resultAssetId! };
+    }
+    it("reports only owned generated results and makes concurrent retries idempotent", async () => {
+      const reports = reportsService();
+      const { input, resultAssetId } = await reportedResult();
+      const body = {
+        resultAssetId,
+        reason: "PRIVACY_NON_CONSENSUAL" as const,
+        comment: "  Synthetic feedback  ",
+      };
+      await expect(reports.submit(other, body)).rejects.toMatchObject({
+        status: 404,
+      });
+      await expect(
+        reports.submit(customer, {
+          ...body,
+          resultAssetId: input.personAssetId,
+        }),
+      ).rejects.toMatchObject({ status: 404 });
+      const [first, retry] = await Promise.all([
+        reports.submit(customer, body),
+        reports.submit(customer, body),
+      ]);
+      expect(retry).toEqual(first);
+      expect(await db.contentReport.count()).toBe(1);
+      expect(
+        await db.contentReport.findUnique({ where: { id: first.id } }),
+      ).toMatchObject({ comment: "Synthetic feedback", status: "NEW" });
+      await expect(
+        reports.submit(customer, { ...body, reason: "OTHER" }),
+      ).rejects.toMatchObject({ status: 409 });
+      await db.tryOnAsset.update({
+        where: { id: resultAssetId },
+        data: { expiresAt: new Date(Date.now() - 1000) },
+      });
+      expect(await reports.submit(customer, body)).toEqual(first);
+      await db.contentReport.deleteMany();
+      await expect(reports.submit(customer, body)).rejects.toMatchObject({
+        status: 404,
+      });
+      await expect(
+        reports.submit({ ...customer, securityVersion: 99 }, body),
+      ).rejects.toMatchObject({ status: 401 });
+    });
+    it("previews only the result, audits reviews and rejects conflicting review writes", async () => {
+      const reports = reportsService();
+      const { resultAssetId } = await reportedResult();
+      const actor = await db.user.create({
+        data: { id: randomUUID(), email: `${randomUUID()}@selfx.invalid` },
+      });
+      try {
+        const submitted = await reports.submit(customer, {
+          resultAssetId,
+          reason: "OTHER",
+          comment: "Synthetic report",
+        });
+        const detail = await reports.detail(submitted.id, actor.id);
+        expect(detail).toMatchObject({
+          imageAvailable: true,
+          status: "NEW",
+          version: 1,
+        });
+        expect(JSON.stringify(detail)).not.toMatch(
+          /storageKey|requestFingerprint|providerPrediction|personAsset|private-prediction/,
+        );
+        const preview = await reports.image(submitted.id, actor.id);
+        expect(preview.body).toEqual(photo);
+        expect(storage.readObject).toHaveBeenLastCalledWith(
+          expect.stringContaining("customer-mobile/results/"),
+          expect.any(Number),
+          expect.any(Number),
+        );
+        const updates = await Promise.allSettled([
+          reports.review(submitted.id, actor.id, {
+            status: "IN_REVIEW",
+            reviewNotes: "Checking",
+            version: 1,
+          }),
+          reports.review(submitted.id, actor.id, {
+            status: "DISMISSED",
+            reviewNotes: "Other review",
+            version: 1,
+          }),
+        ]);
+        expect(
+          updates.filter((entry) => entry.status === "fulfilled"),
+        ).toHaveLength(1);
+        expect(
+          updates.find((entry) => entry.status === "rejected"),
+        ).toMatchObject({ reason: { status: 409 } });
+        const current = await db.contentReport.findUniqueOrThrow({
+          where: { id: submitted.id },
+        });
+        const retry = {
+          status: current.status,
+          reviewNotes: current.reviewNotes!,
+          version: 1,
+        };
+        expect(await reports.review(submitted.id, actor.id, retry)).toEqual({
+          id: submitted.id,
+          version: 2,
+        });
+        expect(
+          await db.auditLog.count({
+            where: {
+              resourceId: submitted.id,
+              action: "CONTENT_REPORT_REVIEWED",
+            },
+          }),
+        ).toBe(1);
+        const page = await reports.list(
+          Object.assign(new ContentReportsQuery(), {
+            status: current.status,
+            reason: "OTHER",
+            pageSize: 1,
+          }),
+        );
+        expect(page).toMatchObject({ total: 1, page: 1, pageSize: 1 });
+        expect(page.data[0]).not.toHaveProperty("comment");
+        await db.tryOnAsset.update({
+          where: { id: resultAssetId },
+          data: { deletedAt: new Date() },
+        });
+        expect(await reports.detail(submitted.id, actor.id)).toMatchObject({
+          imageAvailable: false,
+        });
+        storage.readObject.mockClear();
+        await expect(
+          reports.image(submitted.id, actor.id),
+        ).rejects.toMatchObject({ status: 404 });
+        expect(storage.readObject).not.toHaveBeenCalled();
+      } finally {
+        await db.user.delete({ where: { id: actor.id } });
+      }
     });
     it("persists setup and copies only the owner's saved full-body into a consented temporary session", async () => {
       const photos = new CustomerProfilePhotoService(
@@ -775,6 +926,13 @@ describe.skipIf(!url)(
       await service.createRun(customer, { ...input, productId: product.id });
       await complete();
       await service.summary(customer);
+      const savedRun = await db.kioskTryOnRun.findFirstOrThrow({
+        where: { customerId: customer.id, status: "COMPLETED" },
+      });
+      const submitted = await reportsService().submit(customer, {
+        resultAssetId: savedRun.resultAssetId!,
+        reason: "OTHER",
+      });
       const purge = new StorePurgeService(
         db as PrismaService,
         storage as unknown as ObjectStorageService,
@@ -800,6 +958,15 @@ describe.skipIf(!url)(
       expect(consent.merchantResultAccess).toBe(true);
       expect(consent.withdrawnAt).not.toBeNull();
       expect((await service.summary(customer)).trial.remaining).toBe(3);
+      expect(
+        await db.contentReport.findUnique({ where: { id: submitted.id } }),
+      ).not.toBeNull();
+      expect(
+        await reportsService().list(new ContentReportsQuery()),
+      ).toMatchObject({ total: 1 });
+      expect(
+        await db.tryOnAsset.count({ where: { id: savedRun.resultAssetId! } }),
+      ).toBe(0);
       expect(
         (await db.customer.findUniqueOrThrow({ where: { id: customer.id } }))
           .status,

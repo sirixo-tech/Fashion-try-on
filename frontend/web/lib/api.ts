@@ -109,9 +109,21 @@ export async function selfxApi<T>(
   }
 }
 
+export function selfxApiBlob(
+  path: string,
+  init: RequestInit & { accessToken?: string | null } = {},
+): Promise<Blob> {
+  return executeSelfxApi<Blob>(
+    path,
+    { ...init, cache: "no-store" },
+    (response) => response.blob(),
+  );
+}
+
 async function executeSelfxApi<T>(
   path: string,
   init: RequestInit & { accessToken?: string | null },
+  readResponse: (response: Response) => Promise<T> = readJson,
 ): Promise<T> {
   const isAuthEndpoint = isAuthenticationEndpoint(path);
   const initialAccessToken = init.accessToken ?? null;
@@ -145,7 +157,7 @@ async function executeSelfxApi<T>(
         refreshedAccessToken,
       );
       if (retried.ok) {
-        return readJson<T>(retried);
+        return readResponse(retried);
       }
       if (
         isRecoverableAccessTokenFailure(await cloneErrorBody(retried), retried)
@@ -162,7 +174,7 @@ async function executeSelfxApi<T>(
     return throwSafeApiError(response);
   }
 
-  return readJson<T>(response);
+  return readResponse(response);
 }
 
 async function sendSelfxApiRequest(

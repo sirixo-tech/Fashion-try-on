@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CONTENT-REPORTS-1 — AI image reporting foundation (2026-11-23)
+
+Customers may report their own generated mobile results regardless of plan or
+payer. Authorized SelfX platform staff review reports and record assessments.
+Reports never expose original photos or extend image retention; account deletion
+removes report text and notes. This phase implements backend/admin only; mobile
+reporting remains the next phase. See `CONTENT-REPORTS-1.md`.
+
 ### Customer signup/reset feedback and code limits (2026-11-15)
 
 The user approves explicit customer account-existence feedback for signup and forgot password, accepting that it reveals registration status. Signup/verification and reset each allow five requests per email per 15 minutes, with a 60-second cooldown and existing IP/guess protections. Rejections return explicit errors and preserve earlier proofs/codes. See docs/CUSTOMER-AUTH-CODE-FEEDBACK.md; this supersedes earlier generic-response requirements for these flows only.

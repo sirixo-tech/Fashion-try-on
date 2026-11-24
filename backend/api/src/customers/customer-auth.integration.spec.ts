@@ -1088,6 +1088,20 @@ describe.skipIf(!url)(
           ip,
         ),
       ).rejects.toMatchObject({ status: 403 });
+      for (const owner of [first.customer, second.customer]) {
+        await db.contentReport.create({
+          data: {
+            id: createSelfxId(),
+            customerId: owner.id,
+            runId: createSelfxId(),
+            resultAssetId: createSelfxId(),
+            reason: "OTHER",
+            comment: "Synthetic private feedback",
+            reviewNotes: "Synthetic private notes",
+            requestFingerprint: "a".repeat(64),
+          },
+        });
+      }
       await auth.deleteAccount(
         bearer(first),
         { confirmation: "DELETE", password },
@@ -1108,6 +1122,16 @@ describe.skipIf(!url)(
           where: { customerId: first.customer.id },
         }),
       ).toBe(0);
+      expect(
+        await db.contentReport.count({
+          where: { customerId: first.customer.id },
+        }),
+      ).toBe(0);
+      expect(
+        await db.contentReport.count({
+          where: { customerId: second.customer.id },
+        }),
+      ).toBe(1);
       expect(await auth.me(bearer(second))).toHaveProperty(
         "email",
         "second@selfx.invalid",
