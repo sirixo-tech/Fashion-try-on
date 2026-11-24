@@ -1,5 +1,12 @@
 ## Document Evolution
 
+### CONTENT-REPORTS-2 — Mobile generated-image reporting (2026-11-24)
+
+Add the approved Report action beside New Try-On, plus reporting on saved-look
+details and alternate results. Customers select a reason and optionally comment,
+submit within the app and receive a confirmed receipt or actionable retry state.
+Reporting is available across trial, paid and Store-sponsored results. See `CONTENT-REPORTS-2.md`.
+
 ### CONTENT-REPORTS-1 — AI image reporting foundation (2026-11-23)
 
 Customers may report their own generated mobile results regardless of plan or

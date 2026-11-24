@@ -10,6 +10,7 @@ import 'customer_demo_catalog.dart';
 import 'customer_experience_screens.dart';
 import 'customer_generating_look.dart';
 import 'customer_result_suggestions.dart';
+import 'customer_content_report.dart';
 import 'customer_theme.dart';
 
 /// A compact entry point for personal Try-On; the shared experience owns all
@@ -414,15 +415,10 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                                     compact: true,
                                   ),
                                   const SizedBox(height: 8),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: FilledButton.icon(
-                                      onPressed: blocked ? null : primaryAction,
-                                      icon: const Icon(
-                                        Icons.auto_awesome_rounded,
-                                      ),
-                                      label: const CustomerText('New Try-On'),
-                                    ),
+                                  CustomerResultActions(
+                                    experience: exp,
+                                    result: CustomerPhoto.fromJson(result),
+                                    onNewTryOn: blocked ? null : primaryAction,
                                   ),
                                 ],
                               ),

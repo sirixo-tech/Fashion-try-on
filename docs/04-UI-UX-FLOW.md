@@ -1,5 +1,12 @@
 ## Document Evolution
 
+### CONTENT-REPORTS-2 — Report button and in-app form (2026-11-24)
+
+Match the reference's orange New Try-On and outlined flag/Report row. Reuse one
+localized scrolling form on current and saved result screens, with explicit
+sending, success, duplicate and retry states. Adapt to small screens, keyboards,
+large text and RTL. See `CONTENT-REPORTS-2.md`.
+
 ### CONTENT-REPORTS-1 — Content Reports workspace (2026-11-23)
 
 Add a permission-filtered platform sidebar item and shared-component report list

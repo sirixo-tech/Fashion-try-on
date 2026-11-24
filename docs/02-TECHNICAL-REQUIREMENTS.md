@@ -1,5 +1,12 @@
 ## Document Evolution
 
+### CONTENT-REPORTS-2 — Mobile reporting integration (2026-11-24)
+
+Reuse customer bearer authentication/session refresh and the existing reporting
+endpoint. Send only result asset ID, stable reason and optional comment; validate
+the receipt before showing success. Never upload another image copy or invoke
+providers. Existing backend authorization/retention apply. See `CONTENT-REPORTS-2.md`.
+
 ### CONTENT-REPORTS-1 — Reporting API and authorization (2026-11-23)
 
 Add customer-owned, rate-limited, duplicate-safe report submission and paginated

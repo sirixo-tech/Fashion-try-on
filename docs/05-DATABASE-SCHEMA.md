@@ -1,5 +1,11 @@
 ## Document Evolution
 
+### CONTENT-REPORTS-2 — Reuse existing report persistence (2026-11-24)
+
+The mobile reporting flow uses CONTENT-REPORTS-1 records and adds no schema or
+image persistence. Deployment of the existing content-report migration remains
+required. See `CONTENT-REPORTS-2.md`.
+
 ### CONTENT-REPORTS-1 — Content report records (2026-11-23)
 
 Migration `20261123000000_content_reports` adds customer-owned ContentReport,

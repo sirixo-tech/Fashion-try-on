@@ -12,6 +12,7 @@ import '../experience/customer_experience.dart';
 import '../experience/customer_media.dart';
 import '../experience/result_export.dart';
 import 'customer_theme.dart';
+import 'customer_content_report.dart';
 import 'customer_skeleton.dart';
 import 'customer_demo_catalog.dart';
 import 'customer_generating_look.dart';
@@ -1521,6 +1522,12 @@ class _CustomerStudioState extends State<CustomerStudio> {
                       icon: const Icon(Icons.download_rounded),
                       label: const CustomerText('Download look'),
                     ),
+                    const SizedBox(height: 8),
+                    CustomerReportButton(
+                      experience: exp,
+                      result: CustomerPhoto.fromJson(result),
+                      disabled: picking || exp.busy,
+                    ),
                     CustomerResultSuggestions(
                       experience: exp,
                       disabled: picking || exp.busy,
@@ -2697,6 +2704,12 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
         CustomerText(
           'Available until ${_date(context, widget.look.expiresAt)}',
           textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 24),
+        CustomerReportButton(
+          experience: widget.experience,
+          result: widget.look.result,
+          disabled: busy,
         ),
         const SizedBox(height: 24),
         if (widget.look.person != null || widget.look.outfit != null) ...[

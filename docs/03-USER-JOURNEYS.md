@@ -1,5 +1,11 @@
 ## Document Evolution
 
+### CONTENT-REPORTS-2 — Customer report submission (2026-11-24)
+
+From a completed result or saved-look details, open Report, choose a reason,
+optionally comment and submit. Confirmed submissions reach the platform review
+queue; failures retain input for retry. See `CONTENT-REPORTS-2.md`.
+
 ### CONTENT-REPORTS-1 — Platform report review (2026-11-23)
 
 Authorized platform staff open Content Reports, filter/paginate reports, inspect

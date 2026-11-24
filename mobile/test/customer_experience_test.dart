@@ -568,8 +568,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Your look'), findsOneWidget);
-    expect(find.text('Download'), findsOneWidget);
-    expect(find.text('View in Saved'), findsOneWidget);
+    expect(find.text('New Try-On'), findsOneWidget);
+    expect(find.text('Report'), findsOneWidget);
+    expect(find.text('Download'), findsNothing);
+    expect(find.text('View in Saved'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

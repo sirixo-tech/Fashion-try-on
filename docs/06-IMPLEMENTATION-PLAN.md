@@ -1,5 +1,12 @@
 ## Document Evolution
 
+### CONTENT-REPORTS-2 — Mobile reporting phase (2026-11-24)
+
+Implement the agreed mobile action placement, reporting form, API integration
+and localization. Verify submission/retry/privacy and responsive layouts with
+Flutter analysis/tests, then prepare the Android remediation build. Production
+acceptance and Play review require the deployed backend. See `CONTENT-REPORTS-2.md`.
+
 ### CONTENT-REPORTS-1 — Application-side reporting (2026-11-23)
 
 User-approved scope: database migration, customer submission API, platform-only
