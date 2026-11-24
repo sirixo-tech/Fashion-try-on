@@ -1,5 +1,9 @@
 # SelfX customer app — first milestone
 
+Source **0.13.2+18** fixes selected report-reason clipping, makes Cancel an
+outlined button, and automatically dismisses payment UI after server-confirmed
+success and credit refresh. See [the reporting and payment UI notes](../docs/CONTENT-REPORTS-2.md).
+
 Source **0.13.1+17** adds in-app generated-image reporting beside New Try-On,
 in saved-look details and in the alternate result view. The shared localized
 form submits to SelfX without leaving the app, preserves failed submissions for

@@ -194,7 +194,17 @@ class _ContentReportFormState extends State<_ContentReportForm> {
                   const SizedBox(height: 20),
                   DropdownButtonFormField<CustomerReportReason>(
                     isExpanded: true,
+                    isDense: false,
                     itemHeight: null,
+                    // Menu padding must not constrain the closed field's text.
+                    // Only the selected label contributes to the field height.
+                    selectedItemBuilder: (context) => [
+                      for (final item in CustomerReportReason.values)
+                        if (item == reason)
+                          CustomerText(item.label)
+                        else
+                          const SizedBox.shrink(),
+                    ],
                     decoration: InputDecoration(
                       labelText: tr(context, 'Reason'),
                     ),
@@ -244,7 +254,10 @@ class _ContentReportFormState extends State<_ContentReportForm> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  TextButton(
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(48, 56),
+                    ),
                     onPressed: sending ? null : () => Navigator.pop(context),
                     child: const CustomerText('Cancel'),
                   ),

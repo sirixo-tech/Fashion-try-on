@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:selfx_customer/src/auth/customer_api.dart';
@@ -79,7 +80,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> chooseOther(WidgetTester tester) async {
+  Future<void> chooseReason(WidgetTester tester, String label) async {
     await tester.ensureVisible(
       find.byType(DropdownButtonFormField<CustomerReportReason>),
     );
@@ -88,13 +89,35 @@ void main() {
       find.byType(DropdownButtonFormField<CustomerReportReason>),
     );
     await tester.pumpAndSettle();
+    final menu = find.byType(Scrollable).last;
+    final option = find.descendant(of: menu, matching: find.text(label));
     await tester.scrollUntilVisible(
-      find.text('Other'),
+      option,
       150,
       scrollable: find.byType(Scrollable).last,
     );
-    await tester.tap(find.text('Other').last);
     await tester.pumpAndSettle();
+    await tester.tap(option);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> chooseOther(WidgetTester tester) =>
+      chooseReason(tester, 'Other');
+
+  void expectSelectedTextVisible(WidgetTester tester, String label) {
+    final field = find.byType(DropdownButtonFormField<CustomerReportReason>);
+    final selected = find.descendant(of: field, matching: find.text(label));
+    final paragraph = tester.renderObject<RenderParagraph>(selected);
+    expect(
+      paragraph.size.height,
+      greaterThanOrEqualTo(
+        paragraph.getMaxIntrinsicHeight(paragraph.size.width) - .1,
+      ),
+    );
+    final fieldBounds = tester.getRect(field);
+    final textBounds = tester.getRect(selected);
+    expect(textBounds.top, greaterThanOrEqualTo(fieldBounds.top));
+    expect(textBounds.bottom, lessThanOrEqualTo(fieldBounds.bottom));
   }
 
   Future<void> submit(WidgetTester tester) async {
@@ -327,7 +350,9 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Cancel'))
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Cancel'),
+            )
             .onPressed,
         isNull,
       );
@@ -505,15 +530,11 @@ void main() {
     await tester.pumpAndSettle();
     final reason = find.byType(DropdownButtonFormField<CustomerReportReason>);
     expect(Directionality.of(tester.element(reason)), TextDirection.rtl);
-    await tester.tap(reason);
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text(catalog['Other']!),
-      150,
-      scrollable: find.byType(Scrollable).last,
+    await chooseReason(tester, catalog[CustomerReportReason.privacy.label]!);
+    expectSelectedTextVisible(
+      tester,
+      catalog[CustomerReportReason.privacy.label]!,
     );
-    await tester.tap(find.text(catalog['Other']!).last);
-    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text(catalog['Submit report']!));
     await tester.tap(find.text(catalog['Submit report']!));
     await tester.pumpAndSettle();
@@ -525,4 +546,59 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+  testWidgets(
+    'selected reasons keep their full text height without menu padding',
+    (tester) async {
+      await openForm(tester);
+      for (final reason in CustomerReportReason.values) {
+        await chooseReason(tester, reason.label);
+        expectSelectedTextVisible(tester, reason.label);
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets('a long selected reason remains visible with large text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: customerTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: CustomerReportButton(experience: experience, result: photo),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Report'));
+    await tester.pumpAndSettle();
+    await chooseReason(tester, CustomerReportReason.privacy.label);
+    expectSelectedTextVisible(tester, CustomerReportReason.privacy.label);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets(
+    'Cancel is a full-width outlined action that closes without submitting',
+    (tester) async {
+      await openForm(tester);
+      final cancel = find.widgetWithText(OutlinedButton, 'Cancel');
+      final submit = find.widgetWithText(FilledButton, 'Submit report');
+      expect(tester.getSize(cancel), tester.getSize(submit));
+      await tester.ensureVisible(cancel);
+      await tester.tap(cancel);
+      await tester.pumpAndSettle();
+      expect(find.text('Report this image'), findsNothing);
+      expect(
+        api.calls.where((call) => call.path == '/content-reports'),
+        isEmpty,
+      );
+    },
+  );
 }

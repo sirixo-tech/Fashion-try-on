@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### Mobile payment completion and report-form refinements (2026-11-24)
+
+After server-confirmed payment and successful credit/plan refresh, close only
+that purchase's payment/leave dialogs, stop its countdown and show one brief
+confirmation. Pending or failed payments never imply success. The report reason
+field uses unpadded, adaptive selected text while preserving its styling; Cancel
+is a full-width outlined action, disabled during submission. See `CONTENT-REPORTS-2.md`.
+
 ### CONTENT-REPORTS-2 — Report button and in-app form (2026-11-24)
 
 Match the reference's orange New Try-On and outlined flag/Report row. Reuse one

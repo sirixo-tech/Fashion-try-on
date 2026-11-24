@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../experience/customer_experience.dart';
+import '../auth/customer_api.dart';
 import '../experience/customer_media.dart';
 import '../experience/result_export.dart';
 import 'customer_theme.dart';
@@ -192,6 +193,10 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
   Timer? paymentClock;
   final ValueNotifier<DateTime> paymentNow = ValueNotifier(DateTime.now());
   String? expiredCheckedId;
+  final _completedPaymentIds = <String>{};
+  ModalRoute<void>? _paymentDialogRoute;
+  ModalRoute<bool>? _leavePaymentRoute;
+  String? _paymentDialogPurchaseId;
 
   DateTime? get paymentExpiry =>
       DateTime.tryParse(purchase?['expiresAt'] as String? ?? '');
@@ -234,6 +239,12 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
     WidgetsBinding.instance.addObserver(this);
     mobilePlans = widget.experience.auth.authorized('/mobile-plans');
     unawaited(loadPending());
+  }
+
+  void syncPaymentClock() {
+    paymentClock?.cancel();
+    paymentClock = null;
+    if (!paymentOpen) return;
     paymentClock = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || !paymentOpen) return;
       paymentNow.value = DateTime.now();
@@ -259,7 +270,9 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && purchase != null) {
+    if (state == AppLifecycleState.resumed &&
+        purchase != null &&
+        !_completedPaymentIds.contains(purchase?['id'])) {
       unawaited(checkPayment());
     }
   }
@@ -296,6 +309,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
       );
       if (!mounted) return;
       setState(() => purchase = next);
+      syncPaymentClock();
       await showPaymentOptions();
     } catch (error) {
       if (mounted) setState(() => paymentError = error.toString());
@@ -305,6 +319,11 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
   }
 
   Future<void> showPaymentOptions() async {
+    if (purchase?['status'] == 'PAID') {
+      await completePaidPayment(purchase!);
+      return;
+    }
+    if (_paymentDialogPurchaseId != null) return;
     if (purchase?['status'] == 'CANCELLING') {
       if (mounted) {
         setState(
@@ -339,230 +358,250 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
     }
     final isUpi = Uri.tryParse(checkout)?.scheme == 'upi';
     Uint8List? qr;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop || cancellingPayment) return;
-          if (paymentOpen) {
-            unawaited(confirmLeavePayment(dialogContext));
-          } else {
-            closePaymentDialog(dialogContext);
-          }
-        },
-        child: ValueListenableBuilder<DateTime>(
-          valueListenable: paymentNow,
-          builder: (context, _, child) => AlertDialog(
-            title: CustomerText(isUpi ? 'UPI payment' : 'Complete payment'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (expiresAt != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: CustomerColors.orange.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: CustomerText(
-                        'Time left  ${remainingTime(expiresAt)}',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  const SizedBox(height: 10),
-                  if (purchase?['amountMinor'] is num)
-                    CustomerText(
-                      'Total: ${intl.NumberFormat.simpleCurrency(name: purchase?['currency'] as String? ?? 'INR').format((purchase!['amountMinor'] as num) / 100)}',
-                    ),
-                  const SizedBox(height: 16),
-                  if (purchase?['status'] == 'PAID')
-                    const CustomerText(
-                      'Payment confirmed. Your credits are ready.',
-                      textAlign: TextAlign.center,
-                    )
-                  else if (purchase?['status'] == 'FAILED')
-                    const CustomerText(
-                      'Payment failed. You can try again.',
-                      textAlign: TextAlign.center,
-                    )
-                  else if (purchase?['status'] == 'CANCELLING')
-                    const CustomerText(
-                      'PhonePe is confirming this payment. Check its status shortly.',
-                      textAlign: TextAlign.center,
-                    )
-                  else if (expiresAt != null &&
-                      !expiresAt.isAfter(DateTime.now()))
-                    const CustomerText(
-                      'Payment time ended. Check its status before trying again.',
-                      textAlign: TextAlign.center,
-                    ),
-                  if (purchase?['status'] == 'PENDING' &&
-                      !cancellingPayment &&
-                      isUpi &&
-                      Platform.isAndroid &&
-                      (expiresAt == null ||
-                          expiresAt.isAfter(DateTime.now()))) ...[
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 10,
-                                horizontal: 6,
-                              ),
+    _paymentDialogPurchaseId = id;
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          _paymentDialogRoute = ModalRoute.of<void>(dialogContext);
+          return PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, _) {
+              if (didPop || cancellingPayment) return;
+              if (paymentOpen) {
+                unawaited(confirmLeavePayment(dialogContext));
+              } else {
+                closePaymentDialog(dialogContext);
+              }
+            },
+            child: ValueListenableBuilder<DateTime>(
+              valueListenable: paymentNow,
+              builder: (context, _, child) => AlertDialog(
+                title: CustomerText(isUpi ? 'UPI payment' : 'Complete payment'),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (paymentOpen && expiresAt != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: CustomerColors.orange.withValues(
+                              alpha: 0.10,
                             ),
-                            onPressed: () async {
-                              try {
-                                qr ??= await widget.experience.auth
-                                    .authorizedDownload(
-                                      '/mobile-payments/$id/qr',
-                                    );
-                                await upiChannel.invokeMethod<bool>('shareQr', {
-                                  'uri': checkout,
-                                  'png': qr,
-                                });
-                              } catch (_) {
-                                if (dialogContext.mounted) {
-                                  ScaffoldMessenger.of(
-                                    dialogContext,
-                                  ).showSnackBar(
-                                    const SnackBar(
-                                      content: CustomerText(
-                                        'Payment QR could not be shared.',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            child: const Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.share_outlined, size: 21),
-                                SizedBox(height: 4),
-                                CustomerText(
-                                  'Share QR',
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: CustomerText(
+                            'Time left  ${remainingTime(expiresAt)}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 10,
-                                horizontal: 6,
+                      const SizedBox(height: 10),
+                      if (purchase?['amountMinor'] is num)
+                        CustomerText(
+                          'Total: ${intl.NumberFormat.simpleCurrency(name: purchase?['currency'] as String? ?? 'INR').format((purchase!['amountMinor'] as num) / 100)}',
+                        ),
+                      const SizedBox(height: 16),
+                      if (purchase?['status'] == 'PAID') ...[
+                        if (paymentError != null)
+                          CustomerNotice(paymentError!, error: true),
+                        TextButton(
+                          onPressed: checking
+                              ? null
+                              : () => unawaited(checkPayment()),
+                          child: CustomerText(
+                            checking ? 'Checking…' : 'Check payment',
+                          ),
+                        ),
+                      ] else if (purchase?['status'] == 'FAILED')
+                        const CustomerText(
+                          'Payment failed. You can try again.',
+                          textAlign: TextAlign.center,
+                        )
+                      else if (purchase?['status'] == 'CANCELLING')
+                        const CustomerText(
+                          'PhonePe is confirming this payment. Check its status shortly.',
+                          textAlign: TextAlign.center,
+                        )
+                      else if (expiresAt != null &&
+                          !expiresAt.isAfter(DateTime.now()))
+                        const CustomerText(
+                          'Payment time ended. Check its status before trying again.',
+                          textAlign: TextAlign.center,
+                        ),
+                      if (purchase?['status'] == 'PENDING' &&
+                          !cancellingPayment &&
+                          isUpi &&
+                          Platform.isAndroid &&
+                          (expiresAt == null ||
+                              expiresAt.isAfter(DateTime.now()))) ...[
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 6,
+                                  ),
+                                ),
+                                onPressed: () async {
+                                  try {
+                                    qr ??= await widget.experience.auth
+                                        .authorizedDownload(
+                                          '/mobile-payments/$id/qr',
+                                        );
+                                    await upiChannel.invokeMethod<bool>(
+                                      'shareQr',
+                                      {'uri': checkout, 'png': qr},
+                                    );
+                                  } catch (_) {
+                                    if (dialogContext.mounted) {
+                                      ScaffoldMessenger.of(
+                                        dialogContext,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: CustomerText(
+                                            'Payment QR could not be shared.',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                child: const Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.share_outlined, size: 21),
+                                    SizedBox(height: 4),
+                                    CustomerText(
+                                      'Share QR',
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                            onPressed: () async {
-                              try {
-                                await upiChannel.invokeMethod<bool>(
-                                  'shareLink',
-                                  {'uri': checkout},
-                                );
-                              } catch (_) {
-                                if (dialogContext.mounted) {
-                                  ScaffoldMessenger.of(
-                                    dialogContext,
-                                  ).showSnackBar(
-                                    const SnackBar(
-                                      content: CustomerText(
-                                        'Payment link could not be shared.',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            child: const Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.link_rounded, size: 21),
-                                SizedBox(height: 4),
-                                CustomerText(
-                                  'Share as link',
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 6,
+                                  ),
                                 ),
-                              ],
+                                onPressed: () async {
+                                  try {
+                                    await upiChannel.invokeMethod<bool>(
+                                      'shareLink',
+                                      {'uri': checkout},
+                                    );
+                                  } catch (_) {
+                                    if (dialogContext.mounted) {
+                                      ScaffoldMessenger.of(
+                                        dialogContext,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: CustomerText(
+                                            'Payment link could not be shared.',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                child: const Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.link_rounded, size: 21),
+                                    SizedBox(height: 4),
+                                    CustomerText(
+                                      'Share as link',
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
-                    ),
-                  ],
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed:
-                          purchase?['status'] != 'PENDING' ||
-                              cancellingPayment ||
-                              (expiresAt != null &&
-                                  !expiresAt.isAfter(DateTime.now()))
-                          ? null
-                          : () async {
-                              bool opened = false;
-                              try {
-                                opened = await launchUrl(
-                                  Uri.parse(checkout),
-                                  mode: LaunchMode.externalApplication,
-                                );
-                              } catch (_) {
-                                opened = false;
-                              }
-                              if (!opened && dialogContext.mounted) {
-                                ScaffoldMessenger.of(
-                                  dialogContext,
-                                ).showSnackBar(
-                                  SnackBar(
-                                    content: CustomerText(
-                                      isUpi
-                                          ? 'UPI payment could not be opened.'
-                                          : 'PhonePe checkout could not be opened.',
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                      child: CustomerText(
-                        isUpi ? 'Pay through UPI' : 'Open PhonePe checkout',
+                      const SizedBox(height: 18),
+                      if (paymentOpen)
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed:
+                                purchase?['status'] != 'PENDING' ||
+                                    cancellingPayment ||
+                                    (expiresAt != null &&
+                                        !expiresAt.isAfter(DateTime.now()))
+                                ? null
+                                : () async {
+                                    bool opened = false;
+                                    try {
+                                      opened = await launchUrl(
+                                        Uri.parse(checkout),
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    } catch (_) {
+                                      opened = false;
+                                    }
+                                    if (!opened && dialogContext.mounted) {
+                                      ScaffoldMessenger.of(
+                                        dialogContext,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: CustomerText(
+                                            isUpi
+                                                ? 'UPI payment could not be opened.'
+                                                : 'PhonePe checkout could not be opened.',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
+                            child: CustomerText(
+                              isUpi
+                                  ? 'Pay through UPI'
+                                  : 'Open PhonePe checkout',
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 4),
+                      TextButton(
+                        onPressed: cancellingPayment
+                            ? null
+                            : paymentOpen
+                            ? () => confirmLeavePayment(dialogContext)
+                            : () => closePaymentDialog(dialogContext),
+                        child: CustomerText(
+                          cancellingPayment
+                              ? 'Cancelling payment…'
+                              : paymentOpen
+                              ? 'Leave payment'
+                              : 'Done',
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  TextButton(
-                    onPressed: cancellingPayment
-                        ? null
-                        : paymentOpen
-                        ? () => confirmLeavePayment(dialogContext)
-                        : () => closePaymentDialog(dialogContext),
-                    child: CustomerText(
-                      cancellingPayment
-                          ? 'Cancelling payment…'
-                          : paymentOpen
-                          ? 'Leave payment'
-                          : 'Done',
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
-      ),
-    );
+          );
+        },
+      );
+    } finally {
+      _paymentDialogRoute = null;
+      _paymentDialogPurchaseId = null;
+    }
   }
 
   Future<void> confirmLeavePayment(BuildContext dialogContext) async {
@@ -572,45 +611,48 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
       final leave = await showModalBottomSheet<bool>(
         context: dialogContext,
         isScrollControlled: true,
-        builder: (sheetContext) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                CustomerText(
-                  'Leave payment?',
-                  style: Theme.of(sheetContext).textTheme.titleLarge,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                const CustomerText(
-                  'We will ask PhonePe to cancel this payment. If it has already been paid, your credits will still be added.',
-                  textAlign: TextAlign.center,
-                ),
-                if (paymentExpiry != null &&
-                    paymentExpiry!.isAfter(DateTime.now())) ...[
-                  const SizedBox(height: 10),
+        builder: (sheetContext) {
+          _leavePaymentRoute = ModalRoute.of<bool>(sheetContext);
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                   CustomerText(
-                    'QR time left  ${remainingTime(paymentExpiry!)}',
+                    'Leave payment?',
+                    style: Theme.of(sheetContext).textTheme.titleLarge,
                     textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 12),
+                  const CustomerText(
+                    'We will ask PhonePe to cancel this payment. If it has already been paid, your credits will still be added.',
+                    textAlign: TextAlign.center,
+                  ),
+                  if (paymentExpiry != null &&
+                      paymentExpiry!.isAfter(DateTime.now())) ...[
+                    const SizedBox(height: 10),
+                    CustomerText(
+                      'QR time left  ${remainingTime(paymentExpiry!)}',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  const SizedBox(height: 22),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(sheetContext, false),
+                    child: const CustomerText('Continue payment'),
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(sheetContext, true),
+                    child: const CustomerText('Leave payment'),
+                  ),
                 ],
-                const SizedBox(height: 22),
-                FilledButton(
-                  onPressed: () => Navigator.pop(sheetContext, false),
-                  child: const CustomerText('Continue payment'),
-                ),
-                const SizedBox(height: 14),
-                OutlinedButton(
-                  onPressed: () => Navigator.pop(sheetContext, true),
-                  child: const CustomerText('Leave payment'),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       );
       if (leave != true || !dialogContext.mounted) return;
       final id = purchase?['id'] as String?;
@@ -624,12 +666,9 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
         );
         if (!mounted || !dialogContext.mounted) return;
         setState(() => purchase = next);
+        syncPaymentClock();
         if (next['status'] == 'PAID') {
-          try {
-            await refresh();
-          } catch (_) {
-            // Payment remains confirmed; the balance can refresh later.
-          }
+          await completePaidPayment(next);
         }
         if (!dialogContext.mounted) return;
         if ([
@@ -666,6 +705,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
       }
     } finally {
       confirmingLeave = false;
+      _leavePaymentRoute = null;
     }
   }
 
@@ -681,8 +721,14 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
       final latest = await widget.experience.auth.authorized(
         '/mobile-payments',
       );
-      if (mounted && latest['purchase'] is Map<String, dynamic>) {
+      if (mounted &&
+          purchase == null &&
+          latest['purchase'] is Map<String, dynamic>) {
         setState(() => purchase = latest['purchase'] as Json);
+        if (purchase?['status'] == 'PAID' && purchase?['id'] is String) {
+          _completedPaymentIds.add(purchase!['id'] as String);
+        }
+        syncPaymentClock();
         paymentNow.value = DateTime.now();
       }
     } catch (_) {
@@ -703,20 +749,73 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
       );
       if (!mounted) return null;
       setState(() => purchase = next);
+      syncPaymentClock();
       paymentNow.value = DateTime.now();
-      if (next['status'] == 'PAID') await refresh();
+      if (next['status'] == 'PAID') await completePaidPayment(next);
       return next;
     } catch (error) {
       if (mounted) setState(() => paymentError = error.toString());
       return null;
     } finally {
-      if (mounted) setState(() => checking = false);
+      if (mounted) {
+        setState(() => checking = false);
+        paymentNow.value = DateTime.now();
+      }
+    }
+  }
+
+  Future<void> completePaidPayment(Json confirmed) async {
+    final id = confirmed['id'] as String?;
+    final owner = widget.experience.auth.profile?.id;
+    if (!mounted ||
+        owner == null ||
+        id == null ||
+        confirmed['status'] != 'PAID' ||
+        purchase?['id'] != id) {
+      return;
+    }
+    syncPaymentClock();
+    if (!_completedPaymentIds.contains(id)) {
+      await refresh();
+      if (!mounted ||
+          purchase?['id'] != id ||
+          widget.experience.auth.profile?.id != owner) {
+        return;
+      }
+      // refresh() retains retryable experience errors rather than throwing.
+      final balanceError = widget.experience.error;
+      if (balanceError != null) {
+        throw CustomerApiException(
+          'PAYMENT_BALANCE_REFRESH_FAILED',
+          balanceError,
+        );
+      }
+    }
+    if (_paymentDialogPurchaseId == id) {
+      // Remove only this purchase's routes, even if another route is on top.
+      for (final route in <ModalRoute<dynamic>?>[
+        _leavePaymentRoute,
+        _paymentDialogRoute,
+      ]) {
+        if (route != null && route.isActive) {
+          route.navigator?.removeRoute(route);
+        }
+      }
+    }
+    if (_completedPaymentIds.add(id)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: CustomerText('Payment confirmed. Your credits are ready.'),
+        ),
+      );
     }
   }
 
   Future<void> refresh() async {
     final next = widget.experience.auth.authorized('/mobile-plans');
-    setState(() => mobilePlans = next);
+    setState(() {
+      mobilePlans = next;
+    });
     await Future.wait([widget.experience.refresh(), next]);
   }
 

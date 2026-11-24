@@ -5,6 +5,37 @@ CONTENT-REPORTS-1 customer endpoint and platform review queue.
 
 ## Customer experience
 
+### Follow-up UI fixes, version 0.13.2+18
+
+The selected reason now has a separate, unpadded layout and an adaptive field
+height, preserving the existing label, orange focus border, white background,
+rounded corners and arrow. Only the chosen label contributes to field height.
+Menu rows keep their padding. Cancel is now a full-width outlined button with
+the primary action's minimum height; it remains disabled during submission.
+
+The Plans & credits payment dialog now closes automatically after the backend
+reports PAID and credits/plans refresh successfully. This stops the countdown
+and shows the existing localized confirmation once per purchase. Returning from
+a UPI app alone is insufficient. Pending/unknown/failure states retain their
+status UI. Failed refreshes retain a retry action. Completion removes only the
+owned payment and leave-payment routes, handles settlement during cancellation,
+and ignores late/disposed or changed-account completion. A subsequent purchase
+starts its own countdown. Payment verification and credit grants remain on the
+unchanged backend. No new persistence or API contract is introduced.
+
+Verification: 31 focused reporting/payment tests passed, including actual
+selected-text height checks for every reason, long labels, large text and Arabic
+RTL, plus pending/failed responses, delayed/failed refresh, duplicate/resumed
+completion, cancellation settlement and navigation/account changes. These are
+simulated payment checks, not real transactions.
+
+Flutter analysis passed with no issues. The signed 0.13.2 (18) Android App
+Bundle was built successfully and its JAR signature verified. Output:
+`mobile/build/app/outputs/bundle/release/app-release.aab` (76,041,905 bytes).
+No Play Console upload was performed.
+
+### Original reporting rollout
+
 - The completed Quick Try-On result keeps the orange New Try-On action and
   adds an outlined dark Report action with a flag on its right, matching the
   approved reference. Small viewports and larger text may stack the actions.
