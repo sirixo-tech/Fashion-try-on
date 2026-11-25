@@ -36,8 +36,9 @@ import { demoCatalog } from "./customer-demo-catalog.js";
 import { CUSTOMER_LANGUAGES } from "./customer-languages.js";
 
 export class CustomerPhotoSessionDto {
-  @IsBoolean() consentAccepted!: boolean;
-  @IsString() @MaxLength(40) consentVersion!: string;
+  // Older app versions still submit explicit photo-sheet acceptance.
+  @IsOptional() @IsBoolean() consentAccepted?: boolean;
+  @IsOptional() @IsString() @MaxLength(40) consentVersion?: string;
   @IsOptional() @IsIn(CUSTOMER_LANGUAGES) consentLanguage?: string;
   @IsOptional() @IsUUID() storeVisitId?: string;
 }

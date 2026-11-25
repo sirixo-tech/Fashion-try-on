@@ -225,6 +225,7 @@ export class CustomerExperienceService
       current.securityVersion !== customer.securityVersion
     )
       fail("CUSTOMER_SESSION_INVALID", "Sign in again to continue.", 401);
+    return current;
   }
   private async account(tx: Tx, customerId: string) {
     const plan = await tx.pricingPlan.findUnique({
@@ -300,15 +301,18 @@ export class CustomerExperienceService
   async createSession(
     customer: Principal,
     input: {
-      consentAccepted: boolean;
-      consentVersion: string;
+      consentAccepted?: boolean;
+      consentVersion?: string;
       consentLanguage?: string;
       storeVisitId?: string;
     },
   ) {
+    const explicitPhotoConsent =
+      input.consentAccepted !== undefined || input.consentVersion !== undefined;
     if (
-      input.consentAccepted !== true ||
-      input.consentVersion !== CUSTOMER_PHOTO_CONSENT_VERSION
+      explicitPhotoConsent &&
+      (input.consentAccepted !== true ||
+        input.consentVersion !== CUSTOMER_PHOTO_CONSENT_VERSION)
     )
       fail(
         "CUSTOMER_PHOTO_CONSENT_REQUIRED",
@@ -330,18 +334,42 @@ export class CustomerExperienceService
       : "en";
     const copy = customerNotificationCopy(language);
     const consent = await this.db.$transaction(async (tx) => {
-      await this.lockCustomer(tx, customer);
+      const current = await this.lockCustomer(tx, customer);
+      if (!current.termsVersion || !current.termsAcceptedAt)
+        fail(
+          "CUSTOMER_TERMS_REQUIRED",
+          "Accept the Terms and Privacy Policy when signing in.",
+        );
+      // Keep legacy sheet records unchanged. New apps reference the account's
+      // existing policy acceptance, including its original date; they do not
+      // claim the customer has accepted a new photo sheet or a translation.
+      const policyStatement =
+        `Consent basis: previously accepted Terms and Privacy Policy.\n` +
+        `Terms version: ${current.termsVersion}\n` +
+        `Terms accepted at: ${current.termsAcceptedAt.toISOString()}\n\n` +
+        "SelfX uploads and processes the photos the customer chooses for virtual Try-On. " +
+        "Original photos and outfit captures expire within 7 days. " +
+        "Mobile generated results expire within 30 days. Photos and results can be deleted earlier." +
+        (visit
+          ? " In this Store-sponsored Try-On, only eligible Store products can be tried on. The Store pays and can view the generated result; the original person photo remains private. Personal credits are not used as a fallback."
+          : "");
       return tx.customerPhotoConsent.create({
         data: {
           id: createSelfxId(),
           customerId: customer.id,
           storeVisitId: visit?.id,
           sponsoringStoreId: visit?.qr.organizationId,
-          version: CUSTOMER_PHOTO_CONSENT_VERSION,
-          statement:
-            CUSTOMER_PHOTO_CONSENT +
-            (visit ? ` ${CUSTOMER_STORE_CONSENT}` : "") +
-            `\n\nPresentation language: ${language}\nTranslation version: ${CUSTOMER_TRANSLATION_VERSION}\n${copy.photoConsent}${visit ? ` ${copy.storeConsent}` : ""}`,
+          version: explicitPhotoConsent
+            ? CUSTOMER_PHOTO_CONSENT_VERSION
+            : current.termsVersion,
+          statement: explicitPhotoConsent
+            ? CUSTOMER_PHOTO_CONSENT +
+              (visit ? ` ${CUSTOMER_STORE_CONSENT}` : "") +
+              `\n\nPresentation language: ${language}\nTranslation version: ${CUSTOMER_TRANSLATION_VERSION}\n${copy.photoConsent}${visit ? ` ${copy.storeConsent}` : ""}`
+            : policyStatement,
+          ...(explicitPhotoConsent
+            ? {}
+            : { acceptedAt: current.termsAcceptedAt }),
           merchantResultAccess: Boolean(visit),
         },
       });

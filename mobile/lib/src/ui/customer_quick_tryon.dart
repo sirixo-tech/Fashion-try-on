@@ -259,7 +259,7 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
         product: exp.storeMode ? item : null,
         demoProduct: exp.storeMode ? null : item,
         demoModelId: selectedModelId,
-        onConsentAccepted: () {
+        onSessionStarting: () {
           if (!mounted) return;
           setState(() {
             _startingSuggestedTryOn = true;
@@ -441,6 +441,8 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                                       photo: exp.person,
                                       bytes: exp.personPreview,
                                       icon: Icons.person_outline_rounded,
+                                      placeholderColor:
+                                          CustomerColors.personPlaceholder,
                                       assetPath: exp.demoModelId == null
                                           ? null
                                           : demoModelImage(exp.demoModelId!),
@@ -473,6 +475,16 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                                       photo: exp.outfit,
                                       bytes: exp.outfitPreview,
                                       icon: Icons.checkroom_outlined,
+                                      placeholderIcon: const Center(
+                                        child: SizedBox.square(
+                                          dimension: 30,
+                                          child: CustomPaint(
+                                            painter: _GarmentOutlinePainter(),
+                                          ),
+                                        ),
+                                      ),
+                                      placeholderColor:
+                                          CustomerColors.garmentPlaceholder,
                                       fallback: exp.product?['name'] as String?,
                                       imageUrl:
                                           (exp.product?['image']
@@ -643,6 +655,8 @@ class _PreviewCard extends StatelessWidget {
   final CustomerPhoto? photo;
   final Uint8List? bytes;
   final IconData icon;
+  final Color placeholderColor;
+  final Widget? placeholderIcon;
   final String? fallback;
   final String? imageUrl;
   final String? assetPath;
@@ -654,6 +668,8 @@ class _PreviewCard extends StatelessWidget {
     required this.photo,
     required this.bytes,
     required this.icon,
+    required this.placeholderColor,
+    this.placeholderIcon,
     this.fallback,
     this.imageUrl,
     this.assetPath,
@@ -661,6 +677,16 @@ class _PreviewCard extends StatelessWidget {
     this.onCamera,
     this.onRemove,
   });
+
+  ButtonStyle get _actionStyle => TextButton.styleFrom(
+    backgroundColor: CustomerColors.tint,
+    foregroundColor: CustomerColors.ink,
+    disabledBackgroundColor: CustomerColors.tint.withValues(alpha: .45),
+    disabledForegroundColor: CustomerColors.muted,
+    padding: const EdgeInsets.symmetric(horizontal: 2),
+    minimumSize: const Size(0, 32),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  );
 
   @override
   Widget build(BuildContext context) => Container(
@@ -709,7 +735,17 @@ class _PreviewCard extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(icon, size: 40, color: CustomerColors.muted),
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: placeholderColor,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child:
+                                  placeholderIcon ??
+                                  Icon(icon, size: 30, color: Colors.white),
+                            ),
                             if (fallback != null) ...[
                               const SizedBox(height: 8),
                               Text(
@@ -747,10 +783,7 @@ class _PreviewCard extends StatelessWidget {
               Expanded(
                 child: TextButton.icon(
                   onPressed: onUpload,
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    minimumSize: const Size(0, 32),
-                  ),
+                  style: _actionStyle,
                   icon: const Icon(Icons.file_upload_outlined, size: 15),
                   label: CustomerText(
                     imageUrl != null ? 'Choose' : 'Upload',
@@ -759,14 +792,12 @@ class _PreviewCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (onCamera != null)
+              if (onCamera != null) ...[
+                const SizedBox(width: 6),
                 Expanded(
                   child: TextButton.icon(
                     onPressed: onCamera,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      minimumSize: const Size(0, 32),
-                    ),
+                    style: _actionStyle,
                     icon: const Icon(Icons.camera_alt_outlined, size: 15),
                     label: const CustomerText(
                       'Camera',
@@ -775,10 +806,46 @@ class _PreviewCard extends StatelessWidget {
                     ),
                   ),
                 ),
+              ],
             ],
           ),
         ],
       ],
     ),
   );
+}
+
+class _GarmentOutlinePainter extends CustomPainter {
+  const _GarmentOutlinePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shirt = Path()
+      ..moveTo(10, 4)
+      ..lineTo(7, 4)
+      ..lineTo(1.5, 9.5)
+      ..lineTo(6, 14)
+      ..lineTo(9, 11.5)
+      ..lineTo(9, 26)
+      ..lineTo(21, 26)
+      ..lineTo(21, 11.5)
+      ..lineTo(24, 14)
+      ..lineTo(28.5, 9.5)
+      ..lineTo(23, 4)
+      ..lineTo(20, 4)
+      ..cubicTo(20, 9.5, 10, 9.5, 10, 4)
+      ..close();
+    canvas.drawPath(
+      shirt,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.8
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GarmentOutlinePainter oldDelegate) => false;
 }

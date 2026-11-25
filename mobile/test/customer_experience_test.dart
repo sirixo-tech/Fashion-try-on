@@ -577,28 +577,20 @@ void main() {
   });
 
   test(
-    'consent records the chosen language and falls back for an untranslated policy',
+    'starts Try-On without claiming a new photo-consent acceptance',
     () async {
       auth.language = 'ta';
       await exp.begin();
-      expect(
-        api.calls
-            .lastWhere((call) => call.path == '/try-on/sessions')
-            .body!['consentLanguage'],
-        'ta',
+      final request = api.calls.lastWhere(
+        (call) => call.path == '/try-on/sessions',
       );
-      exp.summary!['consentVersion'] = 'future-policy';
-      await exp.begin();
-      expect(
-        api.calls
-            .lastWhere((call) => call.path == '/try-on/sessions')
-            .body!['consentLanguage'],
-        'en',
-      );
+      expect(request.body, isEmpty);
+      expect(request.body!.containsKey('consentAccepted'), isFalse);
+      expect(request.body!.containsKey('consentLanguage'), isFalse);
     },
   );
   test(
-    'uses the personal free trial and records consent before photo upload',
+    'uses the personal free trial and creates a policy-backed session before upload',
     () async {
       expect(exp.remaining, 10);
       await photos();
@@ -606,11 +598,7 @@ void main() {
       final consent = api.calls.firstWhere(
         (call) => call.path == '/try-on/sessions',
       );
-      expect(consent.body, {
-        'consentAccepted': true,
-        'consentVersion': '2026-10-26',
-        'consentLanguage': 'en',
-      });
+      expect(consent.body, isEmpty);
       await exp.generate();
       final request = api.calls
           .lastWhere((call) => call.path == '/try-on/runs')
@@ -882,7 +870,7 @@ void main() {
     },
   );
   testWidgets(
-    'opens real plans, then requires consent before any camera or gallery selection',
+    'opens plans and uploads directly without a photo-consent popup',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -899,13 +887,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Try-On').first);
       await tester.pumpAndSettle();
-      expect(find.text('Your photos. Your choice.'), findsOneWidget);
+      expect(find.text('Your photos. Your choice.'), findsNothing);
+      expect(find.text('Agree & continue'), findsNothing);
       expect(picker.selections, 0);
       expect(api.uploads, isEmpty);
-      await tester.ensureVisible(find.text('Agree & continue'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Agree & continue'));
-      await tester.pumpAndSettle();
       expect(find.text('Person photo'), findsWidgets);
       await tester.tap(find.text('Upload').first);
       await tester.pumpAndSettle();

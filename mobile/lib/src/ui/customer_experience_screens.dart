@@ -86,7 +86,7 @@ Future<bool> prepareCustomerStudio(
   Json? product,
   Json? demoProduct,
   String? demoModelId,
-  VoidCallback? onConsentAccepted,
+  VoidCallback? onSessionStarting,
 }) async {
   if (!experience.generating && !experience.hasUncertainRequest) {
     if (!experience.available) {
@@ -106,54 +106,8 @@ Future<bool> prepareCustomerStudio(
       );
       return false;
     }
-    final accepted = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CustomerText(
-                'Your photos. Your choice.',
-                style: Theme.of(context).textTheme.headlineLarge,
-              ),
-              const SizedBox(height: 16),
-              CustomerText(experience.summary!['consentStatement'] as String),
-              if (experience.storeMode) ...[
-                const SizedBox(height: 16),
-                CustomerNotice(
-                  experience.summary!['storeConsentStatement'] as String,
-                ),
-              ],
-              const SizedBox(height: 16),
-              const CustomerText(
-                'Choose photos you own or have permission to use. Virtual Try-On is a visual preview; fit and detail can vary.',
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const CustomerText('Agree & continue'),
-                ),
-              ),
-              Center(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const CustomerText('Not now'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (accepted != true || !context.mounted) return false;
-    onConsentAccepted?.call();
+    if (!context.mounted) return false;
+    onSessionStarting?.call();
     await experience.begin(
       storeProduct: product,
       selectedDemoProduct: demoProduct,

@@ -1,5 +1,24 @@
 ## Document Evolution
 
+### Mobile Try-On photo policy relocation (2026-11-25)
+
+Remove the recurring photo-processing bottom sheet from mobile Try-On entry.
+Keep the Terms/Privacy checkbox wording and existing acceptance records. Detailed
+photo processing, retention and deletion live in Privacy; authorized-image use
+and preview limitations live in Terms. Sessions reference the account's recorded
+policy acceptance without a new prompt. See `CUSTOMER-PHOTO-POLICY-RELOCATION.md`
+for API compatibility and the externally hosted policy publication step.
+
+### Mobile Try-On photo-card styling (2026-11-25)
+
+Person and garment photo cards use separate soft-peach rounded Upload/Camera
+buttons. Empty slots show white person and shirt outlines in rounded orange and
+terracotta badges, respectively. Selected-photo previews retain their existing
+rendering and actions. The existing card and sample layouts remain unchanged.
+
+Verified with Flutter analysis, empty/selected-slot rendered previews and the
+existing consent/photo-selection regression test. Mobile version: 0.13.3+19.
+
 ### Mobile payment completion and report-form refinements (2026-11-24)
 
 After server-confirmed payment and successful credit/plan refresh, close only

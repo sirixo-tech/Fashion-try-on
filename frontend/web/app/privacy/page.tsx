@@ -77,17 +77,21 @@ export default function PrivacyPage() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Customer Images</h2>
           <p className="leading-7 text-muted-foreground">
-            Photos used for try-on and generated images are treated as sensitive
-            data. They are used only to provide the requested try-on experience
-            and related support. Customer person images, temporary provider
-            inputs and customer-session outfit captures expire within seven
-            days. Generated results saved by the SelfX customer mobile app
-            expire within 30 days of result creation. Generated results from
-            other channels retain the seven-day maximum. You can delete mobile
-            photos/results sooner from Me or Saved. Expired or deleted assets
-            lose application access; private download links have a short
-            lifetime and failed storage deletions are retried. A result you
-            explicitly download to your own device remains under your control.
+            When you choose photos for virtual try-on, SelfX uploads and
+            processes those photos to generate the preview you request. This
+            photo processing is covered by the Terms and Privacy Policy you
+            accept for your SelfX account. Photos used for try-on and generated
+            images are treated as sensitive data. They are used only to provide
+            the requested try-on experience and related support. Customer person
+            images, temporary provider inputs and customer-session outfit
+            captures expire within seven days. Generated results saved by the
+            SelfX customer mobile app expire within 30 days of result creation.
+            Generated results from other channels retain the seven-day maximum.
+            You can delete mobile photos/results sooner from Me or Saved.
+            Expired or deleted assets lose application access; private download
+            links have a short lifetime and failed storage deletions are
+            retried. A result you explicitly download to your own device remains
+            under your control.
           </p>
           <p className="leading-7 text-muted-foreground">
             Profile pictures are separate from try-on photos. New profile
@@ -101,11 +105,11 @@ export default function PrivacyPage() {
             If you choose to save an avatar, its selfie and full-body reference
             photos remain private to your account until replaced or deleted,
             including through Delete my photos or account deletion. Your saved
-            full-body reference is selected by default for clothing try-on;
-            you can choose another photo for an individual try-on without
-            replacing it. Temporary copies used for processing expire within
-            seven days. Saving a reference photo does not make it visible to
-            merchants or other customers.
+            full-body reference is selected by default for clothing try-on; you
+            can choose another photo for an individual try-on without replacing
+            it. Temporary copies used for processing expire within seven days.
+            Saving a reference photo does not make it visible to merchants or
+            other customers.
           </p>
         </section>
 
@@ -119,9 +123,10 @@ export default function PrivacyPage() {
             support account access and recovery. A Store QR session identifies
             the sponsoring Store before generation. Only eligible Store products
             use that Store’s allowance; personal credits are not an automatic
-            fallback. Explicit Store-session consent permits access to generated
-            results, not your original person photo. Durable consent and
-            non-image usage records may remain after image deletion.
+            fallback. When you start a Store-sponsored Try-On, that Store can
+            view the generated result; your original person photo remains
+            private from merchant staff. Durable consent and non-image usage
+            records may remain after image deletion.
           </p>
           <p className="leading-7 text-muted-foreground">
             If you choose phone sign-in, we store your verified phone number to

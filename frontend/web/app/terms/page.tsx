@@ -22,7 +22,7 @@ const sections = [
   ],
   [
     "Store QR sponsorship",
-    "A participating Store’s QR opens a Store-specific session with its eligible products and displayed limits. The Store is the payer for admitted Store-sponsored Try-Ons. Personal credits are not silently used if the Store’s allowance or daily limit is exhausted. The session and code can expire or be revoked. Store-session consent describes permitted access to generated results; original person photos remain private from merchant staff.",
+    "A participating Store’s QR opens a Store-specific session with its eligible products and displayed limits. The Store is the payer for admitted Store-sponsored Try-Ons. Personal credits are not silently used if the Store’s allowance or daily limit is exhausted. The session and code can expire or be revoked. When you start a Store-sponsored Try-On, the Store can view the generated result; original person photos remain private from merchant staff.",
   ],
   [
     "Photos, results and deletion",

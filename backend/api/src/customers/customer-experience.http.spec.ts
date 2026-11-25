@@ -363,6 +363,26 @@ describe("Customer photo HTTP and Store QR permission boundaries", () => {
       expect.any(String),
     );
   });
+  it("accepts a policy-backed session without a new photo-sheet claim", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/try-on/sessions",
+      payload: {},
+    });
+    expect(response.statusCode).toBe(201);
+    expect(experience.createSession).toHaveBeenCalledWith(
+      customer,
+      expect.objectContaining({}),
+    );
+    const input = experience.createSession.mock.calls[0]![1];
+    expect(input.consentAccepted).toBeUndefined();
+    expect(input.consentVersion).toBeUndefined();
+    expect(auth.limitExperience).toHaveBeenCalledWith(
+      "session",
+      customer.id,
+      expect.any(String),
+    );
+  });
   it("rejects JSON pretending to be a photo and authorizes upload first", async () => {
     expect(
       (

@@ -11,6 +11,8 @@ abstract final class CustomerColors {
   static const canvas = Color(0xFFFAF7F2);
   static const line = Color(0xFFE7E0D7);
   static const tint = Color(0xFFFFECE0);
+  static const personPlaceholder = Color(0xFFF28C45);
+  static const garmentPlaceholder = Color(0xFFBC6C4F);
 }
 
 ThemeData customerTheme([String language = 'en']) {

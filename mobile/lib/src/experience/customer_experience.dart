@@ -385,12 +385,7 @@ class CustomerExperience extends ChangeNotifier {
       '/try-on/sessions',
       method: 'POST',
       body: {
-        'consentAccepted': true,
-        'consentVersion': summary!['consentVersion'],
-        // A future policy without a bundled translation is displayed in English.
-        'consentLanguage': summary!['consentVersion'] == '2026-10-26'
-            ? auth.language
-            : 'en',
+        // The API uses the account's recorded Terms/Privacy acceptance.
         if (storeVisit != null) 'storeVisitId': storeVisit!['id'],
       },
     );

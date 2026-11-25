@@ -1,5 +1,9 @@
 # SelfX customer app — first milestone
 
+Source **0.13.3+19** adds soft-peach Upload/Camera button backgrounds and
+orange/terracotta person/shirt badges in empty Try-On photo slots. Card layout,
+photo selection, consent and uploaded previews retain their existing behavior.
+
 Source **0.13.2+18** fixes selected report-reason clipping, makes Cancel an
 outlined button, and automatically dismisses payment UI after server-confirmed
 success and credit refresh. See [the reporting and payment UI notes](../docs/CONTENT-REPORTS-2.md).
