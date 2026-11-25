@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "이 이미지를 신고하려면 다시 로그인해 주세요.",
   "We couldn't confirm your report. Please try again.": "신고 제출을 확인하지 못했습니다. 다시 시도해 주세요.",
   "Report offensive or unsafe AI-generated content to SelfX.": "불쾌하거나 안전하지 않은 AI 생성 콘텐츠를 SelfX에 신고하세요.",
-  "Keep your comment within 2,000 characters.": "의견은 2,000자 이내로 작성해 주세요."
+  "Keep your comment within 2,000 characters.": "의견은 2,000자 이내로 작성해 주세요.",
+  "Incorrect password. Try again or reset your password.": "비밀번호가 올바르지 않습니다. 다시 시도하거나 비밀번호를 재설정하세요.",
+  "Sign in with {p0} for this account, or reset your password.": "이 계정은 {p0}로 로그인하거나 비밀번호를 재설정하세요.",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "이 계정에는 비밀번호가 설정되어 있지 않습니다. 기존 로그인 방법을 사용하거나 비밀번호를 재설정하세요.",
+  "More than one account uses this number. Sign in with your email instead.": "여러 계정이 이 번호를 사용합니다. 이메일로 로그인하세요.",
+  "Sign in with email": "이메일로 로그인"
 }

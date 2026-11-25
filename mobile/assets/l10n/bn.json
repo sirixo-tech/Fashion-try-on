@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "এই ছবিটি রিপোর্ট করতে আবার সাইন ইন করুন।",
   "We couldn't confirm your report. Please try again.": "আপনার রিপোর্ট নিশ্চিত করা যায়নি। আবার চেষ্টা করুন।",
   "Report offensive or unsafe AI-generated content to SelfX.": "AI দিয়ে তৈরি আপত্তিকর বা অনিরাপদ বিষয়বস্তু SelfX-এ রিপোর্ট করুন।",
-  "Keep your comment within 2,000 characters.": "আপনার মন্তব্য ২,০০০ অক্ষরের মধ্যে রাখুন।"
+  "Keep your comment within 2,000 characters.": "আপনার মন্তব্য ২,০০০ অক্ষরের মধ্যে রাখুন।",
+  "Incorrect password. Try again or reset your password.": "পাসওয়ার্ড ভুল। আবার চেষ্টা করুন বা পাসওয়ার্ড রিসেট করুন।",
+  "Sign in with {p0} for this account, or reset your password.": "এই অ্যাকাউন্টে {p0} দিয়ে সাইন ইন করুন অথবা পাসওয়ার্ড রিসেট করুন।",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "এই অ্যাকাউন্টে কোনো পাসওয়ার্ড সেট করা নেই। আপনার বর্তমান সাইন-ইন পদ্ধতি ব্যবহার করুন বা পাসওয়ার্ড রিসেট করুন।",
+  "More than one account uses this number. Sign in with your email instead.": "একাধিক অ্যাকাউন্ট এই নম্বর ব্যবহার করে। পরিবর্তে আপনার ইমেল দিয়ে সাইন ইন করুন।",
+  "Sign in with email": "ইমেল দিয়ে সাইন ইন করুন"
 }

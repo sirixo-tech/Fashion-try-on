@@ -1067,7 +1067,7 @@ describe.skipIf(!url)(
         status: 401,
       });
       await expect(auth.login(email, password, ip)).rejects.toMatchObject({
-        status: 401,
+        status: 403,
       });
     });
     it("keeps profiles isolated and requires reauthentication before deleting/anonymizing an account", async () => {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import '../experience/customer_experience.dart';
@@ -391,6 +392,7 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                                               CustomerDemoProductScreen(
                                                 experience: exp,
                                                 product: product,
+                                                products: products,
                                                 models: exp.demoModels,
                                                 onTryOn: widget.onTryOn,
                                                 onUploadPerson:
@@ -603,6 +605,7 @@ String? _storeImageUrl(Json product) =>
 class CustomerDemoProductScreen extends StatefulWidget {
   final CustomerExperience experience;
   final Json product;
+  final List<Json> products;
   final List<Json> models;
   final Future<void> Function(Json product, String? modelId) onTryOn;
   final Future<void> Function(Json product, String? modelId) onUploadPerson;
@@ -610,6 +613,7 @@ class CustomerDemoProductScreen extends StatefulWidget {
     super.key,
     required this.experience,
     required this.product,
+    this.products = const [],
     required this.models,
     required this.onTryOn,
     required this.onUploadPerson,
@@ -623,15 +627,212 @@ class CustomerDemoProductScreen extends StatefulWidget {
 class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
   String? modelId;
   bool busy = false;
+  late final List<Json> _products;
+  late final PageController _productController;
+  late int _productIndex;
+
+  Json get _product => _products[_productIndex];
+
+  @override
+  void initState() {
+    super.initState();
+    final products = List<Json>.of(widget.products);
+    _productIndex = products.indexWhere(
+      (item) => item['id'] == widget.product['id'],
+    );
+    if (_productIndex < 0) {
+      products.insert(0, widget.product);
+      _productIndex = 0;
+    }
+    _products = List<Json>.unmodifiable(products);
+    _productController = PageController(initialPage: _productIndex);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _precacheNeighbours();
+  }
+
+  @override
+  void dispose() {
+    _productController.dispose();
+    super.dispose();
+  }
+
+  List<Json> _modelsFor(Json product) => widget.models.where((item) {
+    final category = product['category'];
+    return _modelImages.containsKey(item['id']) &&
+        (category != 'WOMEN' && category != 'MEN' ||
+            item['category'] == category);
+  }).toList();
+
+  void _precacheNeighbours() {
+    for (final index in [_productIndex - 1, _productIndex + 1]) {
+      if (index < 0 || index >= _products.length) continue;
+      final path = _productImages[_products[index]['id']];
+      if (path != null) {
+        unawaited(precacheImage(AssetImage(path), context, onError: (_, _) {}));
+      }
+    }
+  }
+
+  void _changeProduct(int index) {
+    setState(() {
+      _productIndex = index;
+      if (modelId != null &&
+          !_modelsFor(_product).any((model) => model['id'] == modelId)) {
+        modelId = null;
+      }
+    });
+    _precacheNeighbours();
+  }
+
+  void _browse(int offset) {
+    final index = _productIndex + offset;
+    if (busy || index < 0 || index >= _products.length) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _productController.jumpToPage(index);
+    } else {
+      unawaited(
+        _productController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    }
+  }
+
+  Widget _productPager(BuildContext context) {
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final labels = MaterialLocalizations.of(context);
+    final numbers = intl.NumberFormat.decimalPattern(
+      widget.experience.auth.language,
+    );
+    return AspectRatio(
+      aspectRatio: .75,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: PageView.builder(
+              key: const ValueKey('demo-product-pager'),
+              controller: _productController,
+              physics: busy ? const NeverScrollableScrollPhysics() : null,
+              itemCount: _products.length,
+              onPageChanged: _changeProduct,
+              itemBuilder: (context, index) {
+                final product = _products[index];
+                final path = _productImages[product['id']];
+                return path == null
+                    ? const ColoredBox(
+                        color: CustomerColors.tint,
+                        child: Icon(Icons.checkroom_outlined, size: 64),
+                      )
+                    : Image.asset(
+                        path,
+                        fit: BoxFit.cover,
+                        semanticLabel: product['name'] as String,
+                      );
+              },
+            ),
+          ),
+          if (_products.length > 1) ...[
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: IconButton.filled(
+                  key: const ValueKey('demo-product-previous'),
+                  tooltip: labels.previousPageTooltip,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: .94),
+                    foregroundColor: CustomerColors.ink,
+                    disabledBackgroundColor: Colors.white.withValues(alpha: .6),
+                  ),
+                  onPressed: busy || _productIndex == 0
+                      ? null
+                      : () => _browse(-1),
+                  icon: Icon(
+                    rtl
+                        ? Icons.chevron_right_rounded
+                        : Icons.chevron_left_rounded,
+                  ),
+                ),
+              ),
+            ),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: IconButton.filled(
+                  key: const ValueKey('demo-product-next'),
+                  tooltip: labels.nextPageTooltip,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: .94),
+                    foregroundColor: CustomerColors.ink,
+                    disabledBackgroundColor: Colors.white.withValues(alpha: .6),
+                  ),
+                  onPressed: busy || _productIndex == _products.length - 1
+                      ? null
+                      : () => _browse(1),
+                  icon: Icon(
+                    rtl
+                        ? Icons.chevron_left_rounded
+                        : Icons.chevron_right_rounded,
+                  ),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .94),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 5,
+                    ),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        '${numbers.format(_productIndex + 1)} / ${numbers.format(_products.length)}',
+                        key: const ValueKey('demo-product-position'),
+                        textDirection: TextDirection.ltr,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Future<void> launch({bool upload = false}) async {
     if (busy) return;
+    _productController.jumpToPage(_productIndex);
+    final product = _product;
+    final selectedModelId = modelId;
     setState(() => busy = true);
     try {
       if (upload) {
-        await widget.onUploadPerson(widget.product, null);
+        await widget.onUploadPerson(product, null);
       } else {
-        await widget.onTryOn(widget.product, modelId);
+        await widget.onTryOn(product, selectedModelId);
       }
     } finally {
       if (mounted) setState(() => busy = false);
@@ -640,16 +841,7 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final path = _productImages[widget.product['id']];
-    final category = widget.product['category'];
-    final models = widget.models
-        .where(
-          (item) =>
-              _modelImages.containsKey(item['id']) &&
-              (category != 'WOMEN' && category != 'MEN' ||
-                  item['category'] == category),
-        )
-        .toList();
+    final models = _modelsFor(_product);
     return Scaffold(
       appBar: AppBar(
         leading: const CustomerHomeBackButton(),
@@ -662,7 +854,7 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
                 context,
                 widget.experience.isGarmentSaved(
                       'DEMO',
-                      widget.product['id'] as String,
+                      _product['id'] as String,
                     )
                     ? 'Remove from saved garments'
                     : 'Save garment',
@@ -671,7 +863,7 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
                 try {
                   await widget.experience.toggleSavedGarment(
                     'DEMO',
-                    widget.product['id'] as String,
+                    _product['id'] as String,
                   );
                 } catch (error) {
                   if (context.mounted) {
@@ -688,7 +880,7 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
               icon: Icon(
                 widget.experience.isGarmentSaved(
                       'DEMO',
-                      widget.product['id'] as String,
+                      _product['id'] as String,
                     )
                     ? Icons.favorite_rounded
                     : Icons.favorite_border_rounded,
@@ -698,19 +890,13 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
         ],
       ),
       body: ListView(
+        key: const ValueKey('demo-product-details'),
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
         children: [
-          if (path != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: AspectRatio(
-                aspectRatio: .75,
-                child: Image.asset(path, fit: BoxFit.cover),
-              ),
-            ),
+          _productPager(context),
           const SizedBox(height: 10),
           Text(
-            widget.product['name'] as String,
+            _product['name'] as String,
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 16),
@@ -722,6 +908,7 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
           SizedBox(
             height: 150,
             child: ListView.separated(
+              key: ValueKey('demo-models-${_product['category']}'),
               scrollDirection: Axis.horizontal,
               itemCount: models.length,
               separatorBuilder: (_, _) => const SizedBox(width: 10),
@@ -729,8 +916,10 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
                 final model = models[index], id = model['id'] as String;
                 return InkWell(
                   borderRadius: BorderRadius.circular(14),
-                  onTap: () =>
-                      setState(() => modelId = modelId == id ? null : id),
+                  onTap: busy
+                      ? null
+                      : () =>
+                            setState(() => modelId = modelId == id ? null : id),
                   child: Container(
                     width: 105,
                     decoration: BoxDecoration(

@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "Войдите снова, чтобы пожаловаться на изображение.",
   "We couldn't confirm your report. Please try again.": "Не удалось подтвердить отправку жалобы. Повторите попытку.",
   "Report offensive or unsafe AI-generated content to SelfX.": "Сообщите SelfX об оскорбительном или опасном контенте, созданном ИИ.",
-  "Keep your comment within 2,000 characters.": "Ограничьте комментарий 2 000 символами."
+  "Keep your comment within 2,000 characters.": "Ограничьте комментарий 2 000 символами.",
+  "Incorrect password. Try again or reset your password.": "Неверный пароль. Попробуйте ещё раз или сбросьте пароль.",
+  "Sign in with {p0} for this account, or reset your password.": "Войдите в этот аккаунт через {p0} или сбросьте пароль.",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "Для этого аккаунта пароль не задан. Используйте привычный способ входа или сбросьте пароль.",
+  "More than one account uses this number. Sign in with your email instead.": "Этот номер используется несколькими аккаунтами. Войдите с помощью электронной почты.",
+  "Sign in with email": "Войти по электронной почте"
 }

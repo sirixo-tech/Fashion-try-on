@@ -110,6 +110,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     mobileCooldownTimer?.cancel();
     setState(() {
       mobileOtp = value;
+      accountErrorCode = null;
       mobileCodeSent = false;
       mobileChallenge = null;
       mobileCooldown = 0;
@@ -277,6 +278,9 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       mobileCooldownTimer?.cancel();
     }
     setState(() {
+      error = null;
+      accountErrorCode = null;
+      phoneDiagnostic = null;
       if (mobileCodeSent) {
         mobileCodeSent = false;
         mobileChallenge = null;
@@ -357,6 +361,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     setState(() {
       busy = true;
       error = null;
+      accountErrorCode = null;
       notice = null;
       phoneDiagnostic = null;
     });
@@ -372,7 +377,15 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
               RegExp(r'^[A-Za-z0-9_-]{1,80}$').hasMatch(caught.code)
               ? caught.code
               : 'REQUEST_FAILED';
-          phoneDiagnostic = caught is CustomerPhoneException
+          accountErrorCode = caught.code;
+          final accountFailure = const {
+            'CUSTOMER_PHONE_NOT_LINKED',
+            'CUSTOMER_ACCOUNT_NOT_FOUND',
+            'CUSTOMER_ACCOUNT_UNAVAILABLE',
+          }.contains(caught.code);
+          phoneDiagnostic = accountFailure
+              ? null
+              : caught is CustomerPhoneException
               ? '${caught.stage} / ${caught.diagnosticCode}'
               : '$phoneStage / $safeCode';
           if (caught.status == 429) {
@@ -429,7 +442,12 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   }
 
   void followAccountAction(CustomerAuthView next) {
-    final address = numberSignup
+    final address =
+        view == CustomerAuthView.signIn &&
+            mobileOtp &&
+            next == CustomerAuthView.signUp
+        ? mobileField.currentState?.canonical ?? mobile.text.trim()
+        : numberSignup
         ? verificationEmail.text.trim()
         : email.text.trim();
     change(next);
@@ -772,6 +790,37 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                   ],
                                 ),
                               if (accountErrorCode ==
+                                      'CUSTOMER_INVALID_CREDENTIALS' ||
+                                  accountErrorCode ==
+                                      'CUSTOMER_PASSWORD_NOT_SET')
+                                TextButton(
+                                  onPressed: busy
+                                      ? null
+                                      : () => followAccountAction(
+                                          CustomerAuthView.forgot,
+                                        ),
+                                  child: const CustomerText('Reset password'),
+                                ),
+                              if (accountErrorCode ==
+                                      'CUSTOMER_PHONE_NOT_LINKED' ||
+                                  accountErrorCode ==
+                                      'CUSTOMER_EMAIL_SIGN_IN_REQUIRED')
+                                TextButton(
+                                  onPressed: busy
+                                      ? null
+                                      : () {
+                                          setMobileOtp(false);
+                                          if (!email.text.contains('@')) {
+                                            email.clear();
+                                          }
+                                        },
+                                  child: const CustomerText(
+                                    'Sign in with email',
+                                  ),
+                                ),
+                              if (accountErrorCode ==
+                                      'CUSTOMER_PHONE_NOT_LINKED' ||
+                                  accountErrorCode ==
                                       'CUSTOMER_ACCOUNT_NOT_FOUND' ||
                                   accountErrorCode ==
                                       'CUSTOMER_EMAIL_VERIFICATION_REQUIRED' ||

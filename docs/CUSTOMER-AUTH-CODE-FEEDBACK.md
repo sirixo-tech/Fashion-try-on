@@ -1,5 +1,27 @@
 # Customer signup and password-reset code feedback
 
+## Sign-in feedback follow-up — November 25, 2026
+
+Email/password login reports missing or deleted customer accounts with
+CUSTOMER_ACCOUNT_NOT_FOUND and a Create account action. Incorrect passwords use
+the existing CUSTOMER_INVALID_CREDENTIALS code with explicit password/recovery
+copy. Existing accounts without a password use CUSTOMER_PASSWORD_NOT_SET and
+identify Google/Apple when linked; suspended accounts use
+CUSTOMER_ACCOUNT_UNAVAILABLE and do not offer signup. Merchant/staff accounts
+are not customer accounts. Ambiguous legacy phone aliases require email sign-in.
+
+Verified phone login keeps Firebase proof and binding checks. An unlinked or
+deleted number offers Sign in with email and Create account, preserving the
+number for signup. Suspended customers remain blocked. Expected account errors
+do not display verification diagnostics. The shared phone-code request endpoint
+still supports authenticated account linking; SMS admission and consent are
+unchanged. Email-code login and signup/reset behavior are unchanged.
+
+Password verification (including the dummy hash), IP/identifier rate limits,
+pending-account verification and session ownership checks remain in place.
+All new messages are included in the 20 mobile language catalogs. This follow-up
+requires an API deployment and mobile rebuild; no migration is needed.
+
 Approved by the user on November 15, 2026. This supersedes generic account-existence responses only for customer signup, verification resend and forgot password. The user explicitly accepts revealing whether a customer email is registered. Password sign-in, email-code login, SMS/Firebase, Google/Apple, public account deletion and merchant/staff accounts keep their existing boundaries and behavior.
 
 ## Behavior

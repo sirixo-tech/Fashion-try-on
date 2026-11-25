@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "ഈ ചിത്രം റിപ്പോർട്ട് ചെയ്യാൻ വീണ്ടും സൈൻ ഇൻ ചെയ്യുക.",
   "We couldn't confirm your report. Please try again.": "നിങ്ങളുടെ റിപ്പോർട്ട് സ്ഥിരീകരിക്കാനായില്ല. വീണ്ടും ശ്രമിക്കുക.",
   "Report offensive or unsafe AI-generated content to SelfX.": "AI സൃഷ്ടിച്ച ആക്ഷേപകരമോ സുരക്ഷിതമല്ലാത്തതോ ആയ ഉള്ളടക്കം SelfX-ലേക്ക് റിപ്പോർട്ട് ചെയ്യുക.",
-  "Keep your comment within 2,000 characters.": "നിങ്ങളുടെ അഭിപ്രായം 2,000 അക്ഷരങ്ങളിൽ പരിമിതപ്പെടുത്തുക."
+  "Keep your comment within 2,000 characters.": "നിങ്ങളുടെ അഭിപ്രായം 2,000 അക്ഷരങ്ങളിൽ പരിമിതപ്പെടുത്തുക.",
+  "Incorrect password. Try again or reset your password.": "പാസ്‌വേഡ് തെറ്റാണ്. വീണ്ടും ശ്രമിക്കുക അല്ലെങ്കിൽ പാസ്‌വേഡ് പുനഃസജ്ജമാക്കുക.",
+  "Sign in with {p0} for this account, or reset your password.": "ഈ അക്കൗണ്ടിലേക്ക് {p0} ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക അല്ലെങ്കിൽ പാസ്‌വേഡ് പുനഃസജ്ജമാക്കുക.",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "ഈ അക്കൗണ്ടിന് പാസ്‌വേഡ് സജ്ജമാക്കിയിട്ടില്ല. നിലവിലെ സൈൻ-ഇൻ രീതി ഉപയോഗിക്കുക അല്ലെങ്കിൽ പാസ്‌വേഡ് പുനഃസജ്ജമാക്കുക.",
+  "More than one account uses this number. Sign in with your email instead.": "ഒന്നിലധികം അക്കൗണ്ടുകൾ ഈ നമ്പർ ഉപയോഗിക്കുന്നു. പകരം ഇമെയിൽ ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക.",
+  "Sign in with email": "ഇമെയിൽ ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക"
 }

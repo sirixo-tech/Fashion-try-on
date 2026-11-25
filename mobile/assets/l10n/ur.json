@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "اس تصویر کی رپورٹ کرنے کے لیے دوبارہ سائن ان کریں۔",
   "We couldn't confirm your report. Please try again.": "آپ کی رپورٹ کی تصدیق نہیں ہو سکی۔ دوبارہ کوشش کریں۔",
   "Report offensive or unsafe AI-generated content to SelfX.": "مصنوعی ذہانت کے تیار کردہ توہین آمیز یا غیر محفوظ مواد کی SelfX کو رپورٹ کریں۔",
-  "Keep your comment within 2,000 characters.": "اپنا تبصرہ ۲٬۰۰۰ حروف تک محدود رکھیں۔"
+  "Keep your comment within 2,000 characters.": "اپنا تبصرہ ۲٬۰۰۰ حروف تک محدود رکھیں۔",
+  "Incorrect password. Try again or reset your password.": "پاس ورڈ غلط ہے۔ دوبارہ کوشش کریں یا اپنا پاس ورڈ ری سیٹ کریں۔",
+  "Sign in with {p0} for this account, or reset your password.": "اس اکاؤنٹ میں {p0} کے ذریعے سائن ان کریں یا اپنا پاس ورڈ ری سیٹ کریں۔",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "اس اکاؤنٹ کے لیے پاس ورڈ مقرر نہیں ہے۔ اپنا موجودہ سائن ان طریقہ استعمال کریں یا پاس ورڈ ری سیٹ کریں۔",
+  "More than one account uses this number. Sign in with your email instead.": "ایک سے زیادہ اکاؤنٹس یہ نمبر استعمال کرتے ہیں۔ اس کے بجائے اپنے ای میل سے سائن ان کریں۔",
+  "Sign in with email": "ای میل سے سائن ان کریں"
 }

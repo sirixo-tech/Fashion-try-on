@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "Bitte melde dich erneut an, um dieses Bild zu melden.",
   "We couldn't confirm your report. Please try again.": "Deine Meldung konnte nicht bestätigt werden. Bitte versuche es erneut.",
   "Report offensive or unsafe AI-generated content to SelfX.": "Melde SelfX anstößige oder unsichere KI-generierte Inhalte.",
-  "Keep your comment within 2,000 characters.": "Beschränke deinen Kommentar auf 2.000 Zeichen."
+  "Keep your comment within 2,000 characters.": "Beschränke deinen Kommentar auf 2.000 Zeichen.",
+  "Incorrect password. Try again or reset your password.": "Falsches Passwort. Versuche es erneut oder setze dein Passwort zurück.",
+  "Sign in with {p0} for this account, or reset your password.": "Melde dich für dieses Konto mit {p0} an oder setze dein Passwort zurück.",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "Für dieses Konto ist kein Passwort festgelegt. Nutze deine bisherige Anmeldemethode oder setze dein Passwort zurück.",
+  "More than one account uses this number. Sign in with your email instead.": "Mehrere Konten verwenden diese Nummer. Melde dich stattdessen mit deiner E-Mail-Adresse an.",
+  "Sign in with email": "Mit E-Mail anmelden"
 }

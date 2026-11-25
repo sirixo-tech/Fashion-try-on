@@ -582,21 +582,25 @@ void main() {
     expect(find.text('Ava Morgan'), findsNothing);
     expect(store.token, isNull);
   });
-  testWidgets(
-    'shows safe sign-in failure without treating unknown email as signup',
-    (tester) async {
-      await mount(tester);
-      api.handler = (path, method, body) async => throw const CustomerApiException(
-        'CUSTOMER_INVALID_CREDENTIALS',
-        'We couldn’t sign you in. Check your details, try Google, or create an account.',
-        401,
-      );
-      await login(tester);
-      expect(find.textContaining('We couldn’t sign you in.'), findsOneWidget);
-      expect(controller.profile, isNull);
-      expect(find.text('Your name'), findsNothing);
-    },
-  );
+  testWidgets('shows incorrect-password feedback without opening signup', (
+    tester,
+  ) async {
+    await mount(tester);
+    api.handler = (path, method, body) async =>
+        throw const CustomerApiException(
+          'CUSTOMER_INVALID_CREDENTIALS',
+          'Incorrect password. Try again or reset your password.',
+          401,
+        );
+    await login(tester);
+    expect(
+      find.text('Incorrect password. Try again or reset your password.'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(TextButton, 'Reset password'), findsOneWidget);
+    expect(controller.profile, isNull);
+    expect(find.text('Your name'), findsNothing);
+  });
   testWidgets(
     'has no layout overflow on a small phone or larger accessibility text',
     (tester) async {

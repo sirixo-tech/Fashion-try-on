@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### Demo garment detail swiping (2026-11-25)
+
+Open demo garment details with the current filtered, sorted catalog and selected
+product position. Horizontal swipes on the large image and previous/next arrows
+browse that list, with a position counter. The name, saved state, compatible
+models and Try-On/upload actions follow the displayed garment. Preserve a
+compatible selected model, reset it when incompatible, and keep page scrolling,
+the model strip and fixed bottom action independent. Browsing does not generate
+or spend credits. Freeze browsing while launching; keep Store-product entry as
+it is. Preload only adjacent images and support RTL and reduced-motion settings.
+
 ### Mobile Try-On photo policy relocation (2026-11-25)
 
 Remove the recurring photo-processing bottom sheet from mobile Try-On entry.

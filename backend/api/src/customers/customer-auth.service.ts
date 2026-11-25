@@ -601,6 +601,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     });
     if (
       !identity ||
+      identity.customer.status === "DELETED" ||
       identity.customer.phoneNumber !== verified!.phoneNumber ||
       !identity.customer.phoneVerifiedAt
     )
@@ -608,6 +609,12 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         "CUSTOMER_PHONE_NOT_LINKED",
         "This phone is not linked. Sign in with email or create an account, then verify your phone in Account settings.",
         409,
+      );
+    if (identity!.customer.status !== "ACTIVE")
+      customerError(
+        "CUSTOMER_ACCOUNT_UNAVAILABLE",
+        "This customer account is unavailable. Please contact SelfX support.",
+        403,
       );
     await this.db.customer.update({
       where: { id: identity!.customerId },
@@ -864,6 +871,8 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       | Prisma.CustomerIdentityGetPayload<{ include: { customer: true } }>
       | null
       | undefined;
+    let account: Customer | null | undefined;
+    let ambiguousPhone = false;
     if (identifier.includes("@")) {
       identity = await this.db.customerIdentity.findUnique({
         where: {
@@ -874,6 +883,11 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         },
         include: { customer: true },
       });
+      if (!identity) {
+        account = await this.db.customer.findUnique({
+          where: { email: identifier },
+        });
+      }
     } else {
       // Verified ownership takes precedence over unverified contact aliases.
       // Ambiguous aliases require email; never guess an account or merge them.
@@ -892,21 +906,68 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         take: 2,
       });
       identity = candidates.length === 1 ? candidates[0] : null;
+      ambiguousPhone = candidates.length > 1;
+      account = owner;
     }
-    const email = identity?.customer.email ?? identifier;
+    account = identity?.customer ?? account;
+    const email = account?.email ?? identifier;
     this.dummyHash ??= this.passwords.hashPassword(tokenSecret());
     const valid = await this.passwords.verifyPassword(
       identity?.passwordHash ?? (await this.dummyHash),
       password,
     );
-    if (
-      !identity ||
-      !valid ||
-      !["ACTIVE", "PENDING_VERIFICATION"].includes(identity.customer.status)
-    )
+    if (ambiguousPhone)
+      customerError(
+        "CUSTOMER_EMAIL_SIGN_IN_REQUIRED",
+        "More than one account uses this number. Sign in with your email instead.",
+        409,
+      );
+    if (!account || account.status === "DELETED") {
+      if (identifier.includes("@"))
+        customerError(
+          "CUSTOMER_ACCOUNT_NOT_FOUND",
+          "No SelfX customer account was found with this email. Please check the address or create an account.",
+          404,
+        );
+      customerError(
+        "CUSTOMER_PHONE_NOT_LINKED",
+        "This phone is not linked. Sign in with email or create an account, then verify your phone in Account settings.",
+        409,
+      );
+    }
+    if (!["ACTIVE", "PENDING_VERIFICATION"].includes(account!.status))
+      customerError(
+        "CUSTOMER_ACCOUNT_UNAVAILABLE",
+        "This customer account is unavailable. Please contact SelfX support.",
+        403,
+      );
+    if (!identity?.passwordHash) {
+      const methods = await this.db.customerIdentity.findMany({
+        where: { customerId: account!.id },
+        select: { provider: true },
+      });
+      const providers = [
+        ...(methods.some((method) => method.provider === "GOOGLE")
+          ? ["Google"]
+          : []),
+        ...(methods.some((method) => method.provider === "APPLE")
+          ? ["Apple"]
+          : []),
+      ];
+      customerError(
+        "CUSTOMER_PASSWORD_NOT_SET",
+        providers.length
+          ? "Sign in with " +
+              providers.join(" / ") +
+              " for this account, or reset your password."
+          : "No password is set for this account. Use your existing sign-in method or reset your password.",
+        409,
+      );
+    }
+    if (!valid)
       customerError(
         "CUSTOMER_INVALID_CREDENTIALS",
-        "We couldn’t sign you in. Check your details, try Google, or create an account.",
+        "Incorrect password. Try again or reset your password.",
         401,
       );
     if (identity!.customer.status === "PENDING_VERIFICATION") {

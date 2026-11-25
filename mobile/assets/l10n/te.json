@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "ఈ చిత్రాన్ని నివేదించడానికి మళ్లీ సైన్ ఇన్ చేయండి.",
   "We couldn't confirm your report. Please try again.": "మీ నివేదికను నిర్ధారించలేకపోయాము. దయచేసి మళ్లీ ప్రయత్నించండి.",
   "Report offensive or unsafe AI-generated content to SelfX.": "AI రూపొందించిన అభ్యంతరకరమైన లేదా అసురక్షిత కంటెంట్‌ను SelfXకు నివేదించండి.",
-  "Keep your comment within 2,000 characters.": "మీ వ్యాఖ్యను 2,000 అక్షరాలకు పరిమితం చేయండి."
+  "Keep your comment within 2,000 characters.": "మీ వ్యాఖ్యను 2,000 అక్షరాలకు పరిమితం చేయండి.",
+  "Incorrect password. Try again or reset your password.": "పాస్‌వర్డ్ తప్పుగా ఉంది. మళ్లీ ప్రయత్నించండి లేదా పాస్‌వర్డ్‌ను రీసెట్ చేయండి.",
+  "Sign in with {p0} for this account, or reset your password.": "ఈ ఖాతాకు {p0}తో సైన్ ఇన్ చేయండి లేదా పాస్‌వర్డ్‌ను రీసెట్ చేయండి.",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "ఈ ఖాతాకు పాస్‌వర్డ్ సెట్ చేయలేదు. మీ ప్రస్తుత సైన్-ఇన్ పద్ధతిని ఉపయోగించండి లేదా పాస్‌వర్డ్‌ను రీసెట్ చేయండి.",
+  "More than one account uses this number. Sign in with your email instead.": "ఒకటి కంటే ఎక్కువ ఖాతాలు ఈ నంబర్‌ను ఉపయోగిస్తున్నాయి. బదులుగా మీ ఇమెయిల్‌తో సైన్ ఇన్ చేయండి.",
+  "Sign in with email": "ఇమెయిల్‌తో సైన్ ఇన్ చేయండి"
 }

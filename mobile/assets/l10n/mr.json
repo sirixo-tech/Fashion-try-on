@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "या चित्राची तक्रार करण्यासाठी पुन्हा साइन इन करा.",
   "We couldn't confirm your report. Please try again.": "तुमच्या तक्रारीची पुष्टी करता आली नाही. कृपया पुन्हा प्रयत्न करा.",
   "Report offensive or unsafe AI-generated content to SelfX.": "AI ने तयार केलेल्या आक्षेपार्ह किंवा असुरक्षित सामग्रीची SelfX कडे तक्रार करा.",
-  "Keep your comment within 2,000 characters.": "तुमची टिप्पणी 2,000 अक्षरांपर्यंत मर्यादित ठेवा."
+  "Keep your comment within 2,000 characters.": "तुमची टिप्पणी 2,000 अक्षरांपर्यंत मर्यादित ठेवा.",
+  "Incorrect password. Try again or reset your password.": "पासवर्ड चुकीचा आहे. पुन्हा प्रयत्न करा किंवा पासवर्ड रीसेट करा.",
+  "Sign in with {p0} for this account, or reset your password.": "या खात्यात {p0} वापरून साइन इन करा किंवा पासवर्ड रीसेट करा.",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "या खात्यासाठी पासवर्ड सेट केलेला नाही. तुमची सध्याची साइन-इन पद्धत वापरा किंवा पासवर्ड रीसेट करा.",
+  "More than one account uses this number. Sign in with your email instead.": "एकापेक्षा जास्त खाती हा नंबर वापरतात. त्याऐवजी तुमच्या ईमेलने साइन इन करा.",
+  "Sign in with email": "ईमेलने साइन इन करा"
 }

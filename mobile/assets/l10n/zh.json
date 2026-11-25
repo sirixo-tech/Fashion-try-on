@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "请重新登录以举报此图片。",
   "We couldn't confirm your report. Please try again.": "无法确认举报是否提交成功，请重试。",
   "Report offensive or unsafe AI-generated content to SelfX.": "向 SelfX 举报冒犯性或不安全的 AI 生成内容。",
-  "Keep your comment within 2,000 characters.": "请将评论控制在 2,000 个字符以内。"
+  "Keep your comment within 2,000 characters.": "请将评论控制在 2,000 个字符以内。",
+  "Incorrect password. Try again or reset your password.": "密码错误。请重试或重置密码。",
+  "Sign in with {p0} for this account, or reset your password.": "请使用{p0}登录此账户，或重置密码。",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "此账户尚未设置密码。请使用现有登录方式或重置密码。",
+  "More than one account uses this number. Sign in with your email instead.": "多个账户使用此号码。请改用电子邮箱登录。",
+  "Sign in with email": "使用电子邮箱登录"
 }

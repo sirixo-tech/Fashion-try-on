@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "Please sign in again to report this image.",
   "We couldn't confirm your report. Please try again.": "We couldn't confirm your report. Please try again.",
   "Report offensive or unsafe AI-generated content to SelfX.": "Report offensive or unsafe AI-generated content to SelfX.",
-  "Keep your comment within 2,000 characters.": "Keep your comment within 2,000 characters."
+  "Keep your comment within 2,000 characters.": "Keep your comment within 2,000 characters.",
+  "Incorrect password. Try again or reset your password.": "Incorrect password. Try again or reset your password.",
+  "Sign in with {p0} for this account, or reset your password.": "Sign in with {p0} for this account, or reset your password.",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "No password is set for this account. Use your existing sign-in method or reset your password.",
+  "More than one account uses this number. Sign in with your email instead.": "More than one account uses this number. Sign in with your email instead.",
+  "Sign in with email": "Sign in with email"
 }

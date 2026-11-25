@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "இந்தப் படத்தைப் புகாரளிக்க மீண்டும் உள்நுழையவும்.",
   "We couldn't confirm your report. Please try again.": "உங்கள் புகாரை உறுதிப்படுத்த முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
   "Report offensive or unsafe AI-generated content to SelfX.": "AI உருவாக்கிய அவமதிக்கும் அல்லது பாதுகாப்பற்ற உள்ளடக்கத்தை SelfXக்குப் புகாரளிக்கவும்.",
-  "Keep your comment within 2,000 characters.": "உங்கள் கருத்தை 2,000 எழுத்துகளுக்குள் வைத்திருக்கவும்."
+  "Keep your comment within 2,000 characters.": "உங்கள் கருத்தை 2,000 எழுத்துகளுக்குள் வைத்திருக்கவும்.",
+  "Incorrect password. Try again or reset your password.": "கடவுச்சொல் தவறானது. மீண்டும் முயற்சிக்கவும் அல்லது கடவுச்சொல்லை மீட்டமைக்கவும்.",
+  "Sign in with {p0} for this account, or reset your password.": "இந்தக் கணக்கில் {p0} மூலம் உள்நுழையவும் அல்லது கடவுச்சொல்லை மீட்டமைக்கவும்.",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "இந்தக் கணக்கிற்குக் கடவுச்சொல் அமைக்கப்படவில்லை. தற்போதைய உள்நுழைவு முறையைப் பயன்படுத்தவும் அல்லது கடவுச்சொல்லை மீட்டமைக்கவும்.",
+  "More than one account uses this number. Sign in with your email instead.": "ஒன்றுக்கும் மேற்பட்ட கணக்குகள் இந்த எண்ணைப் பயன்படுத்துகின்றன. உங்கள் மின்னஞ்சல் மூலம் உள்நுழையவும்.",
+  "Sign in with email": "மின்னஞ்சல் மூலம் உள்நுழையவும்"
 }

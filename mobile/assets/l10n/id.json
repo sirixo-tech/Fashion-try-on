@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "Silakan masuk kembali untuk melaporkan gambar ini.",
   "We couldn't confirm your report. Please try again.": "Laporan tidak dapat dikonfirmasi. Silakan coba lagi.",
   "Report offensive or unsafe AI-generated content to SelfX.": "Laporkan konten buatan AI yang menyinggung atau tidak aman kepada SelfX.",
-  "Keep your comment within 2,000 characters.": "Batasi komentar Anda hingga 2.000 karakter."
+  "Keep your comment within 2,000 characters.": "Batasi komentar Anda hingga 2.000 karakter.",
+  "Incorrect password. Try again or reset your password.": "Kata sandi salah. Coba lagi atau atur ulang kata sandi Anda.",
+  "Sign in with {p0} for this account, or reset your password.": "Masuk ke akun ini dengan {p0}, atau atur ulang kata sandi Anda.",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "Belum ada kata sandi untuk akun ini. Gunakan metode masuk Anda yang biasa atau atur ulang kata sandi.",
+  "More than one account uses this number. Sign in with your email instead.": "Lebih dari satu akun menggunakan nomor ini. Masuk dengan email Anda.",
+  "Sign in with email": "Masuk dengan email"
 }

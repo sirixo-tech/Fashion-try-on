@@ -684,5 +684,10 @@
   "Please sign in again to report this image.": "يرجى تسجيل الدخول مجددًا للإبلاغ عن هذه الصورة.",
   "We couldn't confirm your report. Please try again.": "تعذر تأكيد بلاغك. يرجى المحاولة مرة أخرى.",
   "Report offensive or unsafe AI-generated content to SelfX.": "أبلغ SelfX عن المحتوى المسيء أو غير الآمن الذي ينشئه الذكاء الاصطناعي.",
-  "Keep your comment within 2,000 characters.": "يرجى ألا يتجاوز تعليقك ٢٬٠٠٠ حرف."
+  "Keep your comment within 2,000 characters.": "يرجى ألا يتجاوز تعليقك ٢٬٠٠٠ حرف.",
+  "Incorrect password. Try again or reset your password.": "كلمة المرور غير صحيحة. حاول مرة أخرى أو أعد تعيين كلمة المرور.",
+  "Sign in with {p0} for this account, or reset your password.": "سجّل الدخول إلى هذا الحساب باستخدام {p0}، أو أعد تعيين كلمة المرور.",
+  "No password is set for this account. Use your existing sign-in method or reset your password.": "لم تُعيّن كلمة مرور لهذا الحساب. استخدم طريقة تسجيل الدخول الحالية أو أعد تعيين كلمة المرور.",
+  "More than one account uses this number. Sign in with your email instead.": "يستخدم أكثر من حساب هذا الرقم. سجّل الدخول باستخدام بريدك الإلكتروني بدلاً من ذلك.",
+  "Sign in with email": "تسجيل الدخول بالبريد الإلكتروني"
 }
