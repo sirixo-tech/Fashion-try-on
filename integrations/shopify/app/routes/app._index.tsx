@@ -18,6 +18,7 @@ import type {
   ShouldRevalidateFunctionArgs,
 } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import { withShopifyConnectionRecovery } from "../selfx-connection-auth.server";
 import {
   Form,
   isRouteErrorResponse,
@@ -334,10 +335,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
     }
   }
-  let session: Awaited<ReturnType<typeof authenticate.admin>>["session"];
+  let authenticated: Awaited<ReturnType<typeof authenticate.admin>>;
   try {
-    ({ session } = await authenticate.admin(request));
+    authenticated = await authenticate.admin(request);
   } catch (error) {
+    if (error instanceof Response) throw error;
     // The central auth wrapper records sanitized diagnostics.
     return shopifyActionFailure({
       intent,
@@ -345,6 +347,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         "Shopify could not verify this admin session. Refresh the app and try again.",
     });
   }
+  const { session } = authenticated;
 
   if (
     intent === "connection:connect" ||
@@ -367,11 +370,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         await cancelShopifyBilling(session.shop, admin);
         await disconnectSelfxConnection(session.shop);
       } else if (intent === "connection:connect") {
-        await startSelfxConnection(input);
+        await withShopifyConnectionRecovery(
+          request,
+          authenticated,
+          startSelfxConnection,
+        );
       } else if (intent === "connection:complete") {
         await completeSelfxConnection(input);
       } else if (intent === "connection:restart") {
-        await restartSelfxConnection(input);
+        await withShopifyConnectionRecovery(
+          request,
+          authenticated,
+          restartSelfxConnection,
+        );
       } else {
         await runSelfxCatalogSync(input);
       }
@@ -381,6 +392,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         connectionActionError: null,
       };
     } catch (error) {
+      if (error instanceof Response) throw error;
       console.error("SelfX Shopify connection action failed", {
         intent,
         name: error instanceof Error ? error.name : "UnknownError",

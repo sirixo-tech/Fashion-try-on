@@ -32,6 +32,20 @@ vi.mock("./selfx-billing.server", async (original) => ({
 vi.mock("./shopify.server", () => ({
   authenticate: { admin: connection.authenticate },
 }));
+vi.mock("./selfx-connection-auth.server", () => ({
+  withShopifyConnectionRecovery: async (
+    _request: Request,
+    context: { session: { shop: string; accessToken: string } },
+    operation: (input: {
+      shop: string;
+      shopifyAccessToken: string;
+    }) => Promise<unknown>,
+  ) =>
+    operation({
+      shop: context.session.shop,
+      shopifyAccessToken: context.session.accessToken,
+    }),
+}));
 vi.mock("./selfx-connection.server", () => ({
   startSelfxConnection: connection.connect,
   completeSelfxConnection: connection.complete,
@@ -40,6 +54,7 @@ vi.mock("./selfx-connection.server", () => ({
 }));
 
 import { PlanCard } from "./plan-card";
+import { loader as navigationAction } from "./routes/selfx-action";
 import {
   action,
   ErrorBoundary,
@@ -314,6 +329,32 @@ describe("Shopify connection actions on the embedded app page", () => {
         "The SelfX connection could not be completed. Try again.",
     });
   });
+  it.each([
+    ["connection:connect", "connect", connection.connect],
+    ["connection:restart", "restart", connection.restart],
+  ])(
+    "preserves SDK recovery responses for %s in both connection entry points",
+    async (intent, navigationIntent, operation) => {
+      const response = new Response(null, {
+        status: 401,
+        headers: { "X-Shopify-Retry-Invalid-Session-Request": "1" },
+      });
+      operation.mockRejectedValue(response);
+      await expect(
+        action({ request: connectionRequest(intent) } as never),
+      ).rejects.toBe(response);
+      await expect(
+        navigationAction({
+          request: new Request(
+            `https://example.test/selfx-action?selfxIntent=${navigationIntent}`,
+          ),
+        } as never),
+      ).rejects.toBe(response);
+      expect(
+        response.headers.get("X-Shopify-Retry-Invalid-Session-Request"),
+      ).toBe("1");
+    },
+  );
 });
 
 describe("Shopify plan card presentation", () => {

@@ -1,8 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ShopifyAdminClient } from "./shopify-admin.server.js";
+import {
+  ShopifyAdminClient,
+  ShopifyAdminApiError,
+} from "./shopify-admin.server.js";
 
 describe("ShopifyAdminClient", () => {
+  it("exposes a typed 401 without leaking credentials or response contents", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("private upstream details", { status: 401 }),
+      );
+    const client = new ShopifyAdminClient({
+      shopDomain: "demo.myshopify.com",
+      accessToken: "secret-shop-token",
+      apiVersion: "2026-07",
+      productPageSize: 50,
+      fetchImpl,
+    });
+    const error = await client.getShopIdentity().catch((error) => error);
+    expect(error).toBeInstanceOf(ShopifyAdminApiError);
+    expect(error.status).toBe(401);
+    expect(error.message).not.toMatch(/private|secret-shop-token/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
   it("reads the canonical shop identity without a mutation", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse({

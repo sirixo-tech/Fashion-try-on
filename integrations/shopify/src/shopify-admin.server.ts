@@ -95,6 +95,13 @@ type GraphqlEnvelope<T> = {
   errors?: Array<{ message?: string }>;
 };
 
+export class ShopifyAdminApiError extends Error {
+  constructor(public readonly status: number) {
+    super(`Shopify Admin API request failed with status ${status}.`);
+    this.name = "ShopifyAdminApiError";
+  }
+}
+
 export class ShopifyAdminClient {
   private readonly endpoint: string;
 
@@ -286,11 +293,7 @@ export class ShopifyAdminClient {
         continue;
       }
       if (!response.ok) {
-        throw new Error(
-          "Shopify Admin API request failed with status " +
-            response.status +
-            ".",
-        );
+        throw new ShopifyAdminApiError(response.status);
       }
       const envelope = (await response.json()) as GraphqlEnvelope<T>;
       if (envelope.errors?.length) {

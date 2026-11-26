@@ -1,5 +1,7 @@
-import type { LoaderFunctionArgs } from "react-router";
-import { redirect } from "react-router";
+import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import { redirect, useRouteError } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
+import { withShopifyConnectionRecovery } from "../selfx-connection-auth.server";
 
 import {
   completeSelfxConnection,
@@ -13,7 +15,8 @@ import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
-  const { session } = await authenticate.admin(request);
+  const authenticated = await authenticate.admin(request);
+  const { session } = authenticated;
   const intent = url.searchParams.get("selfxIntent");
 
   try {
@@ -23,11 +26,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     };
 
     if (intent === "connect") {
-      await startSelfxConnection(input);
+      await withShopifyConnectionRecovery(
+        request,
+        authenticated,
+        startSelfxConnection,
+      );
     } else if (intent === "complete") {
       await completeSelfxConnection(input);
     } else if (intent === "restart") {
-      await restartSelfxConnection(input);
+      await withShopifyConnectionRecovery(
+        request,
+        authenticated,
+        restartSelfxConnection,
+      );
     } else if (intent === "sync") {
       await runSelfxCatalogSync(input);
     } else {
@@ -36,6 +47,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     return redirectToApp(request);
   } catch (error) {
+    if (error instanceof Response) throw error;
     console.error("SelfX Shopify action failed", {
       intent: safeIntent(intent),
       ...safeErrorLogDetails(error),
@@ -47,6 +59,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function SelfxActionRoute(): null {
   return null;
 }
+
+export function ErrorBoundary() {
+  return boundary.error(useRouteError());
+}
+
+export const headers: HeadersFunction = (args) => boundary.headers(args);
 
 function redirectToApp(request: Request, error?: string) {
   const requestUrl = new URL(request.url);
