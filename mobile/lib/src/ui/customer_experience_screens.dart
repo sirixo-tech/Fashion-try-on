@@ -2302,11 +2302,12 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                 ),
-                CustomerCreditBadge(
-                  remaining: exp.remaining,
-                  onTap: widget.onPlans,
-                  buttonKey: const ValueKey('saved-header-credits'),
-                ),
+                if (showGarments)
+                  CustomerCreditBadge(
+                    remaining: exp.remaining,
+                    onTap: widget.onPlans,
+                    buttonKey: const ValueKey('saved-header-credits'),
+                  ),
               ],
             ),
             const SizedBox(height: 14),
@@ -2331,6 +2332,78 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                   ),
                 ),
               ),
+            ],
+            if (!showGarments) ...[
+              const SizedBox(height: 14),
+              if (exp.remaining case final int credits when credits < 10) ...[
+                Material(
+                  clipBehavior: Clip.antiAlias,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.zero,
+                    child: Ink(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF9E3F08), Color(0xFFF06A08)],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.toll_rounded,
+                              color: Colors.white,
+                              size: 30,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: CustomerText(
+                                '$credits credits left',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: 1,
+                              height: 30,
+                              color: Colors.white.withValues(alpha: .35),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton.icon(
+                              onPressed: widget.onPlans,
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 10,
+                                ),
+                                textStyle: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              iconAlignment: IconAlignment.end,
+                              icon: const Icon(Icons.arrow_forward_rounded),
+                              label: const CustomerText('Plans & credits'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
             ],
             if (error != null) ...[
               CustomerNotice(error!, error: true),

@@ -124,9 +124,9 @@ publication was performed. The complete legacy mobile test suite was not run.
 
 ## CUSTOMER-WARDROBE-2 — Compact browsing and garment viewer
 
-The approved mobile follow-up replaces the large Saved credit banner with the
-same compact credit badge as Home, opening Plans & credits. Both Looks and
-Wardrobe share this header. Wardrobe's My clothes/Favourite products strip and
+The approved mobile follow-up uses the compact Home credit badge only in
+Wardrobe, opening Plans & credits. Looks retains the original large credit strip
+and Plans action, shown under the existing less-than-10-credits rule. Wardrobe's My clothes/Favourite products strip and
 My clothes heading/privacy subtitle are removed. The heart next to search opens
 a separate Favourite products page with a back button and existing bookmark
 actions. Search, category filters, refresh, photo import and camera remain.
@@ -171,3 +171,11 @@ no API changes or migrations and performs no deployment/publication.
 - Final Flutter analysis: no issues. git diff --check passed. The app regression
   test selectors were also updated for the existing My Looks label; runtime
   changes remain confined to mobile UI and localization.
+
+
+### Looks credit strip scope correction
+
+Restore the original Looks credit banner, styling, Plans & credits action and
+less-than-10-credits visibility condition. Show the compact top-right balance
+badge only when Wardrobe is selected. The navigation regression covers both
+actions and switching between tabs. No other UI or credit behavior changes.

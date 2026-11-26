@@ -1,5 +1,7 @@
+import 'customer_outfit_planner_screen.dart';
+import 'customer_wardrobe_image.dart';
+export 'customer_wardrobe_image.dart';
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../auth/customer_controller.dart';
 import '../experience/customer_experience.dart';
@@ -257,24 +259,41 @@ class _CustomerWardrobePanelState extends State<CustomerWardrobePanel> {
           ),
           const SizedBox(height: 20),
         ],
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
+        Row(
           children: [
-            FilledButton.icon(
-              onPressed: importing
-                  ? null
-                  : () => add(CustomerPhotoSource.gallery),
-              icon: const Icon(Icons.photo_library_outlined),
-              label: const CustomerText('Import photos'),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: importing
+                    ? null
+                    : () => add(CustomerPhotoSource.gallery),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const CustomerText('Import photos'),
+              ),
             ),
-            OutlinedButton.icon(
+            const SizedBox(width: 8),
+            IconButton.outlined(
+              tooltip: tr(context, 'Take a photo'),
               onPressed: importing
                   ? null
                   : () => add(CustomerPhotoSource.camera),
               icon: const Icon(Icons.camera_alt_outlined),
-              label: const CustomerText('Take a photo'),
+            ),
+            const SizedBox(width: 8),
+            IconButton.outlined(
+              key: const ValueKey('wardrobe-planner'),
+              tooltip: tr(context, 'Outfit planner'),
+              onPressed: importing
+                  ? null
+                  : () => Navigator.push<void>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CustomerOutfitPlannerScreen(
+                          auth: wardrobe.auth,
+                          onImport: () => add(CustomerPhotoSource.gallery),
+                        ),
+                      ),
+                    ),
+              icon: const Icon(Icons.calendar_month_outlined),
             ),
           ],
         ),
@@ -340,103 +359,6 @@ class _CustomerWardrobePanelState extends State<CustomerWardrobePanel> {
           ),
       ],
     ),
-  );
-}
-
-class WardrobeImage extends StatefulWidget {
-  final CustomerController auth;
-  final String id;
-  const WardrobeImage({super.key, required this.auth, required this.id});
-  @override
-  State<WardrobeImage> createState() => _WardrobeImageState();
-}
-
-class _WardrobeImageState extends State<WardrobeImage> {
-  Future<Uint8List>? loading;
-  Uint8List? bytes;
-  String? owner;
-  int revision = 0;
-  @override
-  void initState() {
-    super.initState();
-    owner = widget.auth.profile?.id;
-    widget.auth.addListener(authChanged);
-    load();
-  }
-
-  void authChanged() {
-    if (widget.auth.profile?.id != owner ||
-        widget.auth.stage != CustomerStage.ready) {
-      ++revision;
-      clear();
-      if (mounted) setState(() => loading = null);
-    }
-  }
-
-  void clear() {
-    if (bytes != null) {
-      PaintingBinding.instance.imageCache.evict(MemoryImage(bytes!));
-    }
-    bytes = null;
-  }
-
-  void load() {
-    final current = ++revision;
-    loading = widget.auth
-        .authorizedDownload('/wardrobe/${widget.id}/content')
-        .then((value) {
-          if (mounted &&
-              current == revision &&
-              owner == widget.auth.profile?.id) {
-            bytes = value;
-          }
-          return value;
-        });
-  }
-
-  @override
-  void didUpdateWidget(covariant WardrobeImage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.id != widget.id) {
-      clear();
-      load();
-    }
-  }
-
-  @override
-  void dispose() {
-    ++revision;
-    widget.auth.removeListener(authChanged);
-    clear();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => FutureBuilder<Uint8List>(
-    future: loading,
-    builder: (context, snapshot) {
-      if (widget.auth.profile?.id != owner || loading == null) {
-        return const SizedBox.shrink();
-      }
-      if (snapshot.hasError) {
-        return Center(
-          child: IconButton(
-            tooltip: tr(context, 'Reload photo'),
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => setState(load),
-          ),
-        );
-      }
-      if (snapshot.connectionState == ConnectionState.done &&
-          snapshot.hasData) {
-        return Image.memory(
-          snapshot.data!,
-          fit: BoxFit.contain,
-          gaplessPlayback: false,
-        );
-      }
-      return const Center(child: CircularProgressIndicator());
-    },
   );
 }
 
@@ -902,11 +824,31 @@ class _CustomerWardrobeDetailState extends State<CustomerWardrobeDetail> {
             onSelected: (value) {
               if (value == 'edit') {
                 unawaited(edit());
+              } else if (value == 'schedule') {
+                unawaited(
+                  Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CustomerOutfitPlannerScreen(
+                        auth: widget.wardrobe.auth,
+                        initialGarment: Map<String, dynamic>.from(item),
+                      ),
+                    ),
+                  ),
+                );
               } else {
                 unawaited(remove());
               }
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'schedule',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.calendar_month_outlined),
+                  title: CustomerText('Schedule outfit'),
+                ),
+              ),
               PopupMenuItem(
                 value: 'edit',
                 child: ListTile(

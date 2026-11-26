@@ -1,3 +1,5 @@
+import { CustomerOutfitSchedulesController } from "./customer-outfit-schedules.controller.js";
+import { CustomerOutfitSchedulesService } from "./customer-outfit-schedules.service.js";
 import { CustomerWardrobeService } from "./customer-wardrobe.service.js";
 import { CustomerWardrobeController } from "./customer-wardrobe.controller.js";
 import { Module } from "@nestjs/common";
@@ -58,6 +60,7 @@ import {
     AppsModule,
   ],
   controllers: [
+    CustomerOutfitSchedulesController,
     CustomerWardrobeController,
     AdminContentReportsController,
     CustomerContentReportsController,
@@ -74,6 +77,7 @@ import {
     CustomerNotificationsController,
   ],
   providers: [
+    CustomerOutfitSchedulesService,
     CustomerWardrobeService,
     ContentReportsService,
     CustomerProfilePhotoService,

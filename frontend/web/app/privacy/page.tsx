@@ -102,6 +102,14 @@ export default function PrivacyPage() {
             result retention or share the saved original with merchants.
           </p>
           <p className="leading-7 text-muted-foreground">
+            Scheduled outfits are private to your account. We store the dates,
+            optional occasions and notes, and links to the wardrobe garments you
+            choose until you delete the scheduled outfit or your account.
+            Scheduling does not create extra photo copies. Deleted garments
+            become unavailable in scheduled outfits; Delete my photos also
+            removes access to their images.
+          </p>
+          <p className="leading-7 text-muted-foreground">
             Profile pictures are separate from try-on photos. New profile
             pictures stay private to your account until you replace or remove
             them. Delete my photos and account deletion also remove profile

@@ -30,6 +30,7 @@ enum CustomerActionPurpose {
 }
 
 model Customer {
+  outfitSchedules        CustomerOutfitSchedule[]
   wardrobeItems          CustomerWardrobeItem[]
   contentReports         ContentReport[]
   savedGarments          CustomerSavedGarment[]
@@ -113,25 +114,26 @@ model ContentReport {
 }
 
 model CustomerWardrobeItem {
-  id                 String    @id @db.Uuid
-  customerId         String    @map("customer_id") @db.Uuid
-  customer           Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  name               String    @db.VarChar(120)
-  category           String    @db.VarChar(24)
-  colour             String?   @db.VarChar(40)
-  notes              String?   @db.VarChar(500)
-  storageKey         String    @unique @map("storage_key")
-  requestHash        String    @map("request_hash") @db.Char(64)
-  contentHash        String?   @map("content_hash") @db.Char(64)
-  termsVersion       String    @map("terms_version") @db.VarChar(40)
-  termsAcceptedAt    DateTime  @map("terms_accepted_at") @db.Timestamptz(3)
-  retentionVersion   String    @map("retention_version") @db.VarChar(40)
-  retentionStatement String    @map("retention_statement")
-  readyAt            DateTime? @map("ready_at") @db.Timestamptz(3)
-  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
-  storageDeletedAt   DateTime? @map("storage_deleted_at") @db.Timestamptz(3)
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  scheduledPieces    CustomerOutfitSchedulePiece[]
+  id                 String                        @id @db.Uuid
+  customerId         String                        @map("customer_id") @db.Uuid
+  customer           Customer                      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  name               String                        @db.VarChar(120)
+  category           String                        @db.VarChar(24)
+  colour             String?                       @db.VarChar(40)
+  notes              String?                       @db.VarChar(500)
+  storageKey         String                        @unique @map("storage_key")
+  requestHash        String                        @map("request_hash") @db.Char(64)
+  contentHash        String?                       @map("content_hash") @db.Char(64)
+  termsVersion       String                        @map("terms_version") @db.VarChar(40)
+  termsAcceptedAt    DateTime                      @map("terms_accepted_at") @db.Timestamptz(3)
+  retentionVersion   String                        @map("retention_version") @db.VarChar(40)
+  retentionStatement String                        @map("retention_statement")
+  readyAt            DateTime?                     @map("ready_at") @db.Timestamptz(3)
+  deletedAt          DateTime?                     @map("deleted_at") @db.Timestamptz(3)
+  storageDeletedAt   DateTime?                     @map("storage_deleted_at") @db.Timestamptz(3)
+  createdAt          DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([customerId, deletedAt, createdAt, id], map: "customer_wardrobe_owner_created_idx")
   @@index([storageDeletedAt, deletedAt])
@@ -2718,4 +2720,36 @@ model AuditLog {
   @@index([resourceType, resourceId])
   @@index([requestId])
   @@map("audit_logs")
+}
+
+model CustomerOutfitSchedule {
+  id                 String                        @id @db.Uuid
+  customerId         String                        @map("customer_id") @db.Uuid
+  customer           Customer                      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  scheduledDate      DateTime                      @map("scheduled_date") @db.Date
+  occasion           String?                       @db.VarChar(80)
+  notes              String?                       @db.VarChar(500)
+  createFingerprint  String                        @map("create_fingerprint") @db.Char(64)
+  currentFingerprint String                        @map("current_fingerprint") @db.Char(64)
+  version            Int                           @default(1)
+  deletedAt          DateTime?                     @map("deleted_at") @db.Timestamptz(3)
+  createdAt          DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  pieces             CustomerOutfitSchedulePiece[]
+
+  @@index([customerId, deletedAt, scheduledDate, createdAt, id], map: "customer_outfit_schedule_owner_date_idx")
+  @@map("customer_outfit_schedules")
+}
+
+model CustomerOutfitSchedulePiece {
+  id             String                 @id @db.Uuid
+  scheduleId     String                 @map("schedule_id") @db.Uuid
+  schedule       CustomerOutfitSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  wardrobeItemId String?                @map("wardrobe_item_id") @db.Uuid
+  wardrobeItem   CustomerWardrobeItem?  @relation(fields: [wardrobeItemId], references: [id], onDelete: SetNull)
+  position       Int
+
+  @@unique([scheduleId, position])
+  @@index([wardrobeItemId])
+  @@map("customer_outfit_schedule_pieces")
 }

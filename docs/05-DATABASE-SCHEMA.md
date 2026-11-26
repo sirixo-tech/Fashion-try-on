@@ -1,8 +1,21 @@
 ## Document Evolution
 
+### OUTFIT-PLANNER-1 — Private scheduled outfits (2026-11-26)
+
+Add the approved weekly planner beside Wardrobe photo import. Customers choose a
+date and 1–20 existing private garments, with optional occasion/notes, and can
+edit, move or delete multiple scheduled outfits per day. Persist privately to the
+account with date-only semantics, ownership checks, bounded reads, stable retry
+IDs and optimistic versions. Deleted garments become unavailable without image
+copies; account deletion removes schedules. Scheduling spends no credits and
+does not change Try-On generation, retention or the Looks/Wardrobe credit controls.
+Apply the new database migration and deploy the API before the mobile release.
+See OUTFIT-PLANNER-1.md for contracts, privacy, verification and rollout.
+
 ### CUSTOMER-WARDROBE-2 — Compact browsing and garment viewer (2026-11-26)
 
-Reuse Home's compact credit control in Saved and remove the large credit strip.
+Use Home's compact credit control only in Wardrobe. Looks retains its original
+credit strip, Plans action and existing low-balance visibility rule.
 Wardrobe opens private clothes directly, with Favourite products behind the heart
 beside search; remove the My clothes heading, subtitle and secondary tab strip.
 Private garment details use a rounded, zoomable image, horizontal paging and

@@ -533,7 +533,7 @@ void main() {
     },
   );
   testWidgets(
-    'compact Saved header and favourite icon replace the redundant strips',
+    'Looks retains its credit strip while Wardrobe uses the compact badge and favourite icon',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -596,9 +596,20 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      // Looks keeps its original low-credit banner and Plans action.
+      expect(find.text('6 credits left'), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-header-credits')), findsNothing);
+      await tester.tap(find.text('Plans & credits'));
+      expect(plans, 1);
+      await tester.tap(find.text('Wardrobe'));
+      await tester.pumpAndSettle();
       expect(find.text('6 credits left'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('saved-header-credits')));
-      expect(plans, 1);
+      expect(plans, 2);
+      await tester.tap(find.text('Looks'));
+      await tester.pumpAndSettle();
+      expect(find.text('6 credits left'), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-header-credits')), findsNothing);
       await tester.tap(find.text('Wardrobe'));
       await tester.pumpAndSettle();
       expect(find.text('My clothes'), findsNothing);
