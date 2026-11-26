@@ -3359,3 +3359,5 @@ SelfX-owned PhonePe credentials are snapshotted encrypted from MobilePaymentConn
 
 ### Shopify review recovery (2026-11-26)
 Uninstall revokes credentials, cancels Shopify agreements and archives catalog snapshots under the Store lock while retaining non-secret shop ownership. Delayed uninstall events cannot revoke newer approvals. Reset source freshness to allow unchanged products to import again. Approval redemption uses a durable single-writer claim. Missing native subscription records require a successful current-installation query before retirement; uncertain reads remain blocking. Old cancelled-installation usage stays recorded for financial review.
+
+Embedded routes with their own error boundary must forward Shopify SDK response headers with `boundary.headers` and delegate route error responses to `boundary.error`. Shopify billing navigation can intentionally throw HTTP 401 with `X-Shopify-API-Request-Failure-Reauthorize-Url`; preserve that response so App Bridge opens the native approval screen. Do not treat this navigation response as a failed payment or create another subscription to recover it.

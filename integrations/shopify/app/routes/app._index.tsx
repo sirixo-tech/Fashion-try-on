@@ -11,9 +11,11 @@ import {
 } from "../selfx-billing.server";
 import type {
   ActionFunctionArgs,
+  HeadersFunction,
   LoaderFunctionArgs,
   ShouldRevalidateFunctionArgs,
 } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Form,
   isRouteErrorResponse,
@@ -1998,9 +2000,9 @@ function LanguageSettingsPanel({
 
 export function ErrorBoundary() {
   const error = useRouteError();
-  const message = isRouteErrorResponse(error)
-    ? error.statusText || "Shopify returned an unexpected response."
-    : error instanceof Error
+  if (isRouteErrorResponse(error)) return boundary.error(error);
+  const message =
+    error instanceof Error
       ? error.message
       : "SelfX could not load the Shopify admin app.";
 
@@ -2024,6 +2026,12 @@ export function ErrorBoundary() {
     </s-page>
   );
 }
+
+// Shopify uses a 401 plus an App Bridge header to leave the iframe for billing
+// approval. This child route must forward its own error/action headers; the
+// parent layout's header handler alone cannot preserve them.
+export const headers: HeadersFunction = (headersArgs) =>
+  boundary.headers(headersArgs);
 
 function limitPeriodLabel(period: string, adminLocale: string): string {
   if (period === "WEEK") return adminT(adminLocale, "weekly").toLowerCase();

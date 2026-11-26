@@ -54,3 +54,15 @@ Deploy the API with the new central migration, deploy the matched Shopify server
 Check matching server-side Shopify service credentials, encryption configuration and `SHOPIFY_BILLING_ENABLED` in the deployed API and app. Keep test-mode settings consistent with the review/test Store. This work did not enable public billing or alter production environment values.
 
 Before marking the review items resolved, use the review Store to reinstall, approve the same SelfX Store, import an eligible product, accept and decline Shopify plan changes, verify charge history, and complete a consented customer Try-On. Record that working flow for proof of resolution. Source tests do not establish live billing configuration or provider availability.
+
+## Follow-up: billing approval redirect displayed as Unauthorized
+
+The deployed Choose plan request returned HTTP 401 after Shopify had created and attached a pending native subscription. The supplied request tokens had not expired at the response time. A read-only central billing query confirmed the pending attached agreement; no payment or database mutation was performed during diagnosis.
+
+The installed Shopify SDK deliberately throws a 401 response with `X-Shopify-API-Request-Failure-Reauthorize-Url` for top-level approval navigation from an embedded data POST. React Router exposes error response headers to the route handling the error. The Plans index route had its own custom error boundary but no header function, so it dropped the redirect URL and displayed the generic Unauthorized/migration error. This was a response-handling defect, not evidence of missing migrations.
+
+Edited `integrations/shopify/app/routes/app._index.tsx` to forward SDK headers with `boundary.headers` and delegate route error responses to `boundary.error`. Ordinary application errors retain the SelfX fallback. Edited `app/app-index.spec.ts` with eight regression checks, including a real React Router `.data` POST that reproduces header loss without the fix and verifies header delivery with it. No new runtime file, schema change, migration, payment-provider change or environment change is required.
+
+Validation: all 131 Shopify app/connector tests across 24 suites passed, including the HTTP reproduction and authentication/billing regressions. Shopify production build, project typecheck, changed-source/test ESLint and whitespace checks passed.
+
+Redeploy the Shopify app server service (`Fashion-try-on`) with this follow-up, reopen the embedded app and choose the plan again. Existing pending approval recovery remains in place. Then verify the actual Shopify approval screen, acceptance/decline, scheduled plan state and charge history. This follow-up has not been deployed by the agent.

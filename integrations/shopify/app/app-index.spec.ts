@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import {
+  createMemoryRouter,
+  createRequestHandler,
+  RouterProvider,
+  type ServerBuild,
+} from "react-router";
 
 const connection = vi.hoisted(() => ({
   authenticate: vi.fn(),
@@ -8,6 +14,17 @@ const connection = vi.hoisted(() => ({
   complete: vi.fn(),
   restart: vi.fn(),
   sync: vi.fn(),
+  beginBilling: vi.fn(),
+  routeError: undefined as unknown,
+}));
+
+vi.mock("react-router", async (original) => ({
+  ...(await original<typeof import("react-router")>()),
+  useRouteError: () => connection.routeError,
+}));
+vi.mock("./selfx-billing.server", async (original) => ({
+  ...(await original<typeof import("./selfx-billing.server")>()),
+  beginShopifyBilling: connection.beginBilling,
 }));
 
 vi.mock("./shopify.server", () => ({
@@ -21,7 +38,12 @@ vi.mock("./selfx-connection.server", () => ({
 }));
 
 import { PlanCard } from "./plan-card";
-import { action, PlansPanel } from "./routes/app._index";
+import {
+  action,
+  ErrorBoundary,
+  headers,
+  PlansPanel,
+} from "./routes/app._index";
 import type { ComponentProps } from "react";
 
 const shop = "selfx-test-store.myshopify.com";
@@ -32,6 +54,167 @@ function connectionRequest(intent: string): Request {
     body: new URLSearchParams({ intent }),
   });
 }
+
+function renderErrorBoundary() {
+  // The framework's route wrapper also reads loader/action data, so supply a
+  // real data router in both the plain Vitest and Vite-plugin test contexts.
+  const router = createMemoryRouter([{ path: "/", Component: ErrorBoundary }]);
+  try {
+    return renderToStaticMarkup(createElement(RouterProvider, { router }));
+  } finally {
+    router.dispose();
+  }
+}
+
+describe("Shopify approval redirect and authentication responses", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    connection.routeError = undefined;
+  });
+  const approvalUrl = `https://${shop}/admin/charges/123/confirm`;
+  it("preserves the SDK approval redirect rather than turning its 401 into an action error", async () => {
+    const redirect = new Response(null, {
+      status: 401,
+      headers: { "X-Shopify-API-Request-Failure-Reauthorize-Url": approvalUrl },
+    });
+    connection.beginBilling.mockResolvedValue(approvalUrl);
+    const navigate = vi.fn(() => {
+      throw redirect;
+    });
+    connection.authenticate.mockResolvedValue({
+      session: { shop },
+      admin: {},
+      redirect: navigate,
+    });
+    await expect(
+      action({ request: connectionRequest("billing:choose") } as never),
+    ).rejects.toBe(redirect);
+    expect(navigate).toHaveBeenCalledWith(approvalUrl, { target: "_top" });
+    expect(connection.beginBilling).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    ["X-Shopify-API-Request-Failure-Reauthorize-Url", approvalUrl],
+    ["X-Shopify-Retry-Invalid-Session-Request", "1"],
+  ])(
+    "forwards %s from the child route's error response to App Bridge",
+    (name, value) => {
+      const result = new Headers(
+        headers({
+          parentHeaders: new Headers(),
+          loaderHeaders: new Headers(),
+          actionHeaders: new Headers(),
+          errorHeaders: new Headers({ [name]: value }),
+        } as never),
+      );
+      expect(result.get(name)).toBe(value);
+    },
+  );
+  it("preserves parent and successful action headers", () => {
+    const result = new Headers(
+      headers({
+        parentHeaders: new Headers({
+          "Content-Security-Policy":
+            "frame-ancestors https://admin.shopify.com",
+        }),
+        loaderHeaders: new Headers(),
+        actionHeaders: new Headers({ "Cache-Control": "no-store" }),
+        errorHeaders: new Headers(),
+      } as never),
+    );
+    expect(result.get("Content-Security-Policy")).toContain(
+      "admin.shopify.com",
+    );
+    expect(result.get("Cache-Control")).toBe("no-store");
+  });
+  it.each([false, true])(
+    "delivers the iframe approval redirect header over HTTP only when the error boundary forwards it (%s)",
+    async (forwardHeaders) => {
+      connection.beginBilling.mockResolvedValue(approvalUrl);
+      connection.authenticate.mockResolvedValue({
+        session: { shop },
+        admin: {},
+        redirect: () => {
+          throw new Response(null, {
+            status: 401,
+            statusText: "Unauthorized",
+            headers: {
+              "X-Shopify-API-Request-Failure-Reauthorize-Url": approvalUrl,
+            },
+          });
+        },
+      });
+      const build = {
+        entry: {
+          module: {
+            default: () => new Response("document"),
+            handleError: vi.fn(),
+          },
+        },
+        routes: {
+          root: { id: "root", path: "", module: { default: () => null } },
+          app: {
+            id: "app",
+            parentId: "root",
+            path: "app",
+            module: { default: () => null, headers },
+          },
+          index: {
+            id: "index",
+            parentId: "app",
+            index: true,
+            module: {
+              action,
+              ErrorBoundary,
+              ...(forwardHeaders ? { headers } : {}),
+            },
+          },
+        },
+        assets: { version: "test", routes: {} },
+        publicPath: "/",
+        assetsBuildDirectory: "build/client",
+        future: {},
+        ssr: true,
+        isSpaMode: false,
+        prerender: [],
+        routeDiscovery: { mode: "initial", manifestPath: "/__manifest" },
+      } as unknown as ServerBuild;
+      const response = await createRequestHandler(
+        build,
+        "test",
+      )(
+        new Request("https://example.test/app.data?index&embedded=1", {
+          method: "POST",
+          body: new URLSearchParams({ intent: "billing:choose" }),
+        }),
+      );
+      expect(response.status).toBe(401);
+      expect(
+        response.headers.get("X-Shopify-API-Request-Failure-Reauthorize-Url"),
+      ).toBe(forwardHeaders ? approvalUrl : null);
+      await response.text();
+    },
+  );
+  it("lets Shopify render its authentication response instead of the generic migration error page", () => {
+    class ErrorResponseImpl {
+      status = 401;
+      statusText = "Unauthorized";
+      internal = false;
+      data =
+        '<span data-shopify-auth="recovery">Recovering authentication</span>';
+    }
+    connection.routeError = new ErrorResponseImpl();
+    const markup = renderErrorBoundary();
+    expect(markup).toContain('data-shopify-auth="recovery"');
+    expect(markup).not.toContain("SelfX could not complete that request");
+    expect(markup).not.toContain("database migrations");
+  });
+  it("keeps the SelfX fallback for an ordinary application error", () => {
+    connection.routeError = new Error("Temporary application failure");
+    const markup = renderErrorBoundary();
+    expect(markup).toContain("SelfX could not complete that request");
+    expect(markup).toContain("Temporary application failure");
+  });
+});
 
 describe("Shopify connection actions on the embedded app page", () => {
   beforeEach(() => {
