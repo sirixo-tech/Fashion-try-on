@@ -1026,7 +1026,7 @@ function planDetail(plan: PricingPlan): string {
   if (plan.billingMode === "POSTPAID_PAYG")
     return `${formatMoney(plan.creditUnitPriceCents ?? 0, plan.currency)} / successful credit, no limit, billed after use`;
   const price = formatMoney(plan.monthlyPriceCents, plan.currency);
-  return `${price} / month, ${formatNumber(plan.includedCredits)} included credits`;
+  return `${price} one-time, ${formatNumber(plan.includedCredits)} included credits`;
 }
 
 function formatMoney(cents: number, currency: string): string {

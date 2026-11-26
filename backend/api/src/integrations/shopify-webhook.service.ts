@@ -1,3 +1,4 @@
+import { disableStorePayg } from "../entitlements/store-billing-policy.js";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { HttpStatus, Injectable } from "@nestjs/common";
@@ -276,13 +277,16 @@ export class ShopifyWebhookService {
         },
         data: { status: "CANCELLED", checkedAt: now },
       });
-      await tx.storeSubscription.updateMany({
-        where: {
-          organizationId: connection.storeId,
-          metadata: { path: ["billingProvider"], equals: "SHOPIFY" },
-        },
-        data: { status: "CANCELLED", cancelledAt: now },
+      const billedSubscription = await tx.storeSubscription.findUnique({
+        where: { organizationId: connection.storeId },
       });
+      if (
+        billedSubscription?.metadata &&
+        typeof billedSubscription.metadata === "object" &&
+        !Array.isArray(billedSubscription.metadata) &&
+        billedSubscription.metadata.billingProvider === "SHOPIFY"
+      )
+        await disableStorePayg(tx, connection.storeId);
       await tx.integrationOauthState.deleteMany({
         where: {
           organizationId: connection.storeId,

@@ -2747,3 +2747,8 @@ A merchant opens Billing in SelfX or Manage plan from WooCommerce for the same a
 
 ### Shopify reinstall and storefront recovery (2026-11-26)
 Reinstall -> reconnect the same approved SelfX Store -> explicit owner approval -> catalog import -> verify plan status -> approve paid changes in Shopify. Plans presents connection recovery until approval completes. Shopper product controls stay hidden until availability succeeds and launch checks availability again.
+
+
+### STORE-CREDITS-2 — Merchant purchase journey (2026-11-26)
+
+Buy credits chooses a pack, displays its one-time total, credit quantity and configured features/limits, and requests provider approval. Approval adds credits once and applies the selected profile without removing unused credits. Merchants may buy the same pack again. Shopify-linked Stores route purchases to Shopify from every management surface; other eligible Stores use SelfX-owned PhonePe. Enable PAYG is a separate consented action, with an explicit Shopify spending cap where applicable. Existing prepaid credits are consumed first; paid successful usage starts only after exhaustion. Disabling PAYG leaves the prepaid balance and last pack profile intact. Uninstall/reconnect does not erase credits or restore the Starter trial. Old monthly credit contracts are verified and retired before new checkout. This supersedes renewal-based fixed-plan selection journeys above.

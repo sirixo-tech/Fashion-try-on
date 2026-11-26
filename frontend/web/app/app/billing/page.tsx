@@ -477,7 +477,8 @@ function MerchantBilling({
                 <div>
                   <h2 className="text-lg font-semibold">Current plan</h2>
                   <p className="text-sm text-muted-foreground">
-                    Your active SelfX subscription for this Store account.
+                    Your Store’s access profile, prepaid balance and optional
+                    usage billing.
                   </p>
                 </div>
               </div>
@@ -498,15 +499,11 @@ function MerchantBilling({
                 }
               />
               <BillingMetric
-                label={
-                  postpaid ? "Credits used this cycle" : "Credits available"
-                }
-                value={displayNumber(
-                  postpaid?.billableCredits ?? subscription?.availableCredits,
-                )}
+                label="Prepaid credits available"
+                value={displayNumber(subscription?.availableCredits)}
                 detail={
                   postpaid
-                    ? "No credit limit"
+                    ? `${postpaid.billableCredits} billable Try-Ons this cycle; prepaid credits are used first`
                     : `${displayNumber(diagnostics?.totals.consumedCredits)} consumed`
                 }
               />
@@ -734,8 +731,8 @@ function AvailablePlansPanel({
       <div className="border-b p-5">
         <h2 className="text-lg font-semibold">Available plans</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Choose a plan for this Store. Verified changes are shared across
-          SelfX, Shopify and WooCommerce.
+          Buy non-expiring credits or enable Pay as you go. Verified purchases
+          are shared across SelfX, Shopify and WooCommerce.
         </p>
       </div>
       <StorePlanPayments controls={controls} />
@@ -767,7 +764,7 @@ function AvailablePlansPanel({
                       )}{" "}
                       {plan.billingMode === "POSTPAID_PAYG"
                         ? "/ credit · postpaid"
-                        : "/ month"}
+                        : "one-time"}
                     </div>
                   </div>
                   {plan.id === currentPlanId ? (
@@ -924,6 +921,7 @@ function storeOptionFromAdminStore(store: AdminStore): StoreOption {
 }
 
 function periodLabel(subscription: StoreSubscriptionSummary | null) {
+  if (!subscription?.postpaid) return "Non-expiring credits";
   if (!subscription?.subscription?.currentPeriodStart) {
     return "Trial";
   }
@@ -932,7 +930,11 @@ function periodLabel(subscription: StoreSubscriptionSummary | null) {
 
 function resetLabel(subscription: StoreSubscriptionSummary | null) {
   const end = subscription?.subscription?.currentPeriodEnd;
-  return end ? <>Renews {formatDate(end)}</> : "No renewal scheduled";
+  return subscription?.postpaid && end ? (
+    <>Usage period ends {formatDate(end)}</>
+  ) : (
+    "Purchased credits never expire"
+  );
 }
 
 function statusLabel(value: string): string {

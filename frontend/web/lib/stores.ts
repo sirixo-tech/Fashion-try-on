@@ -38,6 +38,7 @@ export type AdminStore = {
 
 export type StoreSubscriptionSummary = {
   postpaid?: {
+    pricingPlanId?: string;
     billingMode: "POSTPAID_PAYG";
     timezone: "UTC";
     periodStart: string;

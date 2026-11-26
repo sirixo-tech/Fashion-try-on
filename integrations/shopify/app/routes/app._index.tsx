@@ -701,8 +701,6 @@ export default function Index() {
     creditSummary?.subscription?.includedCredits ??
     0;
   const availableCredits = creditSummary?.availableCredits ?? 0;
-  const payg =
-    creditSummary?.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG";
   const creditAllowance = Math.max(
     includedCredits + (creditSummary?.subscription?.trialCredits ?? 0),
     availableCredits,
@@ -764,16 +762,8 @@ export default function Index() {
           }
         />
         <DashboardMetric
-          label={payg ? "Billable Try-Ons this period" : t("availableCredits")}
-          value={
-            connected
-              ? String(
-                  payg
-                    ? (creditSummary?.postpaid?.billableCredits ?? 0)
-                    : availableCredits,
-                )
-              : "-"
-          }
+          label={t("availableCredits")}
+          value={connected ? String(availableCredits) : "-"}
           meta={localizedPlanName}
           badge={
             <CreditBadge adminLocale={adminLocale} health={creditHealth} />
@@ -1706,7 +1696,7 @@ function StoreConnectionSettingsCard({
   const credits =
     creditSummary == null
       ? "Unavailable"
-      : creditSummary.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG"
+      : creditSummary.postpaid != null
         ? `${creditSummary.postpaid?.billableCredits ?? 0} billable Try-Ons this period`
         : String(creditSummary.availableCredits);
   const statusTone = connected
@@ -2233,7 +2223,7 @@ export function PlansPanel({
       : "Reconnect to SelfX"
     : (currentPlan?.name ??
       (creditSummary ? "No current plan" : "Current plan unavailable"));
-  const payg = currentPlan?.billingMode === "POSTPAID_PAYG";
+  const payg = creditSummary?.postpaid != null;
   const canChooseShopifyPlan =
     connectionReady &&
     shopifyBillingEnabled &&
@@ -2284,9 +2274,9 @@ export function PlansPanel({
               {!connectionReady
                 ? "Finish the Store connection above. Shopify payment approval becomes available after the connection is verified."
                 : billingOwnership === "SHOPIFY_MANAGED"
-                  ? "Shopify manages this Store’s billing agreements. Choose another plan below; cancelling stops paid Try-On access."
+                  ? "Shopify manages this Store’s billing agreements. Choose another plan below; disabling Pay as you go preserves purchased credits."
                   : canChooseShopifyPlan
-                    ? "Choose a plan below to review and approve its charges through Shopify. Plan terms come from SelfX."
+                    ? "Buy a credit pack or enable Pay as you go below. Shopify handles payment approval. Purchased credits never expire."
                     : billingOwnership === "SELFX_MANAGED"
                       ? "Plan selection is temporarily unavailable. Refresh this page or retry when Shopify billing is available. Your current plan is unchanged."
                       : "Shopify billing status could not be verified. Refresh to retry. Your current plan is unchanged."}
@@ -2301,10 +2291,11 @@ export function PlansPanel({
                     value="yes"
                     required
                   />{" "}
-                  I understand that cancelling stops paid Try-On access.
+                  I understand that disabling Pay as you go preserves purchased
+                  credits.
                 </label>
                 <s-button type="submit" variant="secondary">
-                  Cancel Shopify plan
+                  Disable Pay as you go
                 </s-button>
               </Form>
             ) : null}
@@ -2314,6 +2305,10 @@ export function PlansPanel({
           gridTemplateColumns="repeat(auto-fit, minmax(12rem, 1fr))"
           gap="base"
         >
+          <Metric
+            label="Prepaid credits available"
+            value={creditSummary ? availableCredits : "Unavailable"}
+          />
           {payg ? (
             <Metric
               label="Billable Try-Ons this period"
@@ -2326,7 +2321,7 @@ export function PlansPanel({
                 value={creditSummary ? availableCredits : "Unavailable"}
               />
               <Metric
-                label="Plan credits"
+                label="Credits in selected pack"
                 value={creditSummary ? includedCredits : "Unavailable"}
               />
             </>
@@ -2409,6 +2404,9 @@ export function PlansPanel({
                 {currentPlan && !hasCurrentPlanInCatalog ? (
                   <PlanCard
                     active
+                    usageActive={
+                      creditSummary?.postpaid?.pricingPlanId === currentPlan.id
+                    }
                     canChooseShopifyPlan={canChooseShopifyPlan}
                     hasActiveShopifyBilling={
                       billingOwnership === "SHOPIFY_MANAGED"
@@ -2419,6 +2417,8 @@ export function PlansPanel({
                       name: currentPlan.name,
                       currency: currentPlan.currency,
                       monthlyPriceCents: currentPlan.monthlyPriceCents,
+                      billingMode: currentPlan.billingMode,
+                      creditUnitPriceCents: currentPlan.creditUnitPriceCents,
                       includedCredits: currentPlan.includedCredits,
                       trialCredits:
                         creditSummary?.subscription?.trialCredits ?? 0,
@@ -2439,6 +2439,9 @@ export function PlansPanel({
                     <PlanCard
                       key={plan.id}
                       active={active}
+                      usageActive={
+                        creditSummary?.postpaid?.pricingPlanId === plan.id
+                      }
                       canChooseShopifyPlan={canChooseShopifyPlan}
                       hasActiveShopifyBilling={
                         billingOwnership === "SHOPIFY_MANAGED"
@@ -4881,9 +4884,7 @@ function creditHealthFor(
   ) {
     return "INACTIVE";
   }
-  if (
-    creditSummary.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG"
-  ) {
+  if (creditSummary.postpaid != null) {
     return "PAYG";
   }
   if (creditSummary.availableCredits <= 0) {

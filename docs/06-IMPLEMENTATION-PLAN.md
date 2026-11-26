@@ -3450,3 +3450,8 @@ The user explicitly authorized shared merchant plan selection, Shopify Billing A
 
 ### Shopify review issues 2 and 3 recovery (2026-11-26)
 Validate retained ownership, explicit reapproval, duplicate completion, delayed uninstall fencing, unchanged catalog recovery, current-installation billing verification and storefront launch gating. Apply the historical repair after earlier migrations; back up local data first. Deploy matched API, embedded app and theme extension, then verify uninstall/reinstall, accept/decline, Shopify charge history and a completed customer Try-On on the review Store before resubmission. See SHOPIFY-REVIEW-RECOVERY-IMPLEMENTATION-REPORT.md for local database and validation evidence.
+
+
+### STORE-CREDITS-2 — Authorized merchant billing transition (2026-11-26)
+
+Implement explicit purchase contracts and the additive migration, central non-expiring wallet/reservations, verified Shopify one-time purchases and legacy recurring retirement, immediate PhonePe credit purchases, independent PAYG consent/settlement, and corresponding merchant/Shopify/WooCommerce presentation. Verify frozen terms, repeated and concurrent callbacks, repeated same-pack buying, preserved old balances/trial identity, cross-Store restrictions, last-credit concurrency, failed-generation release, prepaid-before-PAYG, caps, overdue usage, cancellation and reinstall. Apply local migrations after backup; production rollout requires migration plus API/app/web deployment and live approval/decline verification. Personal mobile payment/expiry rules and kiosk rental collection are outside this slice.

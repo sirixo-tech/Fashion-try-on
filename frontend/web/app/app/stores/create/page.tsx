@@ -256,7 +256,7 @@ export default function CreateStorePage() {
                             <span className="text-sm font-normal text-muted-foreground">
                               {plan.billingMode === "POSTPAID_PAYG"
                                 ? "/ credit · postpaid"
-                                : "/ month"}
+                                : "one-time"}
                             </span>
                           </p>
                           <p className="mt-2 text-sm text-muted-foreground">
@@ -427,7 +427,7 @@ export default function CreateStorePage() {
                         {priceFor(selected)}{" "}
                         {selected.billingMode === "POSTPAID_PAYG"
                           ? "/ credit · postpaid"
-                          : "/ month"}
+                          : "one-time"}
                       </dd>
                     ) : null}
                   </div>

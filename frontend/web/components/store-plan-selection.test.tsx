@@ -80,7 +80,7 @@ describe("Store plan selection controls", () => {
   it("requires explicit terms acceptance and sends a stable, versioned purchase request", async () => {
     vi.mocked(selfxApi).mockResolvedValue(fixture());
     render(<Harness />);
-    const choose = await screen.findByRole("button", { name: "Choose plan" });
+    const choose = await screen.findByRole("button", { name: "Buy credits" });
     await waitFor(() =>
       expect((choose as HTMLButtonElement).disabled).toBe(false),
     );
@@ -118,7 +118,7 @@ describe("Store plan selection controls", () => {
     const view = render(<Harness />);
     await screen.findByText(/administrator with payment management access/);
     expect(
-      (screen.getByRole("button", { name: "Choose plan" }) as HTMLButtonElement)
+      (screen.getByRole("button", { name: "Buy credits" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
     view.rerender(
@@ -131,7 +131,7 @@ describe("Store plan selection controls", () => {
       />,
     );
     expect(screen.getByText(/cannot be selected again/)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Choose plan" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Buy credits" })).toBeNull();
   });
   it("ignores a late billing response from a previously selected Store", async () => {
     let finishOld!: (value: StorePlanWorkspace) => void;

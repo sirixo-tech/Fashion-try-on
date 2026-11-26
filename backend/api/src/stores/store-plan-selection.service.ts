@@ -1,3 +1,4 @@
+import { disableStorePayg } from "../entitlements/store-billing-policy.js";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -73,6 +74,7 @@ function publicPurchase(row: StorePlanPurchase) {
     amountMinor: row.amountMinor,
     currency: row.currency,
     purpose: row.billingCycleId ? ("USAGE" as const) : ("PLAN" as const),
+    purchaseKind: row.purchaseKind,
     checkoutUrl:
       row.status === "PENDING" && row.expiresAt > new Date()
         ? row.checkoutUrl
@@ -283,7 +285,8 @@ export class StorePlanSelectionService
       if (
         !plan ||
         plan.code === "selfx-default-starter" ||
-        (plan.billingMode !== "POSTPAID_PAYG" && plan.monthlyPriceCents <= 0)
+        (plan.billingMode !== "POSTPAID_PAYG" &&
+          (plan.monthlyPriceCents <= 0 || plan.includedCredits < 1))
       )
         fail(
           "PLAN_UNAVAILABLE",
@@ -307,6 +310,7 @@ export class StorePlanSelectionService
         where: { organizationId: storeId },
       });
       if (
+        plan.billingMode === "POSTPAID_PAYG" &&
         current?.status === "ACTIVE" &&
         current.pricingPlanId === plan.id &&
         (!current.currentPeriodEnd || current.currentPeriodEnd > new Date())
@@ -325,18 +329,15 @@ export class StorePlanSelectionService
           503,
         );
       const id = createSelfxId();
-      const effectiveAfter =
-        current?.status === "ACTIVE" &&
-        current.currentPeriodEnd &&
-        current.currentPeriodEnd > new Date()
-          ? current.currentPeriodEnd
-          : null;
+      const effectiveAfter = null;
       const purchase = await tx.storePlanPurchase.create({
         data: {
           id,
           organizationId: storeId,
           actorUserId: actorId,
           pricingPlanId: plan.id,
+          purchaseKind:
+            plan.billingMode === "POSTPAID_PAYG" ? "PAYG" : "CREDIT_PACK",
           requestKey,
           requestFingerprint: fingerprint,
           merchantOrderId: `SP${id.replaceAll("-", "")}`,
@@ -366,7 +367,7 @@ export class StorePlanSelectionService
             amountMinor: plan.monthlyPriceCents,
             currency: plan.currency,
             billingMode: plan.billingMode,
-            effectiveAfter: effectiveAfter?.toISOString() ?? null,
+            effectiveAfter: null,
             acceptedUsageRate: plan.creditUnitPriceCents,
           },
         },
@@ -380,6 +381,28 @@ export class StorePlanSelectionService
     return this.initiate(row);
   }
 
+  async disablePayg(storeId: string, actorId: string) {
+    await this.db.$transaction(async (tx) => {
+      await this.activeStore(tx, storeId);
+      if (await this.shopify(tx, storeId))
+        fail(
+          "SHOPIFY_BILLING_MANAGED",
+          "Disable this Store's Pay as you go in Shopify.",
+        );
+      await disableStorePayg(tx, storeId);
+      await tx.auditLog.create({
+        data: {
+          id: createSelfxId(),
+          organizationId: storeId,
+          actorUserId: actorId,
+          action: "STORE_PAYG_DISABLED",
+          resourceType: "STORE_SUBSCRIPTION",
+          resourceId: storeId,
+        },
+      });
+    });
+    return { disabled: true };
+  }
   private async initiate(row: StorePlanPurchase) {
     if (row.status !== "INITIALIZING") return publicPurchase(row);
     const claimed = await this.db.storePlanPurchase.updateMany({
@@ -666,7 +689,8 @@ export class StorePlanSelectionService
           where: { organizationId: storeId },
         });
         if (
-          !isDeepStrictEqual(base(current), row.baseSubscription) ||
+          (row.purchaseKind !== "CREDIT_PACK" &&
+            !isDeepStrictEqual(base(current), row.baseSubscription)) ||
           (await this.shopify(tx, storeId))
         ) {
           await tx.storePlanPurchase.update({
@@ -682,6 +706,18 @@ export class StorePlanSelectionService
           throw error;
         }
         const plan = row.pricingSnapshot as unknown as PricingPlan;
+        if (row.purchaseKind === "CREDIT_PACK") {
+          await this.entitlements.grantCreditPack(tx, {
+            organizationId: storeId,
+            plan,
+            purchaseKey: `phonepe:${row.id}`,
+          });
+          await tx.storePlanPurchase.update({
+            where: { id: row.id },
+            data: { status: "ACTIVE", activatedAt: new Date() },
+          });
+          return;
+        }
         let start = row.effectiveAfter ?? row.paidAt ?? row.createdAt;
         let end = monthlyBillingPeriod(start, start).end;
         if (end <= new Date()) {
@@ -824,7 +860,14 @@ export class StorePlanSelectionService
           requestKey: { not: null },
           createdAt: { lt: cutoff },
           status: {
-            in: ["ACTIVE", "CANCELLED", "DECLINED", "EXPIRED", "REPLACED"],
+            in: [
+              "PAID",
+              "ACTIVE",
+              "CANCELLED",
+              "DECLINED",
+              "EXPIRED",
+              "REPLACED",
+            ],
           },
         },
         data: { requestKey: null },

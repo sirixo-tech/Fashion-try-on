@@ -3091,3 +3091,8 @@ The user approved one shared subscription per linked SelfX Store across the merc
 
 ### Shopify review recovery (2026-11-26)
 An app reinstall retains the previously approved Store identity for reconnection. Fresh Shopify authentication and explicit SelfX approval remain required. Reconnection never renews the one-time Starter trial or reactivates a suspended Store. Customer Try-On controls appear only while backend availability is verified.
+
+
+### STORE-CREDITS-2 — One-time packs and optional monthly PAYG (2026-11-26)
+
+The user superseded monthly merchant credit plans and renewal-based fixed-plan changes. CREDIT_LIMITED merchant offers are one-time credit packs: verified purchases add credits to a shared Store ledger, purchased credits never expire and repeated pack purchases are permitted. The existing catalog price and credit quantity are retained; no prices are invented. Each purchased pack selects its configured feature, channel, location and kiosk entitlement profile immediately after verified payment, using frozen accepted terms; it does not erase earlier credits or cancel separately approved PAYG. PAYG is optional, has no fixed monthly fee, uses existing prepaid credits before billable successful generations and remains subject to approved Shopify caps or PhonePe overdue-bill controls. No automatic paid fallback without consent. Disabling PAYG retains prepaid credits and the last credit-pack profile. Starter remains one-time. Personal mobile pricing/expiry, shopping orders and separate kiosk rental fees are unchanged. Existing monthly charges must be retired through provider verification, preserving balances and financial history; database changes alone do not stop Shopify charges.

@@ -14,6 +14,7 @@ describe("Store plan selection authorization", () => {
     payment: vi.fn(),
     payUsage: vi.fn(),
     cancel: vi.fn(),
+    disablePayg: vi.fn(),
   };
   const controller = new StorePlanSelectionController(
     auth as never,
@@ -56,6 +57,22 @@ describe("Store plan selection authorization", () => {
       true,
     );
     expect(plans.choose).toHaveBeenCalledWith("store-a", "actor", choice);
+  });
+  it("requires Store payment management permission to disable usage billing", async () => {
+    await controller.disablePayg(request, "store-a");
+    expect(rbac.requireStorePaymentPermission).toHaveBeenCalledWith(
+      "actor",
+      "store-a",
+      true,
+    );
+    expect(plans.disablePayg).toHaveBeenCalledWith("store-a", "actor");
+    rbac.requireStorePaymentPermission.mockRejectedValueOnce(
+      new Error("Forbidden"),
+    );
+    await expect(controller.disablePayg(request, "store-b")).rejects.toThrow(
+      "Forbidden",
+    );
+    expect(plans.disablePayg).toHaveBeenCalledTimes(1);
   });
   it("denies cross-Store and view-only payment mutations", async () => {
     rbac.requireStorePaymentPermission.mockRejectedValue(

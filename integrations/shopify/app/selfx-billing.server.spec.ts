@@ -42,11 +42,12 @@ describe("Shopify billing server boundary", () => {
         plan: {
           name: "Existing SelfX plan",
           currency: "USD",
-          monthlyPriceCents: 1999,
-          billingMode: "CREDIT_LIMITED",
+          monthlyPriceCents: 0,
+          billingMode: "POSTPAID_PAYG",
+          creditUnitPriceCents: 99,
         },
-        usageCapCents: null,
-        usageTerms: null,
+        usageCapCents: 1000,
+        usageTerms: "USD 0.99 per successful Try-On",
       });
     return Response.json({ attached: true });
   }
@@ -121,7 +122,7 @@ describe("Shopify billing server boundary", () => {
       );
     },
   );
-  it("uses central plan prices, asks Shopify for approval and defers changes until renewal", async () => {
+  it("uses central plan prices and requests immediate activation for usage billing", async () => {
     fetchImpl.mockImplementation(central);
     admin.graphql.mockResolvedValue(
       Response.json({
@@ -143,16 +144,16 @@ describe("Shopify billing server boundary", () => {
         lineItems: [
           {
             plan: {
-              appRecurringPricingDetails: {
-                price: { amount: "19.99", currencyCode: "USD" },
-                interval: "EVERY_30_DAYS",
+              appUsagePricingDetails: {
+                cappedAmount: { amount: "10.00", currencyCode: "USD" },
+                terms: "USD 0.99 per successful Try-On",
               },
             },
           },
         ],
       }),
     });
-    expect(CREATE_SUBSCRIPTION).toContain("APPLY_ON_NEXT_BILLING_CYCLE");
+    expect(CREATE_SUBSCRIPTION).toContain("APPLY_IMMEDIATELY");
     const prepare = fetchImpl.mock.calls.find((call) =>
       String(call[0]).endsWith("/prepare"),
     );

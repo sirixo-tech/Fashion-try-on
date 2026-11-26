@@ -3,6 +3,7 @@ import { HttpStatus } from "@nestjs/common";
 import type { Prisma, KioskTryOnRun, PricingPlan } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
+import { billingMetadata, savedPlan } from "./store-billing-policy.js";
 import {
   assertPhonePeUsageSettled,
   phonepeManaged,
@@ -23,6 +24,8 @@ export async function effectiveShopifyPlan(
   metadata: Prisma.JsonValue | null,
   fallback: PricingPlan | null,
 ): Promise<PricingPlan | null> {
+  const profile = savedPlan(billingMetadata(metadata).creditPackTerms);
+  if (profile) return profile;
   if (phonepeManaged(metadata)) {
     const id = (metadata as { phonepePurchaseId?: string }).phonepePurchaseId;
     const purchase = id
@@ -52,6 +55,7 @@ export async function assertShopifyBillingActive(
 ) {
   // Historical PhonePe usage remains payable even after a plan/provider change.
   await assertPhonePeUsageSettled(tx, organizationId);
+  if (billingMetadata(metadata).paygEnabled === false) return;
   if (!shopifyManaged(metadata)) return;
   const id = (metadata as { shopifyAgreementId?: string }).shopifyAgreementId;
   if (

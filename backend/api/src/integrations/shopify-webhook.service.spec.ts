@@ -565,20 +565,21 @@ describe("Shopify webhook security and synchronization", () => {
       $queryRaw: vi.fn(),
       externalProductMapping: { updateMany: vi.fn() },
       shopifyBillingAgreement: { updateMany: vi.fn() },
-      storeSubscription: { updateMany: vi.fn() },
+      storeSubscription: {
+        updateMany: vi.fn(),
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
       integrationProviderCredential: { deleteMany: vi.fn() },
       integrationOauthState: { deleteMany: vi.fn() },
       shopifyLinkSession: { deleteMany: vi.fn() },
       integrationCredential: { updateMany: vi.fn() },
       integration: {
         update: vi.fn(),
-        findFirst: vi
-          .fn()
-          .mockResolvedValue({
-            externalAccountId: "gid://shopify/Shop/456",
-            connectedAt: new Date("2026-09-01"),
-            metadata: { connectionMode: "SHOPIFY_APP" },
-          }),
+        findFirst: vi.fn().mockResolvedValue({
+          externalAccountId: "gid://shopify/Shop/456",
+          connectedAt: new Date("2026-09-01"),
+          metadata: { connectionMode: "SHOPIFY_APP" },
+        }),
       },
       auditLog: { create: vi.fn() },
     };
@@ -629,12 +630,10 @@ describe("Shopify webhook security and synchronization", () => {
       transaction: {
         $queryRaw: vi.fn(),
         integration: {
-          findFirst: vi
-            .fn()
-            .mockResolvedValue({
-              externalAccountId: "gid://shopify/Shop/456",
-              connectedAt: new Date("2026-09-08"),
-            }),
+          findFirst: vi.fn().mockResolvedValue({
+            externalAccountId: "gid://shopify/Shop/456",
+            connectedAt: new Date("2026-09-08"),
+          }),
         },
       },
     });

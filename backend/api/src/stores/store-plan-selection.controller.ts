@@ -94,6 +94,16 @@ export class StorePlanSelectionController {
     await this.authorize(request, storeId, true);
     return this.plans.payment(storeId, paymentId);
   }
+  @Post("payg/disable")
+  @HttpCode(200)
+  @Header("Cache-Control", "private, no-store")
+  async disablePayg(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+  ) {
+    const user = await this.authorize(request, storeId, true);
+    return this.plans.disablePayg(storeId, user.id);
+  }
   @Post("payments/:paymentId/pay")
   @HttpCode(200)
   @Header("Cache-Control", "private, no-store")

@@ -1,4 +1,6 @@
+import { billingMetadata, paygTerms } from "./store-billing-policy.js";
 import { randomUUID } from "node:crypto";
+import { reserveStoreCredits, walletBalance } from "./store-credit-wallet.js";
 import {
   reserveShopifyUsage,
   assertShopifyBillingActive,
@@ -90,6 +92,7 @@ export interface ConsumeTryOnCreditInput {
 }
 
 export interface ConsumeTryOnCreditResult {
+  creditReservationId?: string;
   shopifyReservationId?: string;
   billingCycleId?: string;
   entry: CreditLedgerEntry | null;
@@ -150,7 +153,86 @@ export class EntitlementsService {
   ) {}
 
   async getCreditBalance(organizationId: string): Promise<CreditBalance> {
-    return this.getCreditBalanceWithClient(organizationId, this.prisma);
+    return {
+      availableCredits: (await walletBalance(this.prisma, organizationId))
+        .availableCredits,
+    };
+  }
+
+  /** Adds credits and selects the pack's frozen feature/limit profile without replacing PAYG authority. */
+  async grantCreditPack(
+    tx: Prisma.TransactionClient,
+    input: {
+      organizationId: string;
+      plan: import("@prisma/client").PricingPlan;
+      purchaseKey: string;
+    },
+  ) {
+    await this.ensureTrialCredits(input.organizationId, tx);
+    await lockBillingSubscription(tx, input.organizationId);
+    const store = await tx.organization.findUniqueOrThrow({
+      where: { id: input.organizationId },
+    });
+    if (store.status !== "ACTIVE")
+      throw new ApiErrorException(
+        403,
+        "STORE_INACTIVE",
+        "This Store is inactive.",
+      );
+    if (
+      input.plan.billingMode !== "CREDIT_LIMITED" ||
+      input.plan.includedCredits < 1
+    )
+      throw pricingPlanUnavailable();
+    const key = `credit-pack:${input.purchaseKey}`;
+    if (
+      await tx.creditLedgerEntry.findUnique({ where: { idempotencyKey: key } })
+    )
+      return;
+    const subscription = await tx.storeSubscription.findUniqueOrThrow({
+      where: { organizationId: input.organizationId },
+      include: { pricingPlan: true },
+    });
+    await tx.creditLedgerEntry.create({
+      data: {
+        id: createSelfxId(),
+        organizationId: input.organizationId,
+        subscriptionId: subscription.id,
+        pricingPlanId: input.plan.id,
+        entryType: "PLAN_GRANTED",
+        quantity: input.plan.includedCredits,
+        idempotencyKey: key,
+        reason: `Purchased ${input.plan.name} credits`,
+        metadata: {
+          purchaseKey: input.purchaseKey,
+          nonExpiring: true,
+          includedCredits: input.plan.includedCredits,
+        },
+      },
+    });
+    const metadata = billingMetadata(subscription.metadata);
+    const usage = paygTerms(subscription);
+    await tx.storeSubscription.update({
+      where: { id: subscription.id },
+      data: {
+        pricingPlanId: input.plan.id,
+        channels: jsonStringArray(input.plan.channels),
+        includedCredits: input.plan.includedCredits,
+        status: "ACTIVE",
+        cancelledAt: null,
+        currentPeriodEnd: usage ? subscription.currentPeriodEnd : null,
+        metadata: {
+          ...metadata,
+          ...subscriptionMetadataForPlan(input.plan),
+          creditBillingVersion: 2,
+          creditPackTerms: JSON.parse(JSON.stringify(input.plan)),
+          prepaidProfileTerms: JSON.parse(JSON.stringify(input.plan)),
+          ...(usage
+            ? { paygPlanTerms: JSON.parse(JSON.stringify(usage)) }
+            : { billingProvider: "CREDIT_BALANCE", paygEnabled: false }),
+        },
+      },
+    });
   }
 
   async getStoreCreditSummary(
@@ -261,6 +343,31 @@ export class EntitlementsService {
           "Change this Store's plan in Shopify, or cancel its Shopify subscription first.",
         );
       }
+      const commercialMetadata = billingMetadata(current?.metadata ?? null);
+      const previousPrepaid =
+        current?.pricingPlan?.billingMode === "CREDIT_LIMITED"
+          ? current.pricingPlan
+          : commercialMetadata.prepaidProfileTerms;
+      const billingMetadataPatch: Prisma.InputJsonObject =
+        plan.billingMode === "POSTPAID_PAYG"
+          ? {
+              creditBillingVersion: 2,
+              paygEnabled: true,
+              paygPlanTerms: JSON.parse(JSON.stringify(plan)),
+              ...(previousPrepaid
+                ? {
+                    prepaidProfileTerms: JSON.parse(
+                      JSON.stringify(previousPrepaid),
+                    ),
+                  }
+                : {}),
+            }
+          : {
+              creditBillingVersion: 2,
+              creditPackTerms: JSON.parse(JSON.stringify(plan)),
+              billingProvider: "CREDIT_BALANCE",
+              paygEnabled: false,
+            };
       const billingAnchorAt =
         input.externalPeriod?.start ??
         current?.billingAnchorAt ??
@@ -271,17 +378,21 @@ export class EntitlementsService {
       const sameActivePeriod =
         current?.pricingPlanId === plan.id &&
         current.status === StoreSubscriptionStatus.ACTIVE &&
-        current.currentPeriodEnd != null &&
-        current.currentPeriodEnd > now &&
+        (plan.billingMode !== "POSTPAID_PAYG" ||
+          (current.currentPeriodEnd != null &&
+            current.currentPeriodEnd > now)) &&
         (!input.externalPeriod ||
           current.currentPeriodStart?.getTime() ===
             input.externalPeriod.start.getTime());
       const currentPeriodStart = sameActivePeriod
         ? current.currentPeriodStart
         : (input.externalPeriod?.start ?? now);
-      const currentPeriodEnd = sameActivePeriod
-        ? current.currentPeriodEnd
-        : (input.externalPeriod?.end ?? addMonths(now, 1));
+      const currentPeriodEnd =
+        plan.billingMode !== "POSTPAID_PAYG"
+          ? null
+          : sameActivePeriod
+            ? current.currentPeriodEnd
+            : (input.externalPeriod?.end ?? addMonths(now, 1));
 
       const subscription = await tx.storeSubscription.upsert({
         where: { organizationId: input.organizationId },
@@ -297,6 +408,7 @@ export class EntitlementsService {
           currentPeriodEnd,
           metadata: {
             ...subscriptionMetadataForPlan(plan),
+            ...billingMetadataPatch,
             ...(input.billingProvider
               ? {
                   billingProvider: input.billingProvider,
@@ -317,6 +429,7 @@ export class EntitlementsService {
           currentPeriodEnd,
           metadata: {
             ...subscriptionMetadataForPlan(plan),
+            ...billingMetadataPatch,
             ...(input.billingProvider
               ? {
                   billingProvider: input.billingProvider,
@@ -414,7 +527,7 @@ export class EntitlementsService {
         where: { organizationId: input.organizationId },
         include: { pricingPlan: true },
       });
-      if (subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG") {
+      if (subscription && paygTerms(subscription)) {
         throw new ApiErrorException(
           HttpStatus.CONFLICT,
           "SELFX_POSTPAID_TOPUP_UNAVAILABLE",
@@ -620,7 +733,7 @@ export class EntitlementsService {
       where: { organizationId: input.organizationId },
       include: { pricingPlan: true },
     });
-    if (subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG") {
+    if (subscription && paygTerms(subscription)) {
       assertPostpaidActive(subscription.status);
       return balance;
     }
@@ -650,22 +763,38 @@ export class EntitlementsService {
           subscription.metadata,
           subscription.pricingPlan,
         );
+      const wallet = await walletBalance(tx, input.organizationId);
+      const creditReservationId = await reserveStoreCredits(tx, {
+        organizationId: input.organizationId,
+        requestKey: input.idempotencyKey,
+        channel: input.channel,
+        quantity,
+        allowPayg:
+          !!subscription &&
+          !!paygTerms(subscription) &&
+          subscription.status === "ACTIVE",
+      });
+      if (creditReservationId)
+        return {
+          entry: null,
+          creditReservationId,
+          balanceBefore: wallet.availableCredits,
+          balanceAfter: (await walletBalance(tx, input.organizationId))
+            .availableCredits,
+        };
       await assertShopifyBillingActive(
         tx,
         input.organizationId,
         subscription?.metadata ?? null,
       );
-      if (subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG") {
+      if (subscription && paygTerms(subscription)) {
         assertPostpaidActive(subscription.status);
-        if (
-          !jsonArrayToStrings(subscription.channels).includes(input.channel)
-        ) {
+        if (!jsonArrayToStrings(subscription.channels).includes(input.channel))
           throw new ApiErrorException(
-            HttpStatus.PAYMENT_REQUIRED,
+            402,
             "SELFX_SUBSCRIPTION_UNAVAILABLE",
             "This channel is not included in the Store's plan.",
           );
-        }
         const cycle = await ensurePostpaidCycle(tx, subscription);
         const shopifyReservationId = await reserveShopifyUsage(
           tx,
@@ -673,65 +802,15 @@ export class EntitlementsService {
           input.idempotencyKey,
           subscription.metadata,
         );
-        const balance = await this.getCreditBalanceWithClient(
-          input.organizationId,
-          tx,
-        );
         return {
           entry: null,
           billingCycleId: cycle.id,
           shopifyReservationId,
-          balanceBefore: balance.availableCredits,
-          balanceAfter: balance.availableCredits,
+          balanceBefore: wallet.availableCredits,
+          balanceAfter: wallet.availableCredits,
         };
       }
-
-      const existing = await tx.creditLedgerEntry.findUnique({
-        where: { idempotencyKey: input.idempotencyKey },
-      });
-      if (existing) {
-        const balance = await this.getCreditBalanceWithClient(
-          input.organizationId,
-          tx,
-        );
-        return {
-          entry: existing,
-          balanceBefore: balance.availableCredits,
-          balanceAfter: existing.balanceAfter ?? balance.availableCredits,
-        };
-      }
-
-      const balance = await this.getCreditBalanceWithClient(
-        input.organizationId,
-        tx,
-      );
-      if (balance.availableCredits < quantity) {
-        throw creditsExhausted();
-      }
-
-      const balanceAfter = balance.availableCredits - quantity;
-      const entry = await tx.creditLedgerEntry.create({
-        data: {
-          id: createSelfxId(),
-          organizationId: input.organizationId,
-          entryType: CreditLedgerEntryType.CREDIT_CONSUMED,
-          channel: input.channel,
-          quantity: -quantity,
-          balanceAfter,
-          idempotencyKey: input.idempotencyKey,
-          reason: input.reason ?? "Try-On generation",
-          tryOnSessionId: input.tryOnSessionId ?? null,
-          kioskTryOnRunId: input.kioskTryOnRunId ?? null,
-          productId: input.productId ?? null,
-          integrationId: input.integrationId ?? null,
-          metadata: input.metadata,
-        },
-      });
-      return {
-        entry,
-        balanceBefore: balance.availableCredits,
-        balanceAfter,
-      };
+      throw creditsExhausted();
     };
     return transaction
       ? consume(transaction)
@@ -809,7 +888,7 @@ export class EntitlementsService {
     tx: Prisma.TransactionClient | PrismaService,
   ): Promise<StoreCreditSummary> {
     const [balance, subscription] = await Promise.all([
-      this.getCreditBalanceWithClient(organizationId, tx),
+      walletBalance(tx, organizationId),
       tx.storeSubscription.findUnique({
         where: { organizationId },
         include: { pricingPlan: true },
@@ -829,13 +908,13 @@ export class EntitlementsService {
           subscription.metadata,
         );
       } catch (error) {
-        if (error instanceof ApiErrorException)
+        if (error instanceof ApiErrorException && balance.availableCredits <= 0)
           subscription.status =
             (error.getResponse() as { error?: { code?: string } }).error
               ?.code === "STORE_USAGE_PAYMENT_DUE"
               ? StoreSubscriptionStatus.PAST_DUE
               : StoreSubscriptionStatus.CANCELLED;
-        else throw error;
+        else if (!(error instanceof ApiErrorException)) throw error;
       }
     }
     const postpaid = subscription

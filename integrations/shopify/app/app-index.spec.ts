@@ -362,7 +362,7 @@ describe("Shopify plan card presentation", () => {
     const markup = renderToStaticMarkup(
       createElement(PlanCard, {
         active: true,
-        canChooseShopifyPlan: true,
+        canChooseShopifyPlan: false,
         plan: {
           id: "plan-pro",
           code: "pro",

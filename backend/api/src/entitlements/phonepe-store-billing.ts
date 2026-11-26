@@ -30,6 +30,6 @@ export async function assertPhonePeUsageSettled(
     throw new ApiErrorException(
       402,
       "STORE_USAGE_PAYMENT_DUE",
-      "Pay this Store's completed usage bill in Billing to continue Try-On.",
+      "Pay this Store's completed usage bill in Billing before further Pay as you go usage or a new purchase.",
     );
 }

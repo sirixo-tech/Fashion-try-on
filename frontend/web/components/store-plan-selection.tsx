@@ -26,6 +26,7 @@ export type StorePlanPayment = {
   amountMinor: number;
   currency: string;
   purpose: "PLAN" | "USAGE";
+  purchaseKind?: string;
   checkoutUrl: string | null;
   expiresAt: string;
   effectiveAfter: string | null;
@@ -151,7 +152,13 @@ export function useStorePlanSelection(
       if (
         loaded?.value.payments.find(
           (payment) => payment.planId === plan.id && payment.purpose === "PLAN",
-        )?.status === "FAILED"
+        )?.status &&
+        ["FAILED", "ACTIVE", "PAID"].includes(
+          loaded.value.payments.find(
+            (payment) =>
+              payment.planId === plan.id && payment.purpose === "PLAN",
+          )!.status,
+        )
       )
         requests.current.delete(requestKey);
       const id = requests.current.get(requestKey) ?? crypto.randomUUID();
@@ -166,6 +173,7 @@ export function useStorePlanSelection(
     check: (id: string) => run(`/payments/${id}/check`),
     pay: (id: string) => run(`/payments/${id}/pay`),
     cancel: (id: string) => run(`/payments/${id}/cancel`),
+    disablePayg: () => run("/payg/disable"),
   };
 }
 export type StorePlanControls = ReturnType<typeof useStorePlanSelection>;
@@ -215,12 +223,22 @@ export function StorePlanPayments({
         </p>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Pay through SelfX’s PhonePe account. Fixed plans cover one month and
-          require a new payment to renew. Usage-only plans are billed monthly;
-          unpaid completed usage pauses Try-On. Starter is a one-time Store
-          trial.
+          Pay through SelfX’s PhonePe account. Credit packs are one-time
+          purchases and never expire. Pay as you go is billed monthly; unpaid
+          completed usage pauses Try-On. Starter is a one-time Store trial.
         </p>
       )}
+      {workspace?.billingOwner === "SELFX" &&
+      workspace.canManage &&
+      workspace.summary.postpaid ? (
+        <Button
+          variant="outline"
+          disabled={controls.busy}
+          onClick={() => void controls.disablePayg()}
+        >
+          Disable Pay as you go
+        </Button>
+      ) : null}
       {workspace?.scheduled ? (
         <p role="status" className="text-sm font-medium">
           Changes to {workspace.scheduled.planName} on{" "}
@@ -344,20 +362,14 @@ export function StorePlanAction({
   const trial =
     plan.code === "selfx-default-starter" ||
     (plan.billingMode !== "POSTPAID_PAYG" && plan.monthlyPriceCents <= 0);
-  const expired =
-    workspace?.summary.subscription?.currentPeriodEnd &&
-    new Date(workspace.summary.subscription.currentPeriodEnd) <= new Date();
   if (
-    current &&
-    !(
-      expired &&
-      workspace?.billingOwner === "SELFX" &&
-      plan.billingMode !== "POSTPAID_PAYG"
-    )
+    plan.billingMode === "POSTPAID_PAYG" &&
+    workspace?.summary.postpaid &&
+    (workspace.summary.postpaid.pricingPlanId === plan.id || current)
   )
     return (
       <Button className="mt-4 w-full" variant="outline" disabled>
-        Current plan
+        Pay as you go enabled
       </Button>
     );
   if (trial)
@@ -411,7 +423,9 @@ export function StorePlanAction({
           setOpen(true);
         }}
       >
-        Choose plan
+        {plan.billingMode === "POSTPAID_PAYG"
+          ? "Enable Pay as you go"
+          : "Buy credits"}
       </Button>
       {!supported ? (
         <p className="mt-2 text-xs text-muted-foreground">
@@ -430,17 +444,14 @@ export function StorePlanAction({
             <DialogDescription>
               {plan.billingMode === "POSTPAID_PAYG"
                 ? `${new Intl.NumberFormat(undefined, { style: "currency", currency: plan.currency }).format((plan.creditUnitPriceCents ?? 0) / 100)} per successful Try-On, billed monthly.`
-                : `${new Intl.NumberFormat(undefined, { style: "currency", currency: plan.currency }).format(plan.monthlyPriceCents / 100)} for one month.`}
+                : `${new Intl.NumberFormat(undefined, { style: "currency", currency: plan.currency }).format(plan.monthlyPriceCents / 100)} one-time for ${plan.includedCredits} non-expiring credits.`}
             </DialogDescription>
           </DialogHeader>
           <p className="text-sm">
-            {workspace?.summary.subscription?.status === "ACTIVE" &&
-            workspace.summary.subscription.currentPeriodEnd &&
-            new Date(workspace.summary.subscription.currentPeriodEnd) >
-              new Date()
-              ? `Starts at renewal on ${new Date(workspace.summary.subscription.currentPeriodEnd).toLocaleDateString()}. Your current plan continues until then.`
-              : "Starts after payment verification or acceptance of usage terms."}{" "}
-            Credits and usage are shared across this Store’s connected
+            Starts after verified payment or acceptance of usage terms.
+            Purchased credits never expire and are used before billable PAYG
+            usage. This pack’s configured features and limits apply after
+            purchase. Credits and usage are shared across this Store’s connected
             applications. Trial credits are never renewed.
           </p>
           <label className="flex items-start gap-2 text-sm">

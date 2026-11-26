@@ -2950,3 +2950,8 @@ Migration 20261126000000_store_plan_selection adds replay identity, request fing
 
 ### Shopify reinstall recovery (2026-11-26)
 No new persistence entities are required. Retain non-secret identity on disconnected integrations and local SelfxConnection rows; erase credentials and pending capabilities. Migration 20261126020000_shopify_reinstall_recovery repairs historical erased ownership only from the last explicit approval and uninstall audit evidence, excluding inactive, redacted or subsequently reassigned Stores. It grants no subscription or credentials. Terminal-installation unpaid usage uses REVIEW_REQUIRED while preserving financial amounts. Local Shopify app tables use schema shopify_app, separate from the central public schema.
+
+
+### STORE-CREDITS-2 — Durable credit admission (2026-11-26)
+
+Migration 20261126030000_store_credit_packs adds purchase_kind to merchant purchase/agreement records with explicit legacy defaults. store_credit_reservations stores UUIDv7 ID, Store ID, unique hashed request identity, positive quantity, channel, state and creation time. kiosk_try_on_runs references each reservation uniquely using a compound Store/reservation FK. Admission triggers reject released, foreign or mixed prepaid/postpaid reservations; failed runs release reserved credits. Existing CreditLedgerEntry remains the financial balance and successful consumption ledger, with unique purchase/settlement keys. Snapshot metadata separates paid credit entitlements from approved PAYG authority. Store purge includes reservation dependencies. No personal mobile tables or customer retention structures change.

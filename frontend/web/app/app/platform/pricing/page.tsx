@@ -347,7 +347,7 @@ function PricingPlanCard({
               label={
                 plan.billingMode === "POSTPAID_PAYG"
                   ? "Per credit · postpaid"
-                  : "Monthly"
+                  : "One-time credit pack"
               }
               value={money(
                 plan.billingMode === "POSTPAID_PAYG"

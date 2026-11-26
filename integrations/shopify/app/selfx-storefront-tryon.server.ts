@@ -19,6 +19,7 @@ export type SelfxStorefrontTryOnCreated = {
 export type SelfxStorefrontCreditSummary = {
   availableCredits: number;
   postpaid?: {
+    pricingPlanId?: string;
     billingMode: "POSTPAID_PAYG";
     billableCredits: number;
     periodStart: string;

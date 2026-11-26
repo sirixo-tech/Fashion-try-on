@@ -1,3 +1,4 @@
+import { paygTerms } from "./store-billing-policy.js";
 import { HttpStatus } from "@nestjs/common";
 import {
   CreditLedgerChannel,
@@ -21,12 +22,18 @@ import {
   effectiveShopifyPlan,
 } from "./shopify-usage-billing.js";
 
+import {
+  reserveStoreCredits,
+  settleStoreCredits,
+} from "./store-credit-wallet.js";
+
 type BillingTx = Prisma.TransactionClient;
 type SubscriptionWithPlan = StoreSubscription & {
   pricingPlan: PricingPlan | null;
 };
 
 export interface PostpaidSummary {
+  pricingPlanId?: string;
   billingMode: "POSTPAID_PAYG";
   timezone: "UTC";
   periodStart: string;
@@ -58,20 +65,12 @@ export async function prepareRunBilling(
   billingChannel: CreditLedgerChannel;
   billingCycleId?: string;
   shopifyReservationId?: string;
+  creditReservationId?: string;
 }> {
   const data = { billingChannel: input.channel };
   if (!input.organizationId || input.assignmentScope === "PLATFORM")
     return data;
   const organizationId = input.organizationId;
-  const initial = await db.storeSubscription.findUnique({
-    where: { organizationId },
-    include: { pricingPlan: true },
-  });
-  if (
-    initial?.pricingPlan?.billingMode !== "POSTPAID_PAYG" &&
-    !shopifyManaged(initial?.metadata ?? null)
-  )
-    return data;
   return db.$transaction(async (tx) => {
     await lockBillingSubscription(tx, organizationId);
     const subscription = await tx.storeSubscription.findUniqueOrThrow({
@@ -83,8 +82,15 @@ export async function prepareRunBilling(
       subscription.metadata,
       subscription.pricingPlan,
     );
+    const creditReservationId = await reserveStoreCredits(tx, {
+      organizationId,
+      requestKey: input.requestKey ?? createSelfxId(),
+      channel: input.channel,
+      allowPayg: !!paygTerms(subscription) && subscription.status === "ACTIVE",
+    });
+    if (creditReservationId) return { ...data, creditReservationId };
     await assertShopifyBillingActive(tx, organizationId, subscription.metadata);
-    if (subscription.pricingPlan?.billingMode !== "POSTPAID_PAYG") return data;
+    if (!paygTerms(subscription)) return data;
     if (
       subscription.status !== "ACTIVE" ||
       !Array.isArray(subscription.channels) ||
@@ -113,11 +119,7 @@ export async function ensurePostpaidCycle(
   at = new Date(),
   firstRate?: PricingPlan,
 ): Promise<StoreBillingCycle> {
-  const plan = await effectiveShopifyPlan(
-    tx,
-    subscription.metadata,
-    firstRate ?? subscription.pricingPlan,
-  );
+  const plan = firstRate ?? paygTerms(subscription);
   if (
     !plan ||
     plan.billingMode !== "POSTPAID_PAYG" ||
@@ -238,6 +240,7 @@ export async function recordSuccessfulGeneration(
   )
     return;
   await lockBillingSubscription(tx, run.organizationId);
+  await settleStoreCredits(tx, run);
   const covered = await prepaidRunIds(tx, run.organizationId, [run]);
   let billingCycleId = run.billingCycleId;
   if (!billingCycleId && !covered.has(run.id)) {
@@ -278,7 +281,7 @@ export async function getPostpaidSummary(
   tx: BillingTx,
   subscription: SubscriptionWithPlan,
 ): Promise<PostpaidSummary | null> {
-  if (subscription.pricingPlan?.billingMode !== "POSTPAID_PAYG") return null;
+  if (!paygTerms(subscription)) return null;
   const cycle =
     subscription.status === "ACTIVE"
       ? await ensurePostpaidCycle(tx, subscription)
@@ -309,6 +312,7 @@ export async function getPostpaidSummary(
   ]);
   return {
     billingMode: "POSTPAID_PAYG",
+    pricingPlanId: cycle.pricingPlanId,
     timezone: "UTC",
     periodStart: cycle.periodStart.toISOString(),
     periodEnd: cycle.periodEnd.toISOString(),
@@ -466,12 +470,18 @@ async function prepaidRunIds(
     clientRequestId: string;
   }>,
 ) {
-  const keys = new Map(
+  const keys = new Map<string, string>(
     runs
       .filter((run) => run.tryOnSessionId)
-      .map((run) => [
-        `tryon:shopify:${run.tryOnSessionId}:${run.clientRequestId}`,
-        run.id,
+      .flatMap((run) => [
+        [
+          `tryon:shopify:${run.tryOnSessionId}:${run.clientRequestId}`,
+          run.id,
+        ] as const,
+        [
+          `tryon:woocommerce:${run.tryOnSessionId}:${run.clientRequestId}`,
+          run.id,
+        ] as const,
       ]),
   );
   const debits = await tx.creditLedgerEntry.findMany({

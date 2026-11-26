@@ -81,6 +81,7 @@ const tables = [
   "store_billing_cycles",
   "billable_generations",
   "credit_ledger_entries",
+  "store_credit_reservations",
   "api_keys",
   "api_rate_limit_buckets",
   "webhook_endpoints",

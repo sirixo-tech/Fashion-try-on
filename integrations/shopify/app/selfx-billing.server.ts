@@ -6,7 +6,10 @@ export type BillingAdmin = {
     options?: { variables?: Record<string, unknown> },
   ) => Promise<Response>;
 };
-export const CREATE_SUBSCRIPTION = `mutation SelfxCreateSubscription($name: String!, $returnUrl: URL!, $lineItems: [AppSubscriptionLineItemInput!]!, $test: Boolean!) { appSubscriptionCreate(name: $name, returnUrl: $returnUrl, lineItems: $lineItems, test: $test, replacementBehavior: APPLY_ON_NEXT_BILLING_CYCLE) { appSubscription { id } confirmationUrl userErrors { field message } } }`;
+export const CREATE_SUBSCRIPTION = `mutation SelfxCreateSubscription($name: String!, $returnUrl: URL!, $lineItems: [AppSubscriptionLineItemInput!]!, $test: Boolean!) { appSubscriptionCreate(name: $name, returnUrl: $returnUrl, lineItems: $lineItems, test: $test, replacementBehavior: APPLY_IMMEDIATELY) { appSubscription { id } confirmationUrl userErrors { field message } } }`;
+export const CREATE_CREDIT_PURCHASE = `mutation SelfxBuyCredits($name:String!,$price:MoneyInput!,$returnUrl:URL!,$test:Boolean!) { appPurchaseOneTimeCreate(name:$name,price:$price,returnUrl:$returnUrl,test:$test) { appPurchaseOneTime { id } confirmationUrl userErrors { field message } } }`;
+export const READ_CREDIT_PURCHASE = `query SelfxReadCreditPurchase($id:ID!) { node(id:$id) { ... on AppPurchaseOneTime { id name status test price { amount currencyCode } } } }`;
+export const RECOVER_CREDIT_PURCHASES = `query SelfxRecoverCreditPurchases($after:String) { currentAppInstallation { oneTimePurchases(first:50,after:$after,reverse:true) { nodes { id name status test price { amount currencyCode } } pageInfo { hasNextPage endCursor } } } }`;
 export const READ_SUBSCRIPTION = `query SelfxReadSubscription($id: ID!) { node(id: $id) { ... on AppSubscription { id status test currentPeriodEnd lineItems { id plan { pricingDetails { __typename ... on AppRecurringPricing { interval price { amount currencyCode } } ... on AppUsagePricing { cappedAmount { amount currencyCode } terms } } } } } } }`;
 export const CREATE_USAGE = `mutation SelfxCreateUsage($line: ID!, $price: MoneyInput!, $description: String!, $key: String!) { appUsageRecordCreate(subscriptionLineItemId: $line, price: $price, description: $description, idempotencyKey: $key) { appUsageRecord { id } userErrors { field message } } }`;
 export const CANCEL_SUBSCRIPTION = `mutation SelfxCancelSubscription($id: ID!) { appSubscriptionCancel(id: $id) { appSubscription { id status } userErrors { field message } } }`;
@@ -136,6 +139,7 @@ function billingReturnUrl(shop: string, agreementId: string): URL {
   return target;
 }
 type Prepared = {
+  purchaseKind?: string;
   id: string;
   createAllowed?: boolean;
   confirmationUrl?: string | null;
@@ -146,11 +150,20 @@ type Prepared = {
     monthlyPriceCents: number;
     billingMode: string;
     creditUnitPriceCents: number | null;
+    includedCredits?: number;
   };
   usageCapCents: number | null;
   usageTerms: string | null;
 };
 type Agreement = {
+  purchaseKind?: string;
+  pricingSnapshot?: {
+    name: string;
+    billingMode: string;
+    currency?: string;
+    monthlyPriceCents?: number;
+    includedCredits?: number;
+  };
   id: string;
   externalSubscriptionId: string | null;
   status: string;
@@ -319,6 +332,10 @@ export async function syncShopifyBilling(shop: string, admin: BillingAdmin) {
   if (!billingEnabled()) return;
   const agreements = await central<Agreement[]>("/agreements", shop);
   for (const agreement of agreements) {
+    if (agreement.purchaseKind === "CREDIT_PACK") {
+      await syncCreditPurchase(shop, admin, agreement);
+      continue;
+    }
     if (!agreement.externalSubscriptionId) {
       // A lost response must never cause a second payable approval. Recover by
       // the server-owned return URL, then retire unapproved orphan requests.
@@ -404,6 +421,49 @@ export async function syncShopifyBilling(shop: string, admin: BillingAdmin) {
     }
     if (!native || native.id !== agreement.externalSubscriptionId)
       throw new Error("Shopify subscription could not be verified.");
+    if (
+      agreement.purchaseKind === "LEGACY_SUBSCRIPTION" &&
+      agreement.pricingSnapshot?.billingMode !== "POSTPAID_PAYG" &&
+      ["ACTIVE", "FROZEN"].includes(native.status)
+    ) {
+      if (
+        native.status === "ACTIVE" &&
+        native.test === (process.env.SHOPIFY_BILLING_TEST_MODE === "true")
+      ) {
+        const recurringPrice = native.lineItems.find(
+          (item) =>
+            item.plan.pricingDetails.__typename === "AppRecurringPricing",
+        )?.plan.pricingDetails.price;
+        if (!recurringPrice)
+          throw new Error(
+            "The previous monthly charge amount could not be verified.",
+          );
+        await central(`/${agreement.id}/confirm`, shop, {
+          subscriptionId: native.id,
+          status: native.status,
+          test: native.test,
+          currency: recurringPrice.currencyCode,
+          recurringAmountCents: cents(recurringPrice.amount),
+        });
+      }
+      const cancelled = await graphql<{
+        appSubscriptionCancel: { userErrors: unknown[] };
+      }>(admin, CANCEL_SUBSCRIPTION, { id: native.id });
+      if (cancelled.appSubscriptionCancel.userErrors.length)
+        throw new Error(
+          "The previous monthly credit subscription still needs retirement. Your existing credits are retained; retry before buying more.",
+        );
+      const verified = await graphql<{ node: NativeSubscription | null }>(
+        admin,
+        READ_SUBSCRIPTION,
+        { id: native.id },
+      );
+      if (!verified.node || verified.node.status !== "CANCELLED")
+        throw new Error(
+          "Shopify has not confirmed retirement of the previous monthly subscription. Retry verification.",
+        );
+      native.status = "CANCELLED";
+    }
     const recurring = native.lineItems.filter(
       (item) => item.plan.pricingDetails.__typename === "AppRecurringPricing",
     );
@@ -481,19 +541,54 @@ export async function beginShopifyBilling(
     );
   }
   const returnUrl = billingReturnUrl(shop, prepared.id);
-  const lineItems: Record<string, unknown>[] = [];
-  if (prepared.plan.monthlyPriceCents > 0)
-    lineItems.push({
-      plan: {
-        appRecurringPricingDetails: {
-          price: {
-            amount: money(prepared.plan.monthlyPriceCents),
-            currencyCode: prepared.plan.currency,
-          },
-          interval: "EVERY_30_DAYS",
-        },
+  if (prepared.purchaseKind === "CREDIT_PACK") {
+    const result = await graphql<{
+      appPurchaseOneTimeCreate: {
+        appPurchaseOneTime: { id: string } | null;
+        confirmationUrl: string | null;
+        userErrors: unknown[];
+      };
+    }>(admin, CREATE_CREDIT_PURCHASE, {
+      name: creditPurchaseName(
+        prepared.plan.name,
+        prepared.id,
+        prepared.plan.includedCredits,
+      ),
+      price: {
+        amount: money(prepared.plan.monthlyPriceCents),
+        currencyCode: prepared.plan.currency,
       },
+      returnUrl: returnUrl.toString(),
+      test: process.env.SHOPIFY_BILLING_TEST_MODE === "true",
     });
+    const created = result.appPurchaseOneTimeCreate;
+    if (created.userErrors.length && !created.appPurchaseOneTime)
+      await central(`/${prepared.id}/decline`, shop, {});
+    if (
+      !created.appPurchaseOneTime ||
+      !created.confirmationUrl ||
+      created.userErrors.length
+    )
+      throw new Error(
+        "Shopify could not create the credit purchase. No credits were added.",
+      );
+    const destination = approvalDestination(created.confirmationUrl, shop);
+    // A lost attach response is recovered by its unique server-owned purchase name.
+    // One-time purchases have no subscription cancellation mutation.
+    await central(`/${prepared.id}/attach`, shop, {
+      subscriptionId: created.appPurchaseOneTime.id,
+      confirmationUrl: destination,
+    });
+    return destination;
+  }
+  if (
+    prepared.plan.billingMode !== "POSTPAID_PAYG" ||
+    prepared.plan.monthlyPriceCents !== 0
+  )
+    throw new Error(
+      "Credit packs require the updated SelfX one-time purchase API. No recurring credit charge was created.",
+    );
+  const lineItems: Record<string, unknown>[] = [];
   if (prepared.plan.billingMode === "POSTPAID_PAYG")
     lineItems.push({
       plan: {
@@ -558,6 +653,7 @@ export async function cancelShopifyBilling(shop: string, admin: BillingAdmin) {
   const agreements = await central<Agreement[]>("/agreements", shop);
   const cancelableAgreements = agreements.filter(
     (agreement) =>
+      agreement.purchaseKind !== "CREDIT_PACK" &&
       agreement.externalSubscriptionId &&
       ["ACTIVE", "FROZEN", "PENDING"].includes(agreement.status),
   );
@@ -599,4 +695,104 @@ export async function cancelPendingShopifyChange(
       );
   }
   await syncShopifyBilling(shop, admin);
+}
+
+function creditPurchaseName(name: string, id: string, credits?: number) {
+  return `${name}${credits ? ` · ${credits} credits` : ""} [SelfX:${id}]`;
+}
+function approvalDestination(value: string, shop: string) {
+  const target = new URL(value);
+  if (
+    target.protocol !== "https:" ||
+    target.username ||
+    target.password ||
+    target.port ||
+    ![shop, "admin.shopify.com"].includes(target.hostname)
+  )
+    throw new Error("Shopify returned an unexpected approval destination.");
+  return target.toString();
+}
+type CreditPurchase = {
+  id: string;
+  name: string;
+  status: string;
+  test: boolean;
+  price: { amount: string; currencyCode: string };
+};
+async function syncCreditPurchase(
+  shop: string,
+  admin: BillingAdmin,
+  agreement: Agreement,
+) {
+  let native: CreditPurchase | null = null;
+  if (agreement.externalSubscriptionId) {
+    native = (
+      await graphql<{ node: CreditPurchase | null }>(
+        admin,
+        READ_CREDIT_PURCHASE,
+        { id: agreement.externalSubscriptionId },
+      )
+    ).node;
+    if (!native)
+      throw new Error(
+        "The credit purchase could not be verified. No replacement charge was created.",
+      );
+  } else {
+    const started = new Date(
+      agreement.creationStartedAt ?? agreement.createdAt ?? "",
+    );
+    if (
+      !Number.isFinite(started.getTime()) ||
+      Date.now() - started.getTime() < 120_000
+    )
+      return;
+    let after: string | null = null,
+      complete = false;
+    const expected = creditPurchaseName(
+      agreement.pricingSnapshot?.name ?? "",
+      agreement.id,
+      agreement.pricingSnapshot?.includedCredits,
+    );
+    for (let page = 0; page < 4; page++) {
+      const data: {
+        currentAppInstallation: {
+          oneTimePurchases: {
+            nodes: CreditPurchase[];
+            pageInfo: { hasNextPage: boolean; endCursor: string | null };
+          };
+        };
+      } = await graphql(admin, RECOVER_CREDIT_PURCHASES, { after });
+      const list = data.currentAppInstallation.oneTimePurchases;
+      native = list.nodes.find((item) => item.name === expected) ?? null;
+      if (native || !list.pageInfo.hasNextPage) {
+        complete = true;
+        break;
+      }
+      after = list.pageInfo.endCursor;
+    }
+    if (!complete || !native)
+      throw new Error(
+        "An interrupted credit purchase needs verification before another purchase. No duplicate charge was created.",
+      );
+    await central(`/${agreement.id}/attach`, shop, {
+      subscriptionId: native.id,
+    });
+  }
+  if (
+    native.id !== (agreement.externalSubscriptionId ?? native.id) ||
+    native.name !==
+      creditPurchaseName(
+        agreement.pricingSnapshot?.name ?? "",
+        agreement.id,
+        agreement.pricingSnapshot?.includedCredits,
+      )
+  )
+    throw new Error("The credit purchase does not match this Store's request.");
+  await central(`/${agreement.id}/confirm`, shop, {
+    subscriptionId: native.id,
+    status: native.status,
+    test: native.test,
+    currency: native.price.currencyCode,
+    recurringAmountCents: cents(native.price.amount),
+  });
 }

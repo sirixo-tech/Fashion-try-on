@@ -70,7 +70,7 @@ describe("EntitlementsService", () => {
     ]);
   });
 
-  it("consumes a Try-On credit from the shared store balance", async () => {
+  it("reserves a shared Store credit without consuming it before success", async () => {
     const prisma = new FakeEntitlementsPrisma();
     const service = new EntitlementsService(prisma as never);
 
@@ -84,12 +84,11 @@ describe("EntitlementsService", () => {
 
     expect(result.balanceBefore).toBe(10);
     expect(result.balanceAfter).toBe(9);
-    expect(result.entry).toMatchObject({
-      entryType: "CREDIT_CONSUMED",
-      channel: CreditLedgerChannel.SHOPIFY,
-      quantity: -1,
-      balanceAfter: 9,
-    });
+    expect(result.entry).toBeNull();
+    expect(result.creditReservationId).toBeTruthy();
+    expect(
+      prisma.ledger.filter((entry) => entry.entryType === "CREDIT_CONSUMED"),
+    ).toHaveLength(0);
     await expect(service.getCreditBalance("store-1")).resolves.toEqual({
       availableCredits: 9,
     });
@@ -199,6 +198,53 @@ type FakeLedgerEntry = Record<string, unknown> & {
 
 class FakeEntitlementsPrisma {
   $queryRaw = vi.fn().mockResolvedValue([]);
+  organization = {
+    findUnique: vi.fn().mockResolvedValue({ status: "ACTIVE" }),
+  };
+  reservations: Array<{
+    id: string;
+    requestKey: string;
+    state: string;
+    quantity: number;
+    organizationId: string;
+    channel: string;
+  }> = [];
+  storeCreditReservation = {
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    aggregate: vi.fn(({ where }: { where: { organizationId: string } }) => ({
+      _sum: {
+        quantity: this.reservations
+          .filter(
+            (r) =>
+              r.organizationId === where.organizationId &&
+              r.state === "RESERVED",
+          )
+          .reduce((sum, r) => sum + r.quantity, 0),
+      },
+    })),
+    findUnique: vi.fn(
+      ({ where }: { where: { requestKey: string } }) =>
+        this.reservations.find((r) => r.requestKey === where.requestKey) ??
+        null,
+    ),
+    upsert: vi.fn(
+      ({
+        create,
+      }: {
+        create: {
+          id: string;
+          requestKey: string;
+          state: string;
+          quantity: number;
+          organizationId: string;
+          channel: string;
+        };
+      }) => {
+        this.reservations.push({ ...create, state: "RESERVED" });
+        return create;
+      },
+    ),
+  };
   storeBillingCycle = { findFirst: vi.fn().mockResolvedValue(null) };
   subscriptions = new Map<string, FakeSubscription>();
   plans = new Map<string, FakePlan>();

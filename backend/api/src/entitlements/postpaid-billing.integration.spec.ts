@@ -62,6 +62,9 @@ describe.skipIf(!url)("PAYG-1 real PostgreSQL billing", () => {
     await db.storeSubscription.deleteMany({
       where: { organizationId: { in: stores } },
     });
+    await db.storeCreditReservation.deleteMany({
+      where: { organizationId: { in: stores } },
+    });
     await db.organization.deleteMany({ where: { id: { in: stores } } });
     await db.pricingPlanRate.deleteMany({
       where: { pricingPlanId: { in: plans } },
@@ -383,112 +386,116 @@ describe.skipIf(!url)("PAYG-1 real PostgreSQL billing", () => {
     },
   );
 
-  it("imports current-cycle verified successes, excludes prepaid/old/failed/other-Store usage, and deduplicates retained runs plus events", async () => {
-    const id = await store(),
-      other = await store(),
-      payg = await plan(120);
-    await entitlements.ensureTrialCredits(id);
-    const now = new Date(),
-      anchor = new Date(now);
-    anchor.setUTCDate(1);
-    const inCycle = new Date(anchor.getTime() + 1000);
-    await db.storeSubscription.update({
-      where: { organizationId: id },
-      data: { trialStartedAt: anchor, createdAt: anchor },
-    });
-    const unpaid = await run(id, {
-      resultImage: "data:image/png;base64,verified-fixture",
-      completedAt: inCycle,
-    });
-    const paid = await run(id, {
-      resultImage: "data:image/png;base64,verified-fixture",
-      completedAt: inCycle,
-    });
-    const shopifySession = await sessions.createSession({
-      assignmentScope: "ORGANIZATION",
-      organizationId: id,
-      storeId: null,
-    });
-    const shopifyPerson = await sessions.attachPersonAsset({
-      sessionId: shopifySession.id,
-      organizationId: id,
-      storageKey: "fixture/shopify-person.jpg",
-    });
-    const paidShopify = await run(id, {
-      tryOnSessionId: shopifySession.id,
-      personAssetId: shopifyPerson.id,
-      catalogSource: "SHOPIFY",
-      completedAt: inCycle,
-    });
-    await db.creditLedgerEntry.createMany({
-      data: [paid, paidShopify].map((item) => ({
-        id: createSelfxId(),
-        organizationId: id,
-        entryType: "CREDIT_CONSUMED",
-        quantity: -1,
-        channel: "SHOPIFY",
-        kioskTryOnRunId: item.id === paid.id ? item.id : null,
-        idempotencyKey:
-          item.id === paid.id
-            ? `covered:${item.id}`
-            : `tryon:shopify:${item.tryOnSessionId}:${item.clientRequestId}`,
-      })),
-    });
-    await sessions.recordLook({
-      sessionId: shopifySession.id,
-      organizationId: id,
-      kioskTryOnRunId: paidShopify.id,
-      personAssetId: shopifyPerson.id,
-      resultAsset: { storageKey: "fixture/shopify-result.jpg" },
-    });
-    await run(id, {
-      resultImage: "data:image/png;base64,old",
-      completedAt: new Date(anchor.getTime() - 1000),
-    });
-    await run(id, {
-      resultImage: "data:image/png;base64,failed",
-      completedAt: inCycle,
-      status: "FAILED",
-    });
-    await run(id, { completedAt: inCycle, resultImage: null });
-    await run(other, {
-      resultImage: "data:image/png;base64,other",
-      completedAt: inCycle,
-    });
-    const deletedRunId = createSelfxId();
-    await db.usageEvent.createMany({
-      data: [unpaid.id, deletedRunId].map((runId) => ({
-        id: createSelfxId(),
-        organizationId: id,
+  it.each(["SHOPIFY", "WOOCOMMERCE"] as const)(
+    "%s imports verified successes without billing legacy prepaid usage again",
+    async (channel) => {
+      const id = await store(),
+        other = await store(),
+        payg = await plan(120);
+      await entitlements.ensureTrialCredits(id);
+      const now = new Date(),
+        anchor = new Date(now);
+      anchor.setUTCDate(1);
+      const inCycle = new Date(anchor.getTime() + 1000);
+      await db.storeSubscription.update({
+        where: { organizationId: id },
+        data: { trialStartedAt: anchor, createdAt: anchor },
+      });
+      const unpaid = await run(id, {
+        resultImage: "data:image/png;base64,verified-fixture",
+        completedAt: inCycle,
+      });
+      const paid = await run(id, {
+        resultImage: "data:image/png;base64,verified-fixture",
+        completedAt: inCycle,
+      });
+      const shopifySession = await sessions.createSession({
         assignmentScope: "ORGANIZATION",
-        channel: "KIOSK",
-        eventName: "KIOSK_TRY_ON_GENERATED",
-        idempotencyKey: `event:${runId}`,
-        kioskTryOnRunId: runId,
-        status: "COMPLETED",
-        occurredAt: inCycle,
-      })),
-    });
-    const first = await entitlements.activatePlanForStore({
-      organizationId: id,
-      pricingPlanId: payg.id,
-    });
-    expect(first.postpaid).toMatchObject({
-      billableCredits: 2,
-      historicalCredits: 2,
-      estimatedAmountCents: "240",
-    });
-    await entitlements.activatePlanForStore({
-      organizationId: id,
-      pricingPlanId: payg.id,
-    });
-    expect(
-      (await entitlements.getStoreCreditSummary(id)).postpaid?.billableCredits,
-    ).toBe(2);
-    expect(
-      await db.billableGeneration.count({ where: { organizationId: other } }),
-    ).toBe(0);
-  });
+        organizationId: id,
+        storeId: null,
+      });
+      const shopifyPerson = await sessions.attachPersonAsset({
+        sessionId: shopifySession.id,
+        organizationId: id,
+        storageKey: `fixture/${id}/legacy-person.jpg`,
+      });
+      const paidShopify = await run(id, {
+        tryOnSessionId: shopifySession.id,
+        personAssetId: shopifyPerson.id,
+        catalogSource: channel,
+        completedAt: inCycle,
+      });
+      await db.creditLedgerEntry.createMany({
+        data: [paid, paidShopify].map((item) => ({
+          id: createSelfxId(),
+          organizationId: id,
+          entryType: "CREDIT_CONSUMED",
+          quantity: -1,
+          channel,
+          kioskTryOnRunId: item.id === paid.id ? item.id : null,
+          idempotencyKey:
+            item.id === paid.id
+              ? `covered:${item.id}`
+              : `tryon:${channel.toLowerCase()}:${item.tryOnSessionId}:${item.clientRequestId}`,
+        })),
+      });
+      await sessions.recordLook({
+        sessionId: shopifySession.id,
+        organizationId: id,
+        kioskTryOnRunId: paidShopify.id,
+        personAssetId: shopifyPerson.id,
+        resultAsset: { storageKey: `fixture/${id}/legacy-result.jpg` },
+      });
+      await run(id, {
+        resultImage: "data:image/png;base64,old",
+        completedAt: new Date(anchor.getTime() - 1000),
+      });
+      await run(id, {
+        resultImage: "data:image/png;base64,failed",
+        completedAt: inCycle,
+        status: "FAILED",
+      });
+      await run(id, { completedAt: inCycle, resultImage: null });
+      await run(other, {
+        resultImage: "data:image/png;base64,other",
+        completedAt: inCycle,
+      });
+      const deletedRunId = createSelfxId();
+      await db.usageEvent.createMany({
+        data: [unpaid.id, deletedRunId].map((runId) => ({
+          id: createSelfxId(),
+          organizationId: id,
+          assignmentScope: "ORGANIZATION",
+          channel: "KIOSK",
+          eventName: "KIOSK_TRY_ON_GENERATED",
+          idempotencyKey: `event:${runId}`,
+          kioskTryOnRunId: runId,
+          status: "COMPLETED",
+          occurredAt: inCycle,
+        })),
+      });
+      const first = await entitlements.activatePlanForStore({
+        organizationId: id,
+        pricingPlanId: payg.id,
+      });
+      expect(first.postpaid).toMatchObject({
+        billableCredits: 2,
+        historicalCredits: 2,
+        estimatedAmountCents: "240",
+      });
+      await entitlements.activatePlanForStore({
+        organizationId: id,
+        pricingPlanId: payg.id,
+      });
+      expect(
+        (await entitlements.getStoreCreditSummary(id)).postpaid
+          ?.billableCredits,
+      ).toBe(2);
+      expect(
+        await db.billableGeneration.count({ where: { organizationId: other } }),
+      ).toBe(0);
+    },
+  );
 
   it("freezes this cycle's rate and uses historical rate versions for later cycles, including skipped months", async () => {
     const id = await store(),

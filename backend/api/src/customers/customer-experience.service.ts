@@ -836,6 +836,7 @@ export class CustomerExperienceService
             kioskDeviceId: null,
             billingChannel: "MOBILE",
             billingCycleId: admission?.billingCycleId,
+            creditReservationId: admission?.creditReservationId,
             shopifyReservationId: admission?.shopifyReservationId,
             personAssetId: person.id,
             garmentAssetId: garment.id,

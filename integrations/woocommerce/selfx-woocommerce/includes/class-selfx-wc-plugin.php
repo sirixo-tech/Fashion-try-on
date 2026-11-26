@@ -480,13 +480,14 @@ final class SelfX_WC_Plugin {
                     if (!empty($management['manageUrl'])) {
                         echo '<p><a class="button button-primary" target="_blank" rel="noopener noreferrer" href="' . esc_url($management['manageUrl']) . '">Manage plan</a></p>';
                     }
-                    echo '<p>Plans, credits and usage are shared by this linked SelfX Store. Starter is a one-time trial.</p>';
+                    echo '<p>Purchased credits never expire and are shared by this linked SelfX Store. Each credit pack retains its configured features and limits. Starter is a one-time trial.</p>';
                 } catch (Throwable $error) {
                     echo '<p>Plan management is temporarily unavailable. Refresh to retry.</p>';
                 }
                 if (!in_array($status, array('ACTIVE', 'TRIALING'), true)) {
                     echo '<p>Try-On is unavailable while this Store plan is inactive. Review billing in SelfX.</p>';
-                } elseif ($mode === 'POSTPAID_PAYG') {
+                } elseif (!empty($summary['postpaid'])) {
+                    echo '<p>' . esc_html((string) ($summary['availableCredits'] ?? 0)) . ' prepaid credits available; used before Pay as you go.</p>';
                     echo '<p>Pay as you go · ' . esc_html((string) ($summary['postpaid']['billableCredits'] ?? 0)) . ' billable Try-Ons this period.</p>';
                 } else {
                     $available = (int) ($summary['availableCredits'] ?? 0);

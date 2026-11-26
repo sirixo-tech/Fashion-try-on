@@ -151,7 +151,7 @@ describe("Create Store page", () => {
     expect(screen.getByRole("tabpanel").textContent).toContain("49.00");
     expect(within(summary).getByText("Test Store")).toBeTruthy();
     expect(within(summary).getByText("Growth")).toBeTruthy();
-    expect(within(summary).getByText(/49.00.*month/)).toBeTruthy();
+    expect(within(summary).getByText(/49.00.*one-time/)).toBeTruthy();
     expect(within(summary).getByText("Jane Owner")).toBeTruthy();
     expect(within(summary).getByText("jane@example.com")).toBeTruthy();
     expect(summary.textContent).not.toContain("OwnerPassword123!");

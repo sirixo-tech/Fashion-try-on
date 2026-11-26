@@ -60,6 +60,7 @@ describe.skipIf(!url)(
       await db.shopifyBillingAgreement.deleteMany({ where: scope });
       await db.storeSubscription.deleteMany({ where: scope });
       await db.integration.deleteMany({ where: scope });
+      await db.storeCreditReservation.deleteMany({ where: scope });
       await db.organization.deleteMany({ where: { id: { in: stores } } });
       await db.pricingPlanRate.deleteMany({
         where: { pricingPlanId: { in: plans } },
@@ -102,6 +103,18 @@ describe.skipIf(!url)(
         },
       });
       await entitlements.getStoreCreditSummary(store);
+      if (payg) {
+        const balance = await entitlements.getCreditBalance(store);
+        await db.creditLedgerEntry.create({
+          data: {
+            id: createSelfxId(),
+            organizationId: store,
+            entryType: "MANUAL_ADJUSTMENT",
+            quantity: -balance.availableCredits,
+            idempotencyKey: `fixture-exhaust:${store}`,
+          },
+        });
+      }
       await db.integration.create({
         data: {
           id: integration,
@@ -118,7 +131,7 @@ describe.skipIf(!url)(
           planId,
           ...(cap ? { usageCapCents: cap } : {}),
         });
-        const subscriptionId = `gid://shopify/AppSubscription/${Date.now()}${++externalCounter}`;
+        const subscriptionId = `gid://shopify/${prepared.purchaseKind === "CREDIT_PACK" ? "AppPurchaseOneTime" : "AppSubscription"}/${Date.now()}${++externalCounter}`;
         await billing.attach(prepared.id, shop, subscriptionId);
         const body: VerifyShopifyBillingDto = {
           shop,
@@ -241,7 +254,7 @@ describe.skipIf(!url)(
             where: { id: second.prepared.id },
           })
         ).status,
-      ).toBe("ACTIVE");
+      ).toBe("PAID");
       expect(
         await db.creditLedgerEntry.count({
           where: { organizationId: f.store, entryType: "TRIAL_GRANTED" },
@@ -347,7 +360,7 @@ describe.skipIf(!url)(
       await billing.attach(
         prepared[0]!.id,
         f.shop,
-        `gid://shopify/AppSubscription/${Date.now()}`,
+        `gid://shopify/AppPurchaseOneTime/${Date.now()}`,
         destination,
       );
       expect(
@@ -373,53 +386,53 @@ describe.skipIf(!url)(
         response: { error: { code: "PLAN_CHANGE_PENDING" } },
       });
     });
-    it("defers a plan change until renewal and grants its allowance only once when due", async () => {
+    it("adds each verified pack immediately, preserves old credits and never grants twice", async () => {
       const f = await fixture(),
         first = await f.approval();
       await billing.confirm(first.prepared.id, first.body);
+      const balance = (await entitlements.getStoreCreditSummary(f.store))
+        .availableCredits;
       const nextPlan = await plan(false, 50),
         next = await f.approval(nextPlan.id);
       expect(await billing.confirm(next.prepared.id, next.body)).toMatchObject({
-        active: false,
-        scheduled: true,
-      });
-      expect(
-        (await entitlements.getStoreCreditSummary(f.store)).subscription
-          ?.pricingPlan?.id,
-      ).toBe(f.price.id);
-      const queued = await db.shopifyBillingAgreement.findUniqueOrThrow({
-        where: { id: next.prepared.id },
-      });
-      expect(queued.approvedAt).not.toBeNull();
-      await db.shopifyBillingAgreement.update({
-        where: { id: next.prepared.id },
-        data: { effectiveAfter: new Date(Date.now() - 1000) },
+        active: true,
+        creditsPurchased: true,
       });
       await billing.confirm(next.prepared.id, next.body);
-      await billing.confirm(next.prepared.id, next.body);
-      expect(
-        (await entitlements.getStoreCreditSummary(f.store)).subscription
-          ?.pricingPlan?.id,
-      ).toBe(nextPlan.id);
+      const summary = await entitlements.getStoreCreditSummary(f.store);
+      expect(summary.availableCredits).toBe(balance + 50);
+      expect(summary.subscription?.pricingPlan?.id).toBe(nextPlan.id);
+      expect(summary.subscription?.currentPeriodEnd).toBeNull();
       expect(
         await db.creditLedgerEntry.count({
           where: { organizationId: f.store, entryType: "PLAN_GRANTED" },
         }),
       ).toBe(2);
     });
-    it("refuses a currency switch that Shopify would apply immediately", async () => {
-      const f = await fixture(),
-        approved = await f.approval();
-      await billing.confirm(approved.prepared.id, approved.body);
-      const other = await plan(false, 50, "INR");
-      await expect(
-        billing.prepare({ shop: f.shop, planId: other.id }),
-      ).rejects.toMatchObject({
-        response: { error: { message: expect.stringContaining("currency") } },
-      });
+    it("allows separately priced credit packs without replacing the active PAYG agreement", async () => {
+      const f = await fixture(true),
+        usage = await f.approval();
+      await billing.confirm(usage.prepared.id, usage.body);
+      const pack = await plan(false, 50, "INR"),
+        purchase = await f.approval(pack.id);
+      await billing.confirm(purchase.prepared.id, purchase.body);
+      expect(
+        (await entitlements.getStoreCreditSummary(f.store)).availableCredits,
+      ).toBe(50);
+      expect(
+        (
+          await db.shopifyBillingAgreement.findUniqueOrThrow({
+            where: { id: usage.prepared.id },
+          })
+        ).status,
+      ).toBe("ACTIVE");
+      await billing.confirm(usage.prepared.id, usage.body);
+      const summary = await entitlements.getStoreCreditSummary(f.store);
+      expect(summary.subscription?.pricingPlan?.id).toBe(pack.id);
+      expect(summary.postpaid?.creditUnitPriceCents).toBe(25);
     });
-    it("stops admission after cancellation and cannot reactivate a terminal subscription", async () => {
-      const f = await fixture(),
+    it("stops unapproved PAYG after cancellation and cannot reactivate a terminal subscription", async () => {
+      const f = await fixture(true),
         approved = await f.approval();
       await billing.confirm(approved.prepared.id, approved.body);
       await billing.confirm(approved.prepared.id, {
@@ -434,7 +447,7 @@ describe.skipIf(!url)(
           requestKey: "cancelled-request",
         }),
       ).rejects.toMatchObject({
-        response: { error: { code: "SHOPIFY_BILLING_APPROVAL_REQUIRED" } },
+        response: { error: { code: "SELFX_CREDITS_EXHAUSTED" } },
       });
       await expect(
         billing.confirm(approved.prepared.id, approved.body),

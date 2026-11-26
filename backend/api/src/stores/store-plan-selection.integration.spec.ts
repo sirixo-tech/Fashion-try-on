@@ -82,6 +82,7 @@ describe.skipIf(!url)("shared Store plan selection (PostgreSQL)", () => {
     await db.storeSubscription.deleteMany({ where: scope });
     await db.shopifyBillingAgreement.deleteMany({ where: scope });
     await db.integration.deleteMany({ where: scope });
+    await db.storeCreditReservation.deleteMany({ where: scope });
     await db.organization.deleteMany({ where: { id: { in: storeIds } } });
     await db.pricingPlan.deleteMany({ where: { id: { in: planIds } } });
     await db.user.deleteMany({ where: { id: { in: userIds } } });
@@ -169,6 +170,18 @@ describe.skipIf(!url)("shared Store plan selection (PostgreSQL)", () => {
       },
     });
     await entitlements.getStoreCreditSummary(storeId);
+    if (payg) {
+      const balance = await entitlements.getCreditBalance(storeId);
+      await db.creditLedgerEntry.create({
+        data: {
+          id: createSelfxId(),
+          organizationId: storeId,
+          entryType: "MANUAL_ADJUSTMENT",
+          quantity: -balance.availableCredits,
+          idempotencyKey: `fixture-exhaust:${storeId}`,
+        },
+      });
+    }
     const choose = (clientRequestId = createSelfxId(), selected = plan) =>
       service.choose(storeId, actorId, {
         planId: selected.id,
@@ -210,9 +223,11 @@ describe.skipIf(!url)("shared Store plan selection (PostgreSQL)", () => {
       }),
     ).toBe(1);
     expect(summary.availableCredits).toBe(40);
-    await expect(f.choose()).rejects.toMatchObject({
-      response: { error: { code: "PLAN_ALREADY_ACTIVE" } },
-    });
+    const another = await f.choose();
+    await f.pay(another.id);
+    expect(
+      (await entitlements.getStoreCreditSummary(f.storeId)).availableCredits,
+    ).toBe(70);
   });
   it("rejects changed request fingerprints, stale quotes, trial selection and cross-Store payment reads", async () => {
     const f = await fixture();
@@ -251,7 +266,7 @@ describe.skipIf(!url)("shared Store plan selection (PostgreSQL)", () => {
       response: { error: { code: "PLAN_UNAVAILABLE" } },
     });
   });
-  it("freezes approved terms, schedules paid changes and never resets the trial", async () => {
+  it("freezes approved pack terms, activates immediately and never resets the trial", async () => {
     const f = await fixture();
     const payment = await f.choose();
     await f.pay(payment.id);
@@ -274,17 +289,7 @@ describe.skipIf(!url)("shared Store plan selection (PostgreSQL)", () => {
       data: { monthlyPriceCents: 9999, includedCredits: 1000 },
     });
     await f.pay(change.id);
-    expect((await service.workspace(f.storeId)).scheduled?.planName).toBe(
-      "Cheaper plan",
-    );
-    expect(
-      (await entitlements.getStoreCreditSummary(f.storeId)).subscription
-        ?.pricingPlan?.id,
-    ).toBe(f.plan.id);
-    await db.storePlanPurchase.update({
-      where: { id: change.id },
-      data: { effectiveAfter: new Date(Date.now() - 1000) },
-    });
+    expect((await service.workspace(f.storeId)).scheduled).toBeNull();
     await Promise.all([
       service.activateDue(f.storeId),
       service.activateDue(f.storeId),

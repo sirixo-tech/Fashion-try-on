@@ -35,6 +35,7 @@ describe.skipIf(!url)(
       const scope = { organizationId: { in: stores } };
       await db.auditLog.deleteMany({ where: scope });
       await db.kioskTryOnRun.deleteMany({ where: scope });
+      await db.storeCreditReservation.deleteMany({ where: scope });
       await db.creditLedgerEntry.deleteMany({ where: scope });
       await db.shopifyStorefrontTryOnSession.deleteMany({ where: scope });
       await db.tryOnAsset.deleteMany({ where: scope });
@@ -167,8 +168,8 @@ describe.skipIf(!url)(
       return { store, service, launch, process, metadata };
     }
     const consumed = (store: string) =>
-      db.creditLedgerEntry.count({
-        where: { organizationId: store, entryType: "CREDIT_CONSUMED" },
+      db.storeCreditReservation.count({
+        where: { organizationId: store, state: "RESERVED" },
       });
 
     it("admits exactly one simultaneous generation across products for the same visitor, with independent Store limits", async () => {
@@ -234,7 +235,7 @@ describe.skipIf(!url)(
       });
       expect(await consumed(f.store)).toBe(1);
     });
-    it("rolls back the credit debit when run insertion fails, then permits a clean retry", async () => {
+    it("rolls back the credit reservation when run insertion fails, then permits a clean retry", async () => {
       const f = await fixture(),
         launch = await f.launch();
       f.metadata.mockReturnValue({

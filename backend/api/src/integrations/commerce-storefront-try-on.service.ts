@@ -426,8 +426,7 @@ export class CommerceStorefrontTryOnService {
       return {
         available:
           ["ACTIVE", "TRIALING"].includes(summary.subscription?.status ?? "") &&
-          (summary.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG" ||
-            summary.availableCredits > 0),
+          (summary.postpaid != null || summary.availableCredits > 0),
       };
     } catch (error) {
       if (error instanceof ApiErrorException) return { available: false };
@@ -1012,6 +1011,7 @@ export class CommerceStorefrontTryOnService {
               .update(`${capability.tryOnSessionId}:${clientRequestId}`)
               .digest("hex"),
             billingCycleId: admission?.billingCycleId,
+            creditReservationId: admission?.creditReservationId,
             shopifyReservationId: admission?.shopifyReservationId,
             kioskDeviceId: null,
             apiKeyId: null,

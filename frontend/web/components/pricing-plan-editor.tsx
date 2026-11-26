@@ -538,7 +538,7 @@ export function PricingPlanEditor({
                     <div>
                       <CardTitle>Pricing</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Choose a monthly allowance or pay for successful
+                        Sell a one-time credit pack or bill successful
                         generations after use.
                       </p>
                     </div>
@@ -560,7 +560,7 @@ export function PricingPlanEditor({
                       options={[
                         {
                           value: "CREDIT_LIMITED",
-                          label: "Monthly plan with credits",
+                          label: "One-time credit pack",
                         },
                         {
                           value: "POSTPAID_PAYG",
@@ -598,7 +598,7 @@ export function PricingPlanEditor({
                   ) : (
                     <>
                       <NumberField
-                        label="Monthly price"
+                        label="Credit pack price"
                         value={form.monthlyPrice}
                         disabled={
                           !canManagePricing || editingDefaultStarterPlan
@@ -633,8 +633,8 @@ export function PricingPlanEditor({
                     <div>
                       <CardTitle>Credits</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Control included monthly Try-On credits, free trial
-                        credits and store location allowances.
+                        Control non-expiring Try-On credits, free trial credits
+                        and store location allowances.
                       </p>
                     </div>
                   </div>
@@ -788,7 +788,7 @@ export function PricingPlanEditor({
                   label={
                     form.billingMode === "POSTPAID_PAYG"
                       ? "Per credit · postpaid"
-                      : "Monthly"
+                      : "One-time pack"
                   }
                   value={moneyInputLabel(
                     form.billingMode === "POSTPAID_PAYG"
@@ -802,7 +802,7 @@ export function PricingPlanEditor({
                   value={
                     form.billingMode === "POSTPAID_PAYG"
                       ? "No limit"
-                      : `${numberInputLabel(form.includedCredits)} / month`
+                      : `${numberInputLabel(form.includedCredits)} credits`
                   }
                 />
                 <PreviewMetric

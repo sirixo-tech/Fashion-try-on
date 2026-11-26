@@ -3750,3 +3750,8 @@ SelfX Billing shows Current plan, Choose plan, scheduled plan/date, pending paym
 
 ### Shopify review recovery states (2026-11-26)
 Plans distinguishes pending Store approval from a failed billing check, gives an approval/reconnect action, and retains public plan details without showing unverified credit balances. Connected billing errors offer retry. The storefront button rechecks on window focus, visibility return and Shopify section loading, remaining hidden on unavailable or failed checks.
+
+
+### STORE-CREDITS-2 — Credit and PAYG controls (2026-11-26)
+
+Merchant billing displays Buy credits, one-time pack price, non-expiring balance, the selected pack's configured entitlements and separate PAYG usage. A current pack remains purchasable. PAYG controls enable/update/disable approved usage billing; disabling does not claim prepaid access has ended. Purchase confirmation explains that the selected pack's features and limits apply after verified payment and that unused credits remain. Shopify and PhonePe approval/decline, pending/unknown payment, verification retry and legacy-retirement errors remain actionable. Remove monthly/renewal language from fixed-credit pricing and previews; leave monthly PAYG periods and kiosk rent labels intact.

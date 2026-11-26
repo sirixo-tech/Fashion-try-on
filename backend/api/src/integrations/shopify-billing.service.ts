@@ -1,3 +1,4 @@
+import { disableStorePayg } from "../entitlements/store-billing-policy.js";
 import { createHash, randomUUID } from "node:crypto";
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { Prisma, type PricingPlan } from "@prisma/client";
@@ -115,6 +116,7 @@ export class ShopifyBillingService {
         const terms = agreement.pricingSnapshot as unknown as Snapshot;
         return {
           id: agreement.id,
+          purchaseKind: agreement.purchaseKind,
           plan: terms,
           usageCapCents: agreement.usageCapCents,
           usageTerms:
@@ -160,25 +162,20 @@ export class ShopifyBillingService {
           "Finish or resolve this Store's PhonePe payment before changing its billing provider.",
           "PLAN_CHANGE_PENDING",
         );
-      const current = await tx.storeSubscription.findUnique({
-        where: { organizationId: integration.organizationId },
-        include: { pricingPlan: true },
+      const legacyRecurring = await tx.shopifyBillingAgreement.findFirst({
+        where: {
+          organizationId: integration.organizationId,
+          purchaseKind: "LEGACY_SUBSCRIPTION",
+          status: { in: ["ACTIVE", "FROZEN"] },
+          NOT: {
+            pricingSnapshot: { path: ["billingMode"], equals: "POSTPAID_PAYG" },
+          },
+        },
       });
-      if (
-        current?.status === "ACTIVE" &&
-        current.pricingPlan?.billingMode !== "POSTPAID_PAYG" &&
-        (!current.currentPeriodEnd || current.currentPeriodEnd > new Date()) &&
-        current.pricingPlan?.code !== "selfx-default-starter" &&
-        !(
-          current.metadata &&
-          typeof current.metadata === "object" &&
-          !Array.isArray(current.metadata) &&
-          current.metadata.billingProvider === "SHOPIFY"
-        )
-      )
+      if (legacyRecurring)
         throw billingError(
-          "This Store already has a SelfX-billed paid plan. Finish its current billing period before moving billing to Shopify.",
-          "BILLING_PROVIDER_CONFLICT",
+          "Verify retirement of the previous monthly credit subscription before making a new purchase.",
+          "LEGACY_BILLING_RETIREMENT_REQUIRED",
         );
       const pending = await tx.shopifyBillingAgreement.findFirst({
         where: {
@@ -207,6 +204,7 @@ export class ShopifyBillingService {
         orderBy: { createdAt: "desc" },
       });
       if (
+        price.billingMode === "POSTPAID_PAYG" &&
         active &&
         (active.pricingSnapshot as unknown as Snapshot).currency !==
           price.currency
@@ -224,11 +222,14 @@ export class ShopifyBillingService {
         throw billingError(
           "Enter a usage spending cap covering at least one Try-On.",
         );
-      if (!usage && price.monthlyPriceCents <= 0)
+      if (usage && price.monthlyPriceCents !== 0)
+        throw billingError("Pay as you go must have no fixed monthly fee.");
+      if (!usage && (price.monthlyPriceCents <= 0 || price.includedCredits < 1))
         throw billingError(
           "The free Starter allowance is assigned when you connect. This plan does not need Shopify payment approval.",
         );
       if (
+        usage &&
         active?.pricingPlanId === plan.id &&
         active.usageCapCents === (usage ? input.usageCapCents! : null)
       )
@@ -246,7 +247,8 @@ export class ShopifyBillingService {
           requestKey,
           requestFingerprint: fingerprint,
           creationStartedAt: new Date(),
-          effectiveAfter: active?.periodEnd ?? null,
+          purchaseKind: usage ? "PAYG" : "CREDIT_PACK",
+          effectiveAfter: null,
           usageCapCents: usage ? input.usageCapCents! : null,
           pricingSnapshot: price as unknown as Prisma.InputJsonObject,
         },
@@ -287,6 +289,17 @@ export class ShopifyBillingService {
     const current = await this.prisma.shopifyBillingAgreement.findFirst({
       where: { id, shopDomain: shop, status: "PENDING" },
     });
+    if (
+      current &&
+      !subscriptionId.startsWith(
+        current.purchaseKind === "CREDIT_PACK"
+          ? "gid://shopify/AppPurchaseOneTime/"
+          : "gid://shopify/AppSubscription/",
+      )
+    )
+      throw billingError(
+        "This Shopify charge type does not match the requested purchase.",
+      );
     if (!current)
       throw billingError("The payment approval request is no longer valid.");
     const changed = await this.prisma.$transaction(async (tx) => {
@@ -333,6 +346,7 @@ export class ShopifyBillingService {
       take: 25,
       select: {
         id: true,
+        purchaseKind: true,
         externalSubscriptionId: true,
         confirmationUrl: true,
         status: true,
@@ -362,13 +376,7 @@ export class ShopifyBillingService {
           confirmationUrl: null,
         },
       });
-      await tx.storeSubscription.updateMany({
-        where: {
-          organizationId: agreement.organizationId,
-          metadata: { path: ["shopifyAgreementId"], equals: id },
-        },
-        data: { status: "CANCELLED", cancelledAt: new Date() },
-      });
+      await disableStorePayg(tx, agreement.organizationId, id);
     });
     return { retired: true };
   }
@@ -405,7 +413,7 @@ export class ShopifyBillingService {
           where: { id },
         });
         if (
-          ["CANCELLED", "DECLINED", "EXPIRED", "REPLACED"].includes(
+          ["PAID", "CANCELLED", "DECLINED", "EXPIRED", "REPLACED"].includes(
             latest.status,
           )
         )
@@ -419,24 +427,8 @@ export class ShopifyBillingService {
           where: { id },
           data: { status: input.status, checkedAt: new Date() },
         });
-        if (
-          latest.status === "ACTIVE" &&
-          !(await tx.shopifyBillingAgreement.count({
-            where: {
-              organizationId: agreement.organizationId,
-              status: "ACTIVE",
-              id: { not: id },
-            },
-          }))
-        ) {
-          await tx.storeSubscription.updateMany({
-            where: {
-              organizationId: agreement.organizationId,
-              metadata: { path: ["shopifyAgreementId"], equals: id },
-            },
-            data: { status: "CANCELLED", cancelledAt: new Date() },
-          });
-        }
+        if (latest.status === "ACTIVE")
+          await disableStorePayg(tx, agreement.organizationId, id);
       });
       return { active: false };
     }
@@ -449,6 +441,43 @@ export class ShopifyBillingService {
         "Shopify's approved amount does not match the selected SelfX plan.",
       );
     if (
+      agreement.purchaseKind === "CREDIT_PACK" ||
+      (agreement.purchaseKind === "LEGACY_SUBSCRIPTION" &&
+        price.billingMode !== "POSTPAID_PAYG")
+    ) {
+      if (input.status !== "ACTIVE") return { active: false };
+      await this.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT id FROM organizations WHERE id = ${agreement.organizationId}::uuid FOR UPDATE`;
+        const latest = await tx.shopifyBillingAgreement.findUniqueOrThrow({
+          where: { id },
+        });
+        if (latest.status === "PAID") return;
+        if (
+          ["CANCELLED", "DECLINED", "EXPIRED", "REPLACED"].includes(
+            latest.status,
+          )
+        )
+          throw billingError("This purchase is no longer valid.");
+        if (agreement.purchaseKind === "CREDIT_PACK" || !latest.periodStart)
+          await this.entitlements.grantCreditPack(tx, {
+            organizationId: agreement.organizationId,
+            plan: price.planTerms,
+            purchaseKey: `shopify:${id}`,
+          });
+        await tx.shopifyBillingAgreement.update({
+          where: { id },
+          data: {
+            status:
+              agreement.purchaseKind === "CREDIT_PACK" ? "PAID" : "ACTIVE",
+            approvedAt: latest.approvedAt ?? new Date(),
+            checkedAt: new Date(),
+            confirmationUrl: null,
+          },
+        });
+      });
+      return { active: true, creditsPurchased: true };
+    }
+    if (
       price.billingMode === "POSTPAID_PAYG" &&
       (!input.usageLineItemId ||
         input.usageCapCents !== agreement.usageCapCents ||
@@ -458,10 +487,7 @@ export class ShopifyBillingService {
       throw billingError(
         "Shopify usage terms do not match the approved cap and rate.",
       );
-    if (
-      input.status === "ACCEPTED" ||
-      (agreement.effectiveAfter && agreement.effectiveAfter > new Date())
-    ) {
+    if (input.status === "ACCEPTED") {
       await this.prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT id FROM organizations WHERE id = ${agreement.organizationId}::uuid FOR UPDATE`;
         const latest = await tx.shopifyBillingAgreement.findUniqueOrThrow({
@@ -531,17 +557,18 @@ export class ShopifyBillingService {
             usageLineItemId: input.usageLineItemId ?? null,
           },
         });
-        await this.entitlements.activatePlanForStore(
-          {
-            organizationId: agreement.organizationId,
-            pricingPlanId: agreement.pricingPlanId,
-            billingProvider: "SHOPIFY",
-            shopifyAgreementId: id,
-            approvedPlanSnapshot: price.planTerms,
-            externalPeriod: { start, end },
-          },
-          tx,
-        );
+        if (!latest.periodStart)
+          await this.entitlements.activatePlanForStore(
+            {
+              organizationId: agreement.organizationId,
+              pricingPlanId: agreement.pricingPlanId,
+              billingProvider: "SHOPIFY",
+              shopifyAgreementId: id,
+              approvedPlanSnapshot: price.planTerms,
+              externalPeriod: { start, end },
+            },
+            tx,
+          );
         const subscription = await tx.storeSubscription.findUniqueOrThrow({
           where: { organizationId: agreement.organizationId },
         });
@@ -558,6 +585,9 @@ export class ShopifyBillingService {
               ...metadata,
               billingProvider: "SHOPIFY",
               shopifyAgreementId: id,
+              paygEnabled: true,
+              paygPlanTerms:
+                price.planTerms as unknown as Prisma.InputJsonObject,
             },
           },
         });
@@ -565,6 +595,7 @@ export class ShopifyBillingService {
           where: {
             organizationId: agreement.organizationId,
             status: "ACTIVE",
+            purchaseKind: { not: "CREDIT_PACK" },
             id: { not: id },
           },
           data: { status: "REPLACED" },

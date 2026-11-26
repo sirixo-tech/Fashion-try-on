@@ -769,6 +769,7 @@ model DeletedStoreObject {
 }
 
 model Organization {
+  creditReservations             StoreCreditReservation[]
   planPurchases                  StorePlanPurchase[]
   customerStoreQrs               CustomerStoreQr[]
   shopifyBillingAgreements       ShopifyBillingAgreement[]
@@ -1693,6 +1694,8 @@ model KioskCustomerUploadSession {
 }
 
 model KioskTryOnRun {
+  creditReservationId                    String?                  @unique @map("credit_reservation_id") @db.Uuid
+  creditReservation                      StoreCreditReservation?  @relation(fields: [organizationId, creditReservationId], references: [organizationId, id], onDelete: Restrict, map: "kiosk_try_on_runs_credit_reservation_fkey")
   customerId                             String?                  @map("customer_id") @db.Uuid
   customerRequestFingerprint             String?                  @map("customer_request_fingerprint") @db.Char(64)
   customerCreditState                    String?                  @map("customer_credit_state") @db.VarChar(20)
@@ -1762,6 +1765,7 @@ model KioskTryOnRun {
   look                                   TryOnLook?
   billingCycle                           StoreBillingCycle?       @relation(fields: [organizationId, billingCycleId], references: [organizationId, id], onDelete: Restrict)
 
+  @@unique([organizationId, creditReservationId])
   @@unique([kioskDeviceId, clientRequestId])
   @@unique([apiKeyId, clientRequestId])
   @@unique([customerId, clientRequestId])
@@ -1840,6 +1844,7 @@ model CustomerCreditAccount {
 }
 
 model StorePlanPurchase {
+  purchaseKind         String              @default("LEGACY_PLAN") @map("purchase_kind") @db.VarChar(24)
   approvedCycles       StoreBillingCycle[] @relation("PhonePeCycleOrigin")
   id                   String              @id @db.Uuid
   organizationId       String              @map("organization_id") @db.Uuid
@@ -2123,6 +2128,7 @@ model Integration {
 }
 
 model ShopifyBillingAgreement {
+  purchaseKind           String                    @default("LEGACY_SUBSCRIPTION") @map("purchase_kind") @db.VarChar(24)
   reservations           ShopifyUsageReservation[]
   id                     String                    @id @db.Uuid
   organizationId         String                    @map("organization_id") @db.Uuid
@@ -2622,6 +2628,22 @@ model BillableGeneration {
   @@index([organizationId, completedAt])
   @@index([billingCycleId, coverage])
   @@map("billable_generations")
+}
+
+model StoreCreditReservation {
+  id             String              @id @db.Uuid
+  organizationId String              @map("organization_id") @db.Uuid
+  requestKey     String              @unique @map("request_key") @db.Char(64)
+  quantity       Int
+  channel        CreditLedgerChannel
+  state          String              @default("RESERVED") @db.VarChar(16)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  run            KioskTryOnRun?
+
+  @@unique([organizationId, id])
+  @@index([organizationId, state])
+  @@map("store_credit_reservations")
 }
 
 model CreditLedgerEntry {

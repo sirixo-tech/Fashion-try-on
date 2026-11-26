@@ -733,9 +733,9 @@ describe.skipIf(!url)(
       const stored = await db.customerStoreQr.findUniqueOrThrow({
         where: { id: qr.id },
       });
-      expect(stored.tokenHash).not.toContain(parseStoreQr(qr.payload));
+      expect(stored.accessCodeHash).not.toContain(qr.code);
       expect(JSON.stringify(await service.listQrs(store.id))).not.toMatch(
-        /tokenHash|payload|selfx:\/\//,
+        /tokenHash|accessCodeHash|accessCodeCiphertext|accessCodeIv|accessCodeTag/,
       );
       await expect(service.storeProducts(other.id, visit.id)).rejects.toThrow();
       await service.revokeQr(store.id, qr.id, randomUUID());
@@ -801,9 +801,9 @@ describe.skipIf(!url)(
       ).toBe(before);
       expect(
         await db.creditLedgerEntry.count({
-          where: { kioskTryOnRunId: run.id, entryType: "CREDIT_REFUNDED" },
+          where: { kioskTryOnRunId: run.id, entryType: "CREDIT_CONSUMED" },
         }),
-      ).toBe(1);
+      ).toBe(0);
     });
     it("keeps the daily Store limit across QR rescans and never falls back to personal credits", async () => {
       const { store, qr, visit } = await storeVisit(1),
@@ -867,6 +867,16 @@ describe.skipIf(!url)(
           channels: ["MOBILE"],
           currentPeriodStart: new Date(),
           currentPeriodEnd: new Date(Date.now() + 30 * DAY),
+        },
+      });
+      const prepaid = await entitlements.getCreditBalance(store.id);
+      await db.creditLedgerEntry.create({
+        data: {
+          id: randomUUID(),
+          organizationId: store.id,
+          entryType: "MANUAL_ADJUSTMENT",
+          quantity: -prepaid.availableCredits,
+          idempotencyKey: `fixture-exhaust:${store.id}`,
         },
       });
       const input = await inputs(customer, visit.id),

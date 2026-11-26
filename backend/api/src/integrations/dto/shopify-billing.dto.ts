@@ -20,7 +20,8 @@ export class PrepareShopifyBillingDto extends ShopifyBillingShopDto {
   @IsOptional() @IsInt() @Min(1) @Max(100_000_000) usageCapCents?: number;
 }
 export class AttachShopifyBillingDto extends ShopifyBillingShopDto {
-  @Matches(/^gid:\/\/shopify\/AppSubscription\/\d+$/) subscriptionId!: string;
+  @Matches(/^gid:\/\/shopify\/(?:AppSubscription|AppPurchaseOneTime)\/\d+$/)
+  subscriptionId!: string;
   @IsOptional() @IsString() @MaxLength(2048) confirmationUrl?: string;
 }
 export class VerifyShopifyBillingDto extends AttachShopifyBillingDto {

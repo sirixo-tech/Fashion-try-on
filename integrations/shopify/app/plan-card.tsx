@@ -6,11 +6,13 @@ export function PlanCard({
   active,
   canChooseShopifyPlan,
   hasActiveShopifyBilling,
+  usageActive = false,
   plan,
 }: {
   active: boolean;
   canChooseShopifyPlan: boolean;
   hasActiveShopifyBilling: boolean;
+  usageActive?: boolean;
   plan: SelfxStorefrontPricingPlan;
 }) {
   const channelLabel = plan.channels.includes("SHOPIFY")
@@ -35,8 +37,17 @@ export function PlanCard({
         </div>
       </div>
       <div className="selfx-shopify-plan-card__price">
-        {formatMoney(plan.monthlyPriceCents, plan.currency)}
-        <span> / month</span>
+        {formatMoney(
+          plan.billingMode === "POSTPAID_PAYG"
+            ? (plan.creditUnitPriceCents ?? 0)
+            : plan.monthlyPriceCents,
+          plan.currency,
+        )}
+        <span>
+          {plan.billingMode === "POSTPAID_PAYG"
+            ? " / successful Try-On · billed monthly"
+            : " one-time"}
+        </span>
       </div>
       <div className="selfx-shopify-plan-card__stats">
         <div>
@@ -90,19 +101,25 @@ export function PlanCard({
       {active ? (
         <div className="selfx-shopify-plan-card__active-note">
           {hasActiveShopifyBilling
-            ? "Current plan. Approved changes take effect at the next renewal."
-            : "This plan is assigned to your Store in SelfX."}
+            ? "Current access profile. Purchased credits never expire."
+            : "Current access profile. You can purchase more credits at any time."}
         </div>
       ) : (
         <div className="selfx-shopify-plan-card__active-note">
           {canPurchase
-            ? "Plan details are set in SelfX; Shopify will show the payment approval."
+            ? plan.billingMode === "POSTPAID_PAYG"
+              ? "Prepaid credits are used first; additional successful Try-Ons are billed under the approved cap."
+              : "One-time payment. Credits never expire. This pack’s configured features and limits apply after purchase."
             : canChooseShopifyPlan
               ? "Starter is a one-time Store trial. Changing plans never renews its allowance."
               : "Plan selection is temporarily unavailable. Refresh to retry."}
         </div>
       )}
-      {!active && canPurchase ? (
+      {usageActive ? (
+        <div className="selfx-shopify-plan-card__status" role="status">
+          Pay as you go enabled
+        </div>
+      ) : canPurchase && (!active || plan.billingMode !== "POSTPAID_PAYG") ? (
         <PlanPurchaseForm
           plan={plan}
           hasActiveShopifyBilling={hasActiveShopifyBilling}
@@ -158,8 +175,12 @@ function PlanPurchaseForm({
         {submitting
           ? "Processing…"
           : hasActiveShopifyBilling
-            ? "Change plan"
-            : "Choose plan"}
+            ? plan.billingMode === "POSTPAID_PAYG"
+              ? "Update Pay as you go"
+              : "Buy credits"
+            : plan.billingMode === "POSTPAID_PAYG"
+              ? "Enable Pay as you go"
+              : "Buy credits"}
       </button>
     </Form>
   );
