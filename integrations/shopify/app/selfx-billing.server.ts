@@ -116,6 +116,25 @@ async function graphql<T>(
 export function billingEnabled() {
   return process.env.SHOPIFY_BILLING_ENABLED === "true";
 }
+
+function billingReturnUrl(shop: string, agreementId: string): URL {
+  const apiKey = process.env.SHOPIFY_API_KEY?.trim();
+  if (
+    !apiKey ||
+    !/^[A-Za-z0-9_-]+$/.test(apiKey) ||
+    !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)
+  ) {
+    throw new Error("Shopify billing return configuration is unavailable.");
+  }
+  // Return through the admin so Shopify supplies fresh iframe/session context.
+  // The application callback still verifies billing using authenticated APIs.
+  const handle = shop.slice(0, -".myshopify.com".length);
+  const target = new URL(
+    `https://admin.shopify.com/store/${handle}/apps/${apiKey}/app/billing/return`,
+  );
+  target.searchParams.set("agreement", agreementId);
+  return target;
+}
 type Prepared = {
   id: string;
   createAllowed?: boolean;
@@ -314,11 +333,15 @@ export async function syncShopifyBilling(shop: string, admin: BillingAdmin) {
       let after: string | null = null;
       let recovered: { id: string; status: string } | undefined;
       let complete = false;
-      const expected = new URL(
+      const legacyReturn = new URL(
         "/app/billing/return",
         process.env.SHOPIFY_APP_URL,
       );
-      expected.searchParams.set("agreement", agreement.id);
+      legacyReturn.searchParams.set("agreement", agreement.id);
+      const expectedReturns = new Set([
+        legacyReturn.toString(),
+        billingReturnUrl(shop, agreement.id).toString(),
+      ]);
       for (let page = 0; page < 4; page++) {
         const response: {
           currentAppInstallation: {
@@ -329,8 +352,8 @@ export async function syncShopifyBilling(shop: string, admin: BillingAdmin) {
           };
         } = await graphql(admin, RECOVER_SUBSCRIPTIONS, { after });
         const list = response.currentAppInstallation.allSubscriptions;
-        recovered = list.nodes.find(
-          (subscription) => subscription.returnUrl === expected.toString(),
+        recovered = list.nodes.find((subscription) =>
+          expectedReturns.has(subscription.returnUrl),
         );
         if (recovered || !list.pageInfo.hasNextPage) {
           complete = true;
@@ -457,8 +480,7 @@ export async function beginShopifyBilling(
         : "This plan request has already finished. Refresh Plans before choosing another plan.",
     );
   }
-  const returnUrl = new URL("/app/billing/return", process.env.SHOPIFY_APP_URL);
-  returnUrl.searchParams.set("agreement", prepared.id);
+  const returnUrl = billingReturnUrl(shop, prepared.id);
   const lineItems: Record<string, unknown>[] = [];
   if (prepared.plan.monthlyPriceCents > 0)
     lineItems.push({
