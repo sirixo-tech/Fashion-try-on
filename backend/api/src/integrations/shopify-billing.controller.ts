@@ -73,6 +73,15 @@ export class ShopifyBillingController {
     this.auth.requireServiceToken(token);
     return this.billing.confirm(id, body);
   }
+  @Post(":id/retire-missing")
+  retireMissing(
+    @Headers(SHOPIFY_APP_SERVICE_TOKEN_HEADER) token: string | undefined,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: AttachShopifyBillingDto,
+  ) {
+    this.auth.requireServiceToken(token);
+    return this.billing.retireMissing(id, body.shop, body.subscriptionId);
+  }
   @Get("usage")
   usage(
     @Headers(SHOPIFY_APP_SERVICE_TOKEN_HEADER) token: string | undefined,

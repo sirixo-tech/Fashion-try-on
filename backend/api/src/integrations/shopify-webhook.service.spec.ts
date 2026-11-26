@@ -562,13 +562,24 @@ describe("Shopify webhook security and synchronization", () => {
 
   it("disconnects and archives the integration after app uninstall", async () => {
     const transaction = {
+      $queryRaw: vi.fn(),
+      externalProductMapping: { updateMany: vi.fn() },
       shopifyBillingAgreement: { updateMany: vi.fn() },
       storeSubscription: { updateMany: vi.fn() },
       integrationProviderCredential: { deleteMany: vi.fn() },
       integrationOauthState: { deleteMany: vi.fn() },
       shopifyLinkSession: { deleteMany: vi.fn() },
       integrationCredential: { updateMany: vi.fn() },
-      integration: { update: vi.fn() },
+      integration: {
+        update: vi.fn(),
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({
+            externalAccountId: "gid://shopify/Shop/456",
+            connectedAt: new Date("2026-09-01"),
+            metadata: { connectionMode: "SHOPIFY_APP" },
+          }),
+      },
       auditLog: { create: vi.fn() },
     };
     const { prisma } = prismaMock({ transaction });
@@ -588,7 +599,9 @@ describe("Shopify webhook security and synchronization", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           status: IntegrationStatus.DISCONNECTED,
-          externalAccountId: null,
+          metadata: expect.objectContaining({
+            shopDomain: "demo.myshopify.com",
+          }),
         }),
       }),
     );
@@ -600,6 +613,47 @@ describe("Shopify webhook security and synchronization", () => {
     expect(archiveIntegrationCatalog).toHaveBeenCalledWith(
       "integration-1",
       expect.any(Date),
+      transaction,
+    );
+    expect(
+      transaction.integration.update.mock.calls[0]![0].data,
+    ).not.toHaveProperty("externalAccountId");
+    expect(transaction.externalProductMapping.updateMany).toHaveBeenCalledWith({
+      where: { integrationId: "integration-1" },
+      data: { externalUpdatedAt: null },
+    });
+  });
+
+  it("ignores a delayed uninstall after a fresh connection", async () => {
+    const { prisma, eventUpdate } = prismaMock({
+      transaction: {
+        $queryRaw: vi.fn(),
+        integration: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValue({
+              externalAccountId: "gid://shopify/Shop/456",
+              connectedAt: new Date("2026-09-08"),
+            }),
+        },
+      },
+    });
+    const archiveIntegrationCatalog = vi.fn();
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      { webhookConnection: vi.fn().mockResolvedValue(connection()) } as never,
+      { archiveIntegrationCatalog } as never,
+    );
+    expect(
+      await service.handle(request("app/uninstalled", { id: 456 })),
+    ).toEqual({ accepted: true, ignored: true });
+    expect(archiveIntegrationCatalog).not.toHaveBeenCalled();
+    expect(eventUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: IntegrationEventStatus.IGNORED,
+        }),
+      }),
     );
   });
 });

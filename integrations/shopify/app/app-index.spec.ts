@@ -158,6 +158,23 @@ describe("embedded Shopify Plans tab", () => {
     expect(markup).not.toContain("Available credits</s-text><s-heading>0");
     expect(markup).not.toContain('value="billing:choose"');
   });
+  it("guides unapproved merchants to connection approval without a misleading billing failure", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PlansPanel, {
+        ...props,
+        connectionReady: false,
+        pendingApproval: true,
+        recoveryUrl: "https://app.selfx.test/approve",
+        creditSummaryError: null,
+      }),
+    );
+    expect(markup).toContain("Approve in SelfX");
+    expect(markup).toContain("Complete SelfX approval");
+    expect(markup).not.toContain(
+      "Shopify billing status could not be verified",
+    );
+    expect(markup).not.toContain('value="billing:choose"');
+  });
   it("preserves the assigned plan when the catalog request fails", () => {
     const markup = renderToStaticMarkup(
       createElement(PlansPanel, {

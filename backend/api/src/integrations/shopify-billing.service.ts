@@ -343,6 +343,34 @@ export class ShopifyBillingService {
       },
     });
   }
+  async retireMissing(id: string, shop: string, subscriptionId: string) {
+    const agreement = await this.prisma.shopifyBillingAgreement.findFirst({
+      where: { id, shopDomain: shop, externalSubscriptionId: subscriptionId },
+    });
+    if (!agreement)
+      throw billingError(
+        "This approval does not belong to the authenticated shop.",
+      );
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${agreement.organizationId}::uuid FOR UPDATE`;
+      await tx.shopifyBillingAgreement.updateMany({
+        where: { id, status: { in: ["ACTIVE", "FROZEN", "PENDING"] } },
+        data: {
+          status: "CANCELLED",
+          checkedAt: new Date(),
+          confirmationUrl: null,
+        },
+      });
+      await tx.storeSubscription.updateMany({
+        where: {
+          organizationId: agreement.organizationId,
+          metadata: { path: ["shopifyAgreementId"], equals: id },
+        },
+        data: { status: "CANCELLED", cancelledAt: new Date() },
+      });
+    });
+    return { retired: true };
+  }
   async confirm(id: string, input: VerifyShopifyBillingDto) {
     const agreement = await this.prisma.shopifyBillingAgreement.findFirst({
       where: {
@@ -539,6 +567,19 @@ export class ShopifyBillingService {
   }
   async pendingUsage(shop: string) {
     const integration = await this.integration(shop, false);
+    // A cancelled prior installation cannot accept new usage receipts. Keep its
+    // financial rows for review rather than charging them to a new subscription
+    // or letting them prevent the merchant from approving a fresh plan.
+    await this.prisma.shopifyUsageCharge.updateMany({
+      where: {
+        status: "PENDING",
+        agreement: {
+          integrationId: integration.id,
+          status: { in: ["CANCELLED", "DECLINED", "EXPIRED", "REPLACED"] },
+        },
+      },
+      data: { status: "REVIEW_REQUIRED" },
+    });
     // Charges are created only alongside a completed result with an approved
     // reservation. Never import old Store history into Shopify billing.
     await this.prisma.shopifyUsageReservation.updateMany({

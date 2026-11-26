@@ -196,35 +196,45 @@ const setupSteps = [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  if (billingEnabled()) {
-    try {
-      const { admin } = await authenticate.admin(request);
-      await syncShopifyBilling(session.shop, admin);
-    } catch {
-      /* Preserve read-only access while billing recovery retries. */
-    }
-  }
-  const planData = loadSelfxPlanData(session.shop);
+  const { session, admin } = await authenticate.admin(request);
   let connection = await safeConnectionView(session.shop);
-  const connectionHealth = await safeConnectionHealth(session.shop, connection);
+  let connectionHealth = await safeConnectionHealth(session.shop, connection);
   if (
     connectionHealth.state === "NOT_CONNECTED" &&
     connection.status === "CONNECTED"
   ) {
     connection = await clearStaleSelfxConnection(session.shop);
+    connectionHealth = await safeConnectionHealth(session.shop, connection);
   }
+  const connectionReady =
+    connection.status === "CONNECTED" && connectionHealth.state === "CONNECTED";
+  let billingVerificationError: string | null = null;
+  if (connectionReady && billingEnabled()) {
+    try {
+      await syncShopifyBilling(session.shop, admin);
+    } catch {
+      billingVerificationError =
+        "Shopify billing could not be verified. Retry before choosing a paid plan. Your current allowance is unchanged.";
+    }
+  }
+  const planData = loadSelfxPlanData(session.shop, {
+    connected: connectionReady,
+  });
   const verifiedConnection =
     connectionHealth.state === "CONNECTED"
       ? connection
       : { ...connection, status: "ERROR" as const };
   return {
     connection,
-    shopifyBillingOwnership: await safeShopifyBillingOwnership(session.shop),
+    shopifyBillingOwnership:
+      connectionReady && !billingVerificationError
+        ? await safeShopifyBillingOwnership(session.shop)
+        : null,
+    billingVerificationError,
     shopifyBillingEnabled: billingEnabled(),
-    scheduledBilling: await scheduledShopifyPlan(session.shop).catch(
-      () => null,
-    ),
+    scheduledBilling: connectionReady
+      ? await scheduledShopifyPlan(session.shop).catch(() => null)
+      : null,
     connectionHealth,
     themeBlock: await safeThemeBlockView({
       accessToken: session.accessToken,
@@ -746,6 +756,17 @@ export default function Index() {
         />
       </s-grid>
 
+      {loaded.billingVerificationError ? (
+        <s-banner heading="Billing needs verification" tone="warning">
+          {loaded.billingVerificationError}
+          <s-button
+            variant="secondary"
+            onClick={() => revalidator.revalidate()}
+          >
+            Retry billing verification
+          </s-button>
+        </s-banner>
+      ) : null}
       {loaded.scheduledBilling ? (
         <s-banner tone="info">
           Your change to {loaded.scheduledBilling.name} starts at your next
@@ -1398,6 +1419,13 @@ function ShopifyPanelContent({
   if (activePanel === "plans") {
     return (
       <PlansPanel
+        connectionReady={connected && connectionHealth.state === "CONNECTED"}
+        pendingApproval={pending}
+        recoveryUrl={
+          pending && connection.approvalUrl
+            ? connection.approvalUrl
+            : connectActionPath
+        }
         adminLocale={adminLocale}
         availablePlans={availablePlans}
         plansError={plansError}
@@ -2096,6 +2124,9 @@ function AnalyticsPanel({
 }
 
 export function PlansPanel({
+  connectionReady = true,
+  pendingApproval = false,
+  recoveryUrl,
   adminLocale,
   availablePlans,
   plansError,
@@ -2109,6 +2140,9 @@ export function PlansPanel({
   creditSummary,
   includedCredits,
 }: {
+  connectionReady?: boolean;
+  pendingApproval?: boolean;
+  recoveryUrl?: string;
   adminLocale: string;
   availablePlans: SelfxStorefrontPricingPlan[];
   plansError: string | null;
@@ -2132,11 +2166,15 @@ export function PlansPanel({
       (currentPlanId && plan.id === currentPlanId) ||
       (currentPlanCode && plan.code === currentPlanCode),
   );
-  const currentPlanLabel =
-    currentPlan?.name ??
-    (creditSummary ? "No current plan" : "Current plan unavailable");
+  const currentPlanLabel = !connectionReady
+    ? pendingApproval
+      ? "Complete SelfX approval"
+      : "Reconnect to SelfX"
+    : (currentPlan?.name ??
+      (creditSummary ? "No current plan" : "Current plan unavailable"));
   const payg = currentPlan?.billingMode === "POSTPAID_PAYG";
   const canChooseShopifyPlan =
+    connectionReady &&
     shopifyBillingEnabled &&
     billingOwnership !== null &&
     creditSummary !== null;
@@ -2144,6 +2182,29 @@ export function PlansPanel({
   return (
     <s-section heading="Plans">
       <s-stack gap="base">
+        {!connectionReady ? (
+          <s-banner
+            heading={
+              pendingApproval
+                ? "Complete your Store connection"
+                : "Reconnect to SelfX"
+            }
+            tone="info"
+          >
+            Connect this Shopify shop to its approved SelfX Store before
+            choosing a plan or enabling customer Try-On. Reconnecting does not
+            renew your Starter trial.
+            {recoveryUrl ? (
+              <SelfxActionButton
+                href={recoveryUrl}
+                target={pendingApproval ? "_blank" : undefined}
+                tone="primary"
+              >
+                {pendingApproval ? "Approve in SelfX" : "Reconnect to SelfX"}
+              </SelfxActionButton>
+            ) : null}
+          </s-banner>
+        ) : null}
         <PlanDataNotice
           plansError={plansError}
           creditSummaryError={creditSummaryError}
@@ -2159,13 +2220,15 @@ export function PlansPanel({
         >
           <s-stack gap="base">
             <s-text color="subdued">
-              {billingOwnership === "SHOPIFY_MANAGED"
-                ? "Shopify manages this Store’s billing agreements. Choose another plan below; cancelling stops paid Try-On access."
-                : canChooseShopifyPlan
-                  ? "Choose a plan below to review and approve its charges through Shopify. Plan terms come from SelfX."
-                  : billingOwnership === "SELFX_MANAGED"
-                    ? "Plan selection is temporarily unavailable. Refresh this page or retry when Shopify billing is available. Your current plan is unchanged."
-                    : "Shopify billing status could not be verified. Refresh to retry. Your current plan is unchanged."}
+              {!connectionReady
+                ? "Finish the Store connection above. Shopify payment approval becomes available after the connection is verified."
+                : billingOwnership === "SHOPIFY_MANAGED"
+                  ? "Shopify manages this Store’s billing agreements. Choose another plan below; cancelling stops paid Try-On access."
+                  : canChooseShopifyPlan
+                    ? "Choose a plan below to review and approve its charges through Shopify. Plan terms come from SelfX."
+                    : billingOwnership === "SELFX_MANAGED"
+                      ? "Plan selection is temporarily unavailable. Refresh this page or retry when Shopify billing is available. Your current plan is unchanged."
+                      : "Shopify billing status could not be verified. Refresh to retry. Your current plan is unchanged."}
             </s-text>
             {billingOwnership === "SHOPIFY_MANAGED" ? (
               <Form method="post">

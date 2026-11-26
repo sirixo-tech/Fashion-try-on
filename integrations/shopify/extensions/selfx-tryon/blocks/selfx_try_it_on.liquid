@@ -46,10 +46,10 @@
   <button
     type="button"
     class="selfx-tryon-button"
-    data-selfx-launch-url="{{ selfx_launch_url }}"
+    data-selfx-launch-url="{{ selfx_launch_url | escape }}"
     data-selfx-shop="{{ shop.permanent_domain }}"
     data-selfx-product-id="{{ product.id }}"
-    data-selfx-product-handle="{{ product.handle }}"
+    data-selfx-product-handle="{{ product.handle | escape }}"
     data-selfx-locale="{{ selfx_locale }}"
     data-selfx-alert="{{ selfx_default_alert | escape }}"
   >
@@ -93,10 +93,13 @@
 </style>
 
 <script>
-  document.querySelectorAll('.selfx-tryon-block button:not([data-selfx-checked])').forEach(function (button) {
-    button.dataset.selfxChecked = 'true';
+  window.selfxCheckTryOnButton = window.selfxCheckTryOnButton || function (button) {
+    if (button.selfxChecking) return;
+    button.selfxChecking = true;
+    button.dataset.selfxReady = 'false';
+    button.closest('.selfx-tryon-block').hidden = true;
     var check = new URL(button.dataset.selfxLaunchUrl, window.location.origin);
-    if (check.origin !== window.location.origin) return;
+    if (check.origin !== window.location.origin) { button.selfxChecking = false; return; }
     check.searchParams.set('productId', button.dataset.selfxProductId);
     check.searchParams.set('productHandle', button.dataset.selfxProductHandle);
     check.searchParams.set('availability', '1');
@@ -105,10 +108,21 @@
       return response.json();
     }).then(function (result) {
       if (result.available === true) { button.dataset.selfxReady = 'true'; button.closest('.selfx-tryon-block').hidden = false; }
-    }).catch(function () { /* Remain hidden until eligibility can be verified. */ });
+    }).catch(function () { /* Remain hidden until eligibility can be verified. */ }).finally(function () { button.selfxChecking = false; });
+  };
+  document.querySelectorAll('.selfx-tryon-block button:not([data-selfx-checked])').forEach(function (button) {
+    button.dataset.selfxChecked = 'true';
+    window.selfxCheckTryOnButton(button);
   });
   if (!window.selfxTryOnClickHandlerInstalled) {
   window.selfxTryOnClickHandlerInstalled = true;
+  var refreshSelfxButtons = function () {
+    if (document.visibilityState === 'hidden') return;
+    document.querySelectorAll('.selfx-tryon-button').forEach(window.selfxCheckTryOnButton);
+  };
+  window.addEventListener('focus', refreshSelfxButtons);
+  document.addEventListener('visibilitychange', refreshSelfxButtons);
+  document.addEventListener('shopify:section:load', refreshSelfxButtons);
   document.addEventListener("click", function (event) {
     var button = event.target.closest(".selfx-tryon-button");
     if (!button || button.dataset.selfxReady !== 'true') return;
@@ -120,6 +134,7 @@
     }
 
     var url = new URL(launchUrl, window.location.origin);
+    if (url.origin !== window.location.origin) return;
     url.searchParams.set("shop", button.dataset.selfxShop);
     url.searchParams.set("productId", button.dataset.selfxProductId);
     url.searchParams.set("productHandle", button.dataset.selfxProductHandle);

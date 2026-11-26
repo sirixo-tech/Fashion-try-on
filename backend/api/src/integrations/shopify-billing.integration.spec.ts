@@ -140,6 +140,78 @@ describe.skipIf(!url)(
       }
       return { store, integration, shop, price, approval };
     }
+    it("retires a verified missing installation without cancelling its replacement or renewing the trial", async () => {
+      const f = await fixture(),
+        first = await f.approval();
+      await billing.confirm(first.prepared.id, first.body);
+      const trialBefore = await db.creditLedgerEntry.count({
+        where: { organizationId: f.store, entryType: "TRIAL_GRANTED" },
+      });
+      await billing.retireMissing(
+        first.prepared.id,
+        f.shop,
+        first.body.subscriptionId,
+      );
+      const second = await f.approval();
+      await billing.confirm(second.prepared.id, second.body);
+      await billing.retireMissing(
+        first.prepared.id,
+        f.shop,
+        first.body.subscriptionId,
+      );
+      expect(
+        (await entitlements.getStoreCreditSummary(f.store)).subscription
+          ?.status,
+      ).toBe("ACTIVE");
+      expect(
+        (
+          await db.shopifyBillingAgreement.findUniqueOrThrow({
+            where: { id: second.prepared.id },
+          })
+        ).status,
+      ).toBe("ACTIVE");
+      expect(
+        await db.creditLedgerEntry.count({
+          where: { organizationId: f.store, entryType: "TRIAL_GRANTED" },
+        }),
+      ).toBe(trialBefore);
+      await expect(
+        billing.retireMissing(
+          second.prepared.id,
+          "other.myshopify.com",
+          second.body.subscriptionId,
+        ),
+      ).rejects.toThrow();
+    });
+    it("preserves old unpaid usage for review and allows a fresh billing approval", async () => {
+      const f = await fixture(true),
+        approved = await f.approval();
+      await billing.confirm(approved.prepared.id, approved.body);
+      const admitted = await prepareRunBilling(db, {
+        organizationId: f.store,
+        assignmentScope: "ORGANIZATION",
+        channel: "KIOSK",
+        requestKey: "old-installation",
+      });
+      const completed = await run(f.store, admitted);
+      await db.$transaction((tx) => recordSuccessfulGeneration(tx, completed));
+      expect(await billing.pendingUsage(f.shop)).toHaveLength(1);
+      await billing.retireMissing(
+        approved.prepared.id,
+        f.shop,
+        approved.body.subscriptionId,
+      );
+      expect(await billing.pendingUsage(f.shop)).toHaveLength(0);
+      expect(
+        await db.shopifyUsageCharge.count({
+          where: {
+            agreementId: approved.prepared.id,
+            status: "REVIEW_REQUIRED",
+          },
+        }),
+      ).toBe(1);
+      expect((await f.approval()).prepared.id).not.toBe(approved.prepared.id);
+    });
     it("requires verified matching approval and activates the frozen plan once", async () => {
       const f = await fixture(),
         approved = await f.approval();

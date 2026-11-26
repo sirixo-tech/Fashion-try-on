@@ -144,11 +144,25 @@ describe("ShopifyLinkService", () => {
     ).rejects.toMatchObject({
       response: expect.objectContaining({
         error: expect.objectContaining({
-          code: SHOPIFY_LINK_ERROR_CODES.shopAlreadyLinked,
+          code: SHOPIFY_LINK_ERROR_CODES.storeAlreadyLinked,
         }),
       }),
     });
     expect(prisma.sessions[0]?.approvedAt).toBeNull();
+  });
+  it("recovers the same approved Store after uninstall without local Store input", async () => {
+    configure();
+    const prisma = new FakePrisma();
+    const previous = integration("store-1", IntegrationStatus.DISCONNECTED);
+    prisma.integrations.push(previous);
+    const service = new ShopifyLinkService(prisma as never);
+    const created = await service.create(shop());
+    expect(prisma.sessions[0]?.organizationId).toBe("store-1");
+    expect(prisma.sessions[0]?.approvedAt).toBeNull();
+    await expect(service.redeem(created.linkToken)).rejects.toMatchObject({
+      response: { error: { code: SHOPIFY_LINK_ERROR_CODES.pending } },
+    });
+    expect(prisma.credentials).toHaveLength(0);
   });
 
   it("creates locked reconnect sessions for the existing Store", async () => {
@@ -261,13 +275,16 @@ function shop() {
   };
 }
 
-function integration(organizationId: string) {
+function integration(
+  organizationId: string,
+  status: IntegrationStatus = IntegrationStatus.ACTIVE,
+) {
   const now = new Date();
   return {
     id: `integration-${organizationId}`,
     organizationId,
     type: "SHOPIFY",
-    status: IntegrationStatus.ACTIVE,
+    status,
     externalAccountId: "gid://shopify/Shop/1001",
     externalAccountName: "Merchant Store",
     metadata: { shopDomain: "merchant.myshopify.com" },

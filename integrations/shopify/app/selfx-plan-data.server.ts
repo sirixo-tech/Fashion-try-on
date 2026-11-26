@@ -3,7 +3,10 @@ import { SelfxStorefrontTryOnClient } from "./selfx-storefront-tryon.server";
 
 // Catalog browsing must not depend on local sync/connection-health diagnostics.
 // The API separately authorizes access to this shop's private credit summary.
-export async function loadSelfxPlanData(shop: string) {
+export async function loadSelfxPlanData(
+  shop: string,
+  options: { connected?: boolean } = {},
+) {
   async function read<T>(
     operation: "plans" | "credits",
     load: () => Promise<T>,
@@ -33,11 +36,13 @@ export async function loadSelfxPlanData(shop: string) {
         shop,
       ),
     ),
-    read("credits", () =>
-      new SelfxStorefrontTryOnClient(loadSelfxLinkConfig()).getCreditSummary(
-        shop,
-      ),
-    ),
+    options.connected === false
+      ? Promise.resolve({ data: null, error: null })
+      : read("credits", () =>
+          new SelfxStorefrontTryOnClient(
+            loadSelfxLinkConfig(),
+          ).getCreditSummary(shop),
+        ),
   ]);
   return {
     availablePlans: plans.data?.data ?? [],

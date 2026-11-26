@@ -7,6 +7,7 @@ import {
   CREATE_USAGE,
   CANCEL_SUBSCRIPTION,
   RECOVER_SUBSCRIPTIONS,
+  VERIFY_INSTALLATION,
 } from "./selfx-billing.server";
 
 const shop = "merchant.myshopify.com",
@@ -319,4 +320,74 @@ describe("Shopify billing server boundary", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(admin.graphql).not.toHaveBeenCalled();
   });
+
+  it("retires an old agreement only after verifying the current installation", async () => {
+    fetchImpl.mockImplementation((url: string) =>
+      new URL(url).pathname.endsWith("/agreements")
+        ? Response.json([
+            { id, externalSubscriptionId: nativeId, status: "ACTIVE" },
+          ])
+        : central(url),
+    );
+    admin.graphql.mockImplementation(async (query: string) =>
+      Response.json({
+        data:
+          query === VERIFY_INSTALLATION
+            ? {
+                currentAppInstallation: {
+                  id: "gid://shopify/AppInstallation/2",
+                  activeSubscriptions: [],
+                  allSubscriptions: {
+                    nodes: [],
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                  },
+                },
+              }
+            : { node: null },
+      }),
+    );
+    await syncShopifyBilling(shop, admin);
+    expect(
+      fetchImpl.mock.calls.some((call) =>
+        String(call[0]).endsWith("/retire-missing"),
+      ),
+    ).toBe(true);
+    expect(
+      fetchImpl.mock.calls.some((call) => String(call[0]).endsWith("/confirm")),
+    ).toBe(false);
+  });
+
+  it.each(["active", "unavailable"])(
+    "keeps an uncertain old agreement when installation verification is %s",
+    async (mode) => {
+      fetchImpl.mockImplementation((url: string) =>
+        new URL(url).pathname.endsWith("/agreements")
+          ? Response.json([
+              { id, externalSubscriptionId: nativeId, status: "ACTIVE" },
+            ])
+          : central(url),
+      );
+      admin.graphql.mockImplementation(async (query: string) => {
+        if (query === VERIFY_INSTALLATION && mode === "unavailable")
+          throw new Error("offline");
+        return Response.json({
+          data:
+            query === VERIFY_INSTALLATION
+              ? {
+                  currentAppInstallation: {
+                    id: "installation",
+                    activeSubscriptions: [{ id: nativeId }],
+                  },
+                }
+              : { node: null },
+        });
+      });
+      await expect(syncShopifyBilling(shop, admin)).rejects.toThrow();
+      expect(
+        fetchImpl.mock.calls.some((call) =>
+          String(call[0]).endsWith("/retire-missing"),
+        ),
+      ).toBe(false);
+    },
+  );
 });

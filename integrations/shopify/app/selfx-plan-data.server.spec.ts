@@ -14,6 +14,21 @@ vi.mock("./selfx-link.server", async (importOriginal) => ({
 afterEach(() => vi.restoreAllMocks());
 
 describe("independent Shopify plan data", () => {
+  it("shows the public catalog without requesting private billing before approval", async () => {
+    vi.spyOn(
+      SelfxStorefrontTryOnClient.prototype,
+      "getAvailablePlans",
+    ).mockResolvedValue({ data: [] });
+    const credits = vi.spyOn(
+      SelfxStorefrontTryOnClient.prototype,
+      "getCreditSummary",
+    );
+    const result = await loadSelfxPlanData("merchant.myshopify.com", {
+      connected: false,
+    });
+    expect(result.creditSummaryError).toBeNull();
+    expect(credits).not.toHaveBeenCalled();
+  });
   it("retains the catalog when the private credit summary fails", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const plans = vi

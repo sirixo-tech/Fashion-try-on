@@ -86,7 +86,14 @@ export class ShopifyLinkService {
       });
       await tx.integration.update({
         where: { id: integration.id },
-        data: { status: "DISCONNECTED", disconnectedAt: new Date(), catalogSyncCheckpoint: Prisma.DbNull, catalogSyncLeaseToken: null, catalogSyncLeaseUntil: null, catalogSyncAttempts: 0 },
+        data: {
+          status: "DISCONNECTED",
+          disconnectedAt: new Date(),
+          catalogSyncCheckpoint: Prisma.DbNull,
+          catalogSyncLeaseToken: null,
+          catalogSyncLeaseUntil: null,
+          catalogSyncAttempts: 0,
+        },
       });
       await tx.auditLog.create({
         data: {
@@ -109,9 +116,17 @@ export class ShopifyLinkService {
     const shopDomain = normalizeShopDomain(input.shopDomain);
     const externalAccountId = normalizeShopId(input.externalAccountId);
     const externalAccountName = nullableTrim(input.externalAccountName);
-    const lockedStore = input.storeId
+    const previous = await this.prisma.integration.findFirst({
+      where: {
+        type: "SHOPIFY",
+        externalAccountId,
+        metadata: { path: ["shopDomain"], equals: shopDomain },
+      },
+    });
+    const reconnectStoreId = input.storeId ?? previous?.organizationId;
+    const lockedStore = reconnectStoreId
       ? await this.resolveLockedReconnectStore(
-          input.storeId,
+          reconnectStoreId,
           externalAccountId,
           shopDomain,
         )

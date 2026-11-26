@@ -7,6 +7,9 @@ describe("Shopify app routes", () => {
     globalThis.__reactRouterAppDirectory = path.resolve("app");
     const { default: routes } = await import("./routes");
     const resolvedRoutes = await routes;
+    expect(resolvedRoutes.some((entry) => entry.file?.includes(".spec."))).toBe(
+      false,
+    );
     const launchRoutes = resolvedRoutes.filter(
       (entry) => entry.path === "apps/selfx-tryon/launch",
     );

@@ -376,6 +376,31 @@ describe("IntegrationCatalogSyncService", () => {
       data: { lastSeenAt: expect.any(Date) },
     });
   });
+  it("restores an unchanged archived product after uninstall clears its freshness marker", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue({
+      id: "mapping-1",
+      productId: "selfx-product-1",
+      externalProductId: "shopify-product-1",
+      externalUpdatedAt: null,
+      status: "ARCHIVED",
+    });
+    const result = await createService(tx).sync(credential, {
+      mode: "INCREMENTAL",
+      products: [productInput],
+    });
+    expect(result.ignoredAsStale).toBe(0);
+    expect(tx.product.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ active: true }),
+      }),
+    );
+    expect(tx.externalProductMapping.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "ACTIVE" }),
+      }),
+    );
+  });
 
   it("still applies explicit VTO eligibility on stale product snapshots", async () => {
     const tx = createTransaction();

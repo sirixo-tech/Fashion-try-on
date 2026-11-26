@@ -11,6 +11,45 @@ export const READ_SUBSCRIPTION = `query SelfxReadSubscription($id: ID!) { node(i
 export const CREATE_USAGE = `mutation SelfxCreateUsage($line: ID!, $price: MoneyInput!, $description: String!, $key: String!) { appUsageRecordCreate(subscriptionLineItemId: $line, price: $price, description: $description, idempotencyKey: $key) { appUsageRecord { id } userErrors { field message } } }`;
 export const CANCEL_SUBSCRIPTION = `mutation SelfxCancelSubscription($id: ID!) { appSubscriptionCancel(id: $id) { appSubscription { id status } userErrors { field message } } }`;
 export const RECOVER_SUBSCRIPTIONS = `query SelfxRecoverSubscriptions($after: String) { currentAppInstallation { allSubscriptions(first: 50, after: $after) { nodes { id status returnUrl } pageInfo { hasNextPage endCursor } } } }`;
+export const VERIFY_INSTALLATION = `query SelfxVerifyInstallation($after: String) { currentAppInstallation { id activeSubscriptions { id } allSubscriptions(first: 50, after: $after) { nodes { id status } pageInfo { hasNextPage endCursor } } } }`;
+
+async function missingFromInstallation(
+  admin: BillingAdmin,
+  subscriptionId: string,
+) {
+  let after: string | null = null;
+  for (let page = 0; page < 4; page++) {
+    const result: {
+      currentAppInstallation: {
+        id: string;
+        activeSubscriptions: Array<{ id: string }>;
+        allSubscriptions: {
+          nodes: Array<{ id: string; status: string }>;
+          pageInfo: { hasNextPage: boolean; endCursor: string | null };
+        };
+      } | null;
+    } = await graphql(admin, VERIFY_INSTALLATION, { after });
+    const installation = result.currentAppInstallation;
+    if (!installation?.id)
+      throw new Error(
+        "The current Shopify installation could not be verified.",
+      );
+    if (
+      installation.activeSubscriptions.some(
+        (item) => item.id === subscriptionId,
+      )
+    )
+      return false;
+    const listed = installation.allSubscriptions.nodes.find(
+      (item) => item.id === subscriptionId,
+    );
+    if (listed)
+      return ["CANCELLED", "DECLINED", "EXPIRED"].includes(listed.status);
+    if (!installation.allSubscriptions.pageInfo.hasNextPage) return true;
+    after = installation.allSubscriptions.pageInfo.endCursor;
+  }
+  return false;
+}
 
 async function central<T>(
   path: string,
@@ -279,6 +318,15 @@ export async function syncShopifyBilling(shop: string, admin: BillingAdmin) {
       { id: agreement.externalSubscriptionId },
     );
     const native = data.node;
+    if (
+      !native &&
+      (await missingFromInstallation(admin, agreement.externalSubscriptionId))
+    ) {
+      await central(`/${agreement.id}/retire-missing`, shop, {
+        subscriptionId: agreement.externalSubscriptionId,
+      });
+      continue;
+    }
     if (!native || native.id !== agreement.externalSubscriptionId)
       throw new Error("Shopify subscription could not be verified.");
     const recurring = native.lineItems.filter(

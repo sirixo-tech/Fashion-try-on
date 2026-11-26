@@ -370,6 +370,26 @@ export async function completeSelfxConnection(input: {
   const connection = await db.selfxConnection.findUnique({
     where: { shop: input.shop },
   });
+  if (connection?.status === "COMPLETING_APPROVAL") {
+    if (Date.now() - connection.updatedAt.getTime() > 60_000) {
+      await db.selfxConnection.updateMany({
+        where: {
+          shop: input.shop,
+          status: "COMPLETING_APPROVAL",
+          updatedAt: connection.updatedAt,
+        },
+        data: {
+          status: "ERROR",
+          pendingLinkTokenCiphertext: null,
+          pendingLinkExpiresAt: null,
+          lastErrorCode: "SHOPIFY_APPROVAL_RECOVERY_REQUIRED",
+          lastErrorMessage:
+            "The connection confirmation was interrupted. Reconnect to the same SelfX Store to continue.",
+        },
+      });
+    }
+    return getSelfxConnectionView(input.shop);
+  }
   if (!connection || connection.status !== "PENDING_APPROVAL") {
     return getSelfxConnectionView(input.shop);
   }
@@ -378,8 +398,12 @@ export async function completeSelfxConnection(input: {
     !connection.pendingLinkExpiresAt ||
     connection.pendingLinkExpiresAt <= new Date()
   ) {
-    await db.selfxConnection.update({
-      where: { shop: input.shop },
+    await db.selfxConnection.updateMany({
+      where: {
+        shop: input.shop,
+        status: "PENDING_APPROVAL",
+        updatedAt: connection.updatedAt,
+      },
       data: {
         status: "ERROR",
         pendingLinkTokenCiphertext: null,
@@ -397,6 +421,20 @@ export async function completeSelfxConnection(input: {
     connection.pendingLinkTokenCiphertext,
     pendingTokenContext(connection.shopifyAccountId),
   );
+  const claimed = await db.selfxConnection.updateMany({
+    where: {
+      shop: input.shop,
+      status: "PENDING_APPROVAL",
+      pendingLinkTokenCiphertext: connection.pendingLinkTokenCiphertext,
+    },
+    data: { status: "COMPLETING_APPROVAL" },
+  });
+  if (claimed.count !== 1) return getSelfxConnectionView(input.shop);
+  const completing = {
+    shop: input.shop,
+    status: "COMPLETING_APPROVAL",
+    pendingLinkTokenCiphertext: connection.pendingLinkTokenCiphertext,
+  };
   let redeemed;
   try {
     redeemed = await new SelfxLinkClient(loadSelfxLinkConfig()).redeem(
@@ -407,13 +445,18 @@ export async function completeSelfxConnection(input: {
       error instanceof SelfxLinkApiError &&
       error.code === pendingApprovalCode
     ) {
+      await db.selfxConnection.updateMany({
+        where: completing,
+        data: { status: "PENDING_APPROVAL" },
+      });
       return getSelfxConnectionView(input.shop);
     }
     const safe = safeConnectionError(error);
     const terminal = isTerminalLinkError(error);
-    await db.selfxConnection.update({
-      where: { shop: input.shop },
+    await db.selfxConnection.updateMany({
+      where: completing,
       data: {
+        status: terminal ? "ERROR" : "PENDING_APPROVAL",
         ...(terminal
           ? {
               status: "ERROR",
@@ -428,8 +471,8 @@ export async function completeSelfxConnection(input: {
     return getSelfxConnectionView(input.shop);
   }
 
-  await db.selfxConnection.update({
-    where: { shop: input.shop },
+  const completed = await db.selfxConnection.updateMany({
+    where: completing,
     data: {
       status: "CONNECTED",
       pendingLinkTokenCiphertext: null,
@@ -449,7 +492,9 @@ export async function completeSelfxConnection(input: {
       lastErrorMessage: null,
     },
   });
-  return runSelfxCatalogSync(input);
+  return completed.count === 1
+    ? runSelfxCatalogSync(input)
+    : getSelfxConnectionView(input.shop);
 }
 
 export async function restartSelfxConnection(input: {
@@ -721,6 +766,7 @@ function integrationTokenContext(shopifyAccountId: string): string {
 }
 
 function connectionStatus(value: string): SelfxConnectionView["status"] {
+  if (value === "COMPLETING_APPROVAL") return "PENDING_APPROVAL";
   return value === "NOT_CONNECTED" ||
     value === "PENDING_APPROVAL" ||
     value === "CONNECTED" ||

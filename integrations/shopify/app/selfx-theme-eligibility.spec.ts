@@ -28,6 +28,24 @@ function page(available: boolean) {
   return dom;
 }
 describe("Shopify product button eligibility", () => {
+  it("rechecks when the customer returns and hides a button whose Store became unavailable", async () => {
+    const dom = page(true);
+    await new Promise((resolve) => setImmediate(resolve));
+    vi.mocked(dom.window.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ available: false }),
+    } as Response);
+    dom.window.dispatchEvent(new dom.window.Event("focus"));
+    expect(
+      (dom.window.document.querySelector(".selfx-tryon-block") as HTMLElement)
+        .hidden,
+    ).toBe(true);
+    dom.window.document.querySelector("button")!.click();
+    expect(dom.window.open).not.toHaveBeenCalled();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(dom.window.fetch).toHaveBeenCalledTimes(2);
+    dom.window.close();
+  });
   it("stays hidden when the backend rejects eligibility", async () => {
     const dom = page(false);
     await new Promise((resolve) => setImmediate(resolve));

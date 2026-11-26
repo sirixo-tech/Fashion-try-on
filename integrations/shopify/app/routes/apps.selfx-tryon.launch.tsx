@@ -27,6 +27,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     context = await authenticate.public.appProxy(request);
     const url = new URL(request.url);
+    const availabilityOnly = url.searchParams.get("availability") === "1";
     const shop = normalizeShopDomain(
       context.session?.shop ?? url.searchParams.get("shop"),
     );
@@ -51,6 +52,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
 
     if (connection?.status !== "CONNECTED") {
+      if (availabilityOnly)
+        return Response.json(
+          { available: false },
+          { headers: { "Cache-Control": "no-store" } },
+        );
       return launchError(context, {
         message: "SelfX Try-On is not connected for this store yet.",
         status: 403,
@@ -68,7 +74,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     const launchBaseUrl = storefrontTryOnBaseUrl();
-    if (url.searchParams.get("availability") === "1") {
+    if (availabilityOnly) {
       const result = await new SelfxStorefrontTryOnClient(
         loadSelfxLinkConfig(),
       ).availability({
@@ -93,6 +99,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     const client = new SelfxStorefrontTryOnClient(loadSelfxLinkConfig());
+    const ready = await client.availability({
+      source: "shopify",
+      shop,
+      ...product,
+    });
+    if (!ready.available)
+      return launchError(context, {
+        message:
+          "Try-On is temporarily unavailable for this product. Please return to the product page and try again later.",
+        status: 409,
+      });
     const requestedLocale = normalizeLanguageLocale(
       url.searchParams.get("locale"),
     );

@@ -6,7 +6,7 @@ const routes = [
     id: "routes/apps.selfx-tryon.launch",
   }),
   ...(await flatRoutes({
-    ignoredRouteFiles: ["**/apps.selfx-tryon.launch.tsx"],
+    ignoredRouteFiles: ["**/apps.selfx-tryon.launch.tsx", "**/*.spec.*"],
   })),
 ] satisfies RouteConfig;
 

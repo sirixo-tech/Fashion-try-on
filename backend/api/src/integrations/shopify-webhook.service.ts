@@ -167,7 +167,27 @@ export class ShopifyWebhookService {
         });
         return { accepted: true };
       } else {
-        await this.disconnectUninstalledApp(connection, webhookId, triggeredAt);
+        if (
+          connection.externalAccountId &&
+          connection.externalAccountId !==
+            `gid://shopify/Shop/${String(payload.id)}`
+        )
+          throw invalidRequest(
+            "Shopify uninstall identity does not match this Store.",
+          );
+        const disconnected = await this.disconnectUninstalledApp(
+          connection,
+          webhookId,
+          triggeredAt,
+          shop,
+        );
+        if (!disconnected) {
+          await this.finishEvent(
+            claimed.eventId,
+            IntegrationEventStatus.IGNORED,
+          );
+          return { accepted: true, ignored: true };
+        }
       }
       await this.finishEvent(claimed.eventId, IntegrationEventStatus.PROCESSED);
       return { accepted: true };
@@ -216,15 +236,36 @@ export class ShopifyWebhookService {
     connection: ShopifyWebhookConnection,
     webhookId: string,
     triggeredAt: Date,
-  ): Promise<void> {
+    shopDomain: string,
+  ): Promise<boolean> {
     const now = new Date();
-    // Keep the shop identity routable until catalog cleanup succeeds, so a
-    // failed uninstall webhook can be retried safely.
-    await this.catalogSync.archiveIntegrationCatalog(
-      connection.integrationId,
-      now,
-    );
-    await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${connection.storeId}::uuid FOR UPDATE`;
+      const current = await tx.integration.findFirst({
+        where: {
+          id: connection.integrationId,
+          organizationId: connection.storeId,
+          type: "SHOPIFY",
+        },
+      });
+      // A delayed uninstall from the previous installation must not revoke a
+      // freshly approved installation or archive its newly synchronized catalog.
+      if (
+        !current ||
+        (current.connectedAt && current.connectedAt > triggeredAt)
+      )
+        return false;
+      if (current.externalAccountId !== connection.externalAccountId)
+        return false;
+      await this.catalogSync.archiveIntegrationCatalog(
+        connection.integrationId,
+        now,
+        tx,
+      );
+      await tx.externalProductMapping.updateMany({
+        where: { integrationId: connection.integrationId },
+        data: { externalUpdatedAt: null },
+      });
       await tx.integrationProviderCredential.deleteMany({
         where: { integrationId: connection.integrationId },
       });
@@ -267,9 +308,22 @@ export class ShopifyWebhookService {
         data: {
           status: IntegrationStatus.DISCONNECTED,
           disconnectedAt: now,
-          externalAccountId: null,
-          externalAccountName: null,
-          metadata: Prisma.DbNull,
+          // Non-secret ownership survives uninstall. Fresh Shopify auth and
+          // explicit SelfX approval are still required to issue new credentials.
+          metadata: {
+            shopDomain,
+            connectionMode:
+              typeof current.metadata === "object" &&
+              current.metadata &&
+              !Array.isArray(current.metadata) &&
+              typeof current.metadata.connectionMode === "string"
+                ? current.metadata.connectionMode
+                : "SHOPIFY_APP",
+            uninstalledAt: triggeredAt.toISOString(),
+          },
+          catalogSyncCheckpoint: Prisma.DbNull,
+          catalogSyncLeaseToken: null,
+          catalogSyncLeaseUntil: null,
         },
       });
       await tx.auditLog.create({
@@ -285,6 +339,7 @@ export class ShopifyWebhookService {
           },
         },
       });
+      return true;
     });
   }
 

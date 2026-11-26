@@ -13,11 +13,16 @@ import {
   getSelfxConnectionView,
   clearStaleSelfxConnection,
   restartSelfxConnection,
+  completeSelfxConnection,
   updateSelfxStorefrontSettings,
 } from "./selfx-connection.server";
 import { parseShopifyTryOnMode } from "./selfx-tryon-settings";
 import { ShopifyAdminClient } from "../src/shopify-admin.server";
 import { SelfxLinkClient } from "./selfx-link.server";
+import {
+  SelfxSecretCipher,
+  loadSelfxSecretCipherConfig,
+} from "./selfx-secret.server";
 
 const shop = "merchant.myshopify.com";
 const settings = {
@@ -110,6 +115,46 @@ describe("Shopify Store reconnection", () => {
     vi.unstubAllEnvs();
   });
 
+  it("claims approval completion once across concurrent admin polling", async () => {
+    vi.stubEnv("SELFX_SHOPIFY_APP_SERVICE_TOKEN", "s".repeat(32));
+    vi.stubEnv("SELFX_API_BASE_URL", "https://api.selfx.test");
+    vi.stubEnv("SELFX_WEB_BASE_URL", "https://app.selfx.test");
+    vi.stubEnv(
+      "SELFX_SHOPIFY_CREDENTIAL_ENCRYPTION_KEY",
+      Buffer.alloc(32, 1).toString("base64"),
+    );
+    const cipher = new SelfxSecretCipher(loadSelfxSecretCipherConfig());
+    const saved = {
+      ...settings,
+      status: "PENDING_APPROVAL",
+      tryOnMode: "BOTH",
+      shopifyAccountId: "gid://shopify/Shop/1001",
+      pendingLinkTokenCiphertext: cipher.encrypt(
+        "t".repeat(43),
+        "shopify:gid://shopify/Shop/1001:pending-link",
+      ),
+      pendingLinkExpiresAt: new Date(Date.now() + 60000),
+      updatedAt: new Date(),
+    } as Record<string, unknown>;
+    database.findUnique.mockImplementation(async () => ({ ...saved }));
+    database.updateMany.mockImplementation(async ({ where, data }) => {
+      if (where.status && saved.status !== where.status) return { count: 0 };
+      Object.assign(saved, data);
+      return { count: 1 };
+    });
+    const redeem = vi
+      .spyOn(SelfxLinkClient.prototype, "redeem")
+      .mockRejectedValue(new Error("temporary network failure"));
+    await Promise.all(
+      [0, 1].map(() =>
+        completeSelfxConnection({ shop, shopifyAccessToken: "new-token" }),
+      ),
+    );
+    expect(redeem).toHaveBeenCalledTimes(1);
+    expect(saved.status).toBe("PENDING_APPROVAL");
+    expect(saved.pendingLinkTokenCiphertext).toBeTruthy();
+  });
+
   it("clears a stale connected Store and app token after central disconnect", async () => {
     const saved = {
       ...settings,
@@ -141,6 +186,31 @@ describe("Shopify Store reconnection", () => {
       status: "NOT_CONNECTED",
       storeId: "archived-store",
     });
+  });
+  it("offers safe recovery for an interrupted completion instead of redeeming twice", async () => {
+    const saved = {
+      ...settings,
+      status: "COMPLETING_APPROVAL",
+      tryOnMode: "BOTH",
+      selfxStoreId: "approved-store",
+      updatedAt: new Date(Date.now() - 61000),
+    } as Record<string, unknown>;
+    database.findUnique.mockImplementation(async () => ({ ...saved }));
+    database.updateMany.mockImplementation(async ({ data }) => {
+      Object.assign(saved, data);
+      return { count: 1 };
+    });
+    const redeem = vi.spyOn(SelfxLinkClient.prototype, "redeem");
+    const result = await completeSelfxConnection({
+      shop,
+      shopifyAccessToken: "token",
+    });
+    expect(result).toMatchObject({
+      status: "ERROR",
+      storeId: "approved-store",
+      errorCode: "SHOPIFY_APPROVAL_RECOVERY_REQUIRED",
+    });
+    expect(redeem).not.toHaveBeenCalled();
   });
 
   it("retains the approved Store when requesting reconnection", async () => {

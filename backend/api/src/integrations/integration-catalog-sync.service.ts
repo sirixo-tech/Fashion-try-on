@@ -406,8 +406,9 @@ export class IntegrationCatalogSyncService {
   async archiveIntegrationCatalog(
     integrationId: string,
     archivedAt: Date,
+    transaction?: Prisma.TransactionClient,
   ): Promise<number> {
-    return this.prisma.$transaction(async (tx) => {
+    const archive = async (tx: Prisma.TransactionClient) => {
       const roots = await tx.externalProductMapping.findMany({
         where: { integrationId, externalVariantId: null },
         select: { productId: true },
@@ -428,7 +429,10 @@ export class IntegrationCatalogSyncService {
         });
       }
       return productIds.length;
-    });
+    };
+    return transaction
+      ? archive(transaction)
+      : this.prisma.$transaction(archive);
   }
 }
 
