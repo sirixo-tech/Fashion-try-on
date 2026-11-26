@@ -54,6 +54,7 @@ describe("Shopify one-time credit purchase boundary", () => {
     });
   });
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
@@ -87,6 +88,124 @@ describe("Shopify one-time credit purchase boundary", () => {
       CANCEL_SUBSCRIPTION,
       expect.anything(),
     );
+  });
+  it("shows and logs Shopify validation details without attaching or retrying a rejected purchase", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    admin.graphql.mockResolvedValue(
+      Response.json({
+        data: {
+          appPurchaseOneTimeCreate: {
+            appPurchaseOneTime: null,
+            confirmationUrl: null,
+            userErrors: [
+              {
+                field: ["price", "currencyCode"],
+                message: "Currency is not supported.",
+              },
+            ],
+          },
+        },
+      }),
+    );
+    await expect(beginShopifyBilling(shop, admin, id)).rejects.toThrow(
+      "price.currencyCode: Currency is not supported. No credits were added.",
+    );
+    expect(JSON.parse(warn.mock.calls[0][0])).toEqual({
+      event: "selfx_shopify_credit_purchase_rejected",
+      reasons: ["price.currencyCode: Currency is not supported."],
+      purchaseCreated: false,
+    });
+    expect(admin.graphql).toHaveBeenCalledTimes(1);
+    expect(
+      request.mock.calls.some(([url]) => String(url).endsWith("/decline")),
+    ).toBe(true);
+    expect(
+      request.mock.calls.some(([url]) => String(url).endsWith("/attach")),
+    ).toBe(false);
+  });
+  it("redacts credentials and signed URLs from both the banner and diagnostic log", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    admin.graphql.mockResolvedValue(
+      Response.json({
+        data: {
+          appPurchaseOneTimeCreate: {
+            appPurchaseOneTime: null,
+            confirmationUrl: null,
+            userErrors: [
+              {
+                message:
+                  "Rejected https://shop.test/confirm?token=url-secret Bearer bearer-secret access_token=access-secret shpat_shop-secret eyJhbGci.payload.signature",
+              },
+            ],
+          },
+        },
+      }),
+    );
+    const error = await beginShopifyBilling(shop, admin, id).catch(
+      (value: Error) => value,
+    );
+    expect(error).toBeInstanceOf(Error);
+    const output = `${(error as Error).message} ${warn.mock.calls[0][0]}`;
+    for (const secret of [
+      "url-secret",
+      "bearer-secret",
+      "access-secret",
+      "shpat_shop-secret",
+      "eyJhbGci.payload.signature",
+    ])
+      expect(output).not.toContain(secret);
+    expect(output).toContain("[removed]");
+  });
+  it("retains uncertain native purchases for verification and does not decline or create a replacement", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    admin.graphql.mockResolvedValue(
+      Response.json({
+        data: {
+          appPurchaseOneTimeCreate: {
+            appPurchaseOneTime: { id: nativeId },
+            confirmationUrl: null,
+            userErrors: [],
+          },
+        },
+      }),
+    );
+    await expect(beginShopifyBilling(shop, admin, id)).rejects.toThrow(
+      "Refresh Plans to verify the pending purchase before trying again.",
+    );
+    expect(admin.graphql).toHaveBeenCalledTimes(1);
+    expect(
+      request.mock.calls.some(([url]) => String(url).endsWith("/decline")),
+    ).toBe(false);
+    expect(
+      request.mock.calls.some(([url]) => String(url).endsWith("/attach")),
+    ).toBe(false);
+  });
+  it("uses a safe fallback for malformed errors and bounds diagnostic detail", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    admin.graphql.mockResolvedValue(
+      Response.json({
+        data: {
+          appPurchaseOneTimeCreate: {
+            appPurchaseOneTime: null,
+            confirmationUrl: null,
+            userErrors: [
+              null,
+              { message: { secret: "do-not-serialize" } },
+              { message: "x".repeat(1000) },
+              { message: "fourth-error" },
+            ],
+          },
+        },
+      }),
+    );
+    const error = await beginShopifyBilling(shop, admin, id).catch(
+      (value: Error) => value,
+    );
+    expect(error).toBeInstanceOf(Error);
+    const diagnostic = JSON.parse(warn.mock.calls[0][0]);
+    expect(diagnostic.reasons).toEqual(["x".repeat(240)]);
+    expect((error as Error).message).not.toContain("do-not-serialize");
+    expect((error as Error).message).not.toContain("fourth-error");
   });
   it.each(["ACTIVE", "PENDING", "DECLINED"])(
     "reports verified native %s without trusting callback charge IDs",

@@ -116,6 +116,38 @@ async function graphql<T>(
     throw new Error("Shopify billing could not be verified. Please retry.");
   return result.data as T;
 }
+
+function creditPurchaseErrors(errors: unknown[]) {
+  return errors.slice(0, 3).flatMap((error) => {
+    if (!error || typeof error !== "object" || !("message" in error)) return [];
+    if (typeof error.message !== "string") return [];
+    const message = error.message
+      .replace(/https?:\/\/[^\s<>"']+/gi, "[URL removed]")
+      .replace(/\bBearer\s+[^\s,;]+/gi, "Bearer [removed]")
+      .replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+\b/g, "[token removed]")
+      .replace(/\bshp(?:at|ca|pa|ss)_[\w-]+\b/g, "[token removed]")
+      .replace(
+        /\b((?:[\w-]*_)?(?:token|secret|password|authorization))\s*[:=]\s*[^\s,;]+/gi,
+        "$1=[removed]",
+      )
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 240);
+    if (!message) return [];
+    const field =
+      "field" in error && Array.isArray(error.field)
+        ? error.field
+            .filter(
+              (part): part is string =>
+                typeof part === "string" &&
+                /^[a-zA-Z][a-zA-Z0-9_]{0,39}$/.test(part),
+            )
+            .slice(0, 4)
+            .join(".")
+        : "";
+    return [field ? `${field}: ${message}` : message];
+  });
+}
 export function billingEnabled() {
   return process.env.SHOPIFY_BILLING_ENABLED === "true";
 }
@@ -562,15 +594,26 @@ export async function beginShopifyBilling(
       test: process.env.SHOPIFY_BILLING_TEST_MODE === "true",
     });
     const created = result.appPurchaseOneTimeCreate;
-    if (created.userErrors.length && !created.appPurchaseOneTime)
-      await central(`/${prepared.id}/decline`, shop, {});
-    if (
+    const rejected =
       !created.appPurchaseOneTime ||
       !created.confirmationUrl ||
-      created.userErrors.length
-    )
+      created.userErrors.length > 0;
+    const reasons = creditPurchaseErrors(created.userErrors);
+    if (rejected)
+      console.warn(
+        JSON.stringify({
+          event: "selfx_shopify_credit_purchase_rejected",
+          reasons: reasons.length
+            ? reasons
+            : ["Shopify returned an incomplete approval response."],
+          purchaseCreated: Boolean(created.appPurchaseOneTime),
+        }),
+      );
+    if (created.userErrors.length && !created.appPurchaseOneTime)
+      await central(`/${prepared.id}/decline`, shop, {});
+    if (rejected || !created.appPurchaseOneTime || !created.confirmationUrl)
       throw new Error(
-        "Shopify could not create the credit purchase. No credits were added.",
+        `Shopify could not create the credit purchase.${reasons.length ? ` ${reasons.join("; ")}` : " Shopify returned an incomplete approval response."} No credits were added.${created.appPurchaseOneTime ? " Refresh Plans to verify the pending purchase before trying again." : ""}`,
       );
     const destination = approvalDestination(created.confirmationUrl, shop);
     // A lost attach response is recovered by its unique server-owned purchase name.
