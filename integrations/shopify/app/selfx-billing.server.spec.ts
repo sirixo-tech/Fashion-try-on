@@ -6,6 +6,7 @@ import {
   CREATE_SUBSCRIPTION,
   CREATE_USAGE,
   CANCEL_SUBSCRIPTION,
+  RECOVER_SUBSCRIPTIONS,
 } from "./selfx-billing.server";
 
 const shop = "merchant.myshopify.com",
@@ -83,6 +84,68 @@ describe("Shopify billing server boundary", () => {
     expect(
       fetchImpl.mock.calls.some((call) => String(call[0]).endsWith("/confirm")),
     ).toBe(false);
+  });
+  it("reuses a saved approval on retry without creating another native subscription", async () => {
+    fetchImpl.mockImplementation((url: string) =>
+      new URL(url).pathname.endsWith("/prepare")
+        ? Response.json({
+            id,
+            createAllowed: false,
+            status: "PENDING",
+            confirmationUrl: `https://${shop}/admin/charges/123/confirm`,
+          })
+        : central(url),
+    );
+    expect(await beginShopifyBilling(shop, admin, id, "", id)).toContain(
+      "/confirm",
+    );
+    expect(admin.graphql).not.toHaveBeenCalled();
+  });
+  it("recovers an interrupted unapproved native request by its return URL and retires it safely", async () => {
+    fetchImpl.mockImplementation((url: string) =>
+      new URL(url).pathname.endsWith("/agreements")
+        ? Response.json([
+            {
+              id,
+              externalSubscriptionId: null,
+              status: "PENDING",
+              creationStartedAt: new Date(Date.now() - 300_000).toISOString(),
+            },
+          ])
+        : central(url),
+    );
+    admin.graphql.mockImplementation(async (query: string) =>
+      Response.json({
+        data:
+          query === RECOVER_SUBSCRIPTIONS
+            ? {
+                currentAppInstallation: {
+                  allSubscriptions: {
+                    nodes: [
+                      {
+                        id: nativeId,
+                        status: "PENDING",
+                        returnUrl: `https://shopify.selfx.test/app/billing/return?agreement=${id}`,
+                      },
+                    ],
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                  },
+                },
+              }
+            : { appSubscriptionCancel: { userErrors: [] } },
+      }),
+    );
+    await syncShopifyBilling(shop, admin);
+    expect(admin.graphql).toHaveBeenCalledWith(CANCEL_SUBSCRIPTION, {
+      variables: { id: nativeId },
+    });
+    expect(admin.graphql).not.toHaveBeenCalledWith(
+      CREATE_SUBSCRIPTION,
+      expect.anything(),
+    );
+    expect(
+      fetchImpl.mock.calls.some((call) => String(call[0]).endsWith("/decline")),
+    ).toBe(true);
   });
   it("refuses a foreign approval destination and never attaches it", async () => {
     fetchImpl.mockImplementation(central);

@@ -10,7 +10,7 @@ import {
   validatePhonePeProductionBase,
 } from "./phonepe-endpoints.js";
 export type OrderTransportContext = {
-  purpose: "CHECKOUT" | "MOBILE";
+  purpose: "CHECKOUT" | "MOBILE" | "STORE_PLAN";
   environment: "UAT" | "PRODUCTION";
   // Trusted only from the server's encrypted order-account snapshot.
   productionBase?: string;
@@ -98,9 +98,11 @@ function allowedRequest(
     bases.push(phonePeUatBase);
   if (
     context?.environment === "PRODUCTION" &&
-    (context.purpose === "MOBILE"
-      ? process.env.SELFX_MOBILE_PHONEPE_ENABLED === "true"
-      : process.env.SELFX_PHONEPE_CHECKOUT_ENABLED === "true")
+    (context.purpose === "STORE_PLAN"
+      ? process.env.SELFX_STORE_PHONEPE_ENABLED === "true"
+      : context.purpose === "MOBILE"
+        ? process.env.SELFX_MOBILE_PHONEPE_ENABLED === "true"
+        : process.env.SELFX_PHONEPE_CHECKOUT_ENABLED === "true")
   ) {
     try {
       bases.push(validatePhonePeProductionBase(context.productionBase));

@@ -27,7 +27,7 @@ final class SelfX_WC_Client {
     }
     public function request(string $method, string $path, ?array $body = null): array {
         $route = explode('?', $path, 2)[0];
-        if (!in_array($route, array('/api/v1/integrations/me', '/api/v1/integrations/me/credit-summary', '/api/v1/integrations/catalog/sync', '/api/v1/integrations/storefront/settings', '/api/v1/integrations/storefront/availability', '/api/v1/integrations/storefront/try-on-sessions'), true)) {
+        if (!in_array($route, array('/api/v1/integrations/me', '/api/v1/integrations/me/credit-summary', '/api/v1/integrations/me/plan-selection', '/api/v1/integrations/catalog/sync', '/api/v1/integrations/storefront/settings', '/api/v1/integrations/storefront/availability', '/api/v1/integrations/storefront/try-on-sessions'), true)) {
             throw new SelfX_WC_Error('API_PATH_INVALID');
         }
         $args = array('method' => $method, 'timeout' => 20, 'redirection' => 0, 'sslverify' => true,

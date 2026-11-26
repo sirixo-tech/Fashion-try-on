@@ -4,6 +4,8 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Header,
+  Optional,
   Patch,
   Post,
   Query,
@@ -41,6 +43,7 @@ import {
   RequireIntegrationScopes,
 } from "./integration-token.decorators.js";
 import { type IntegrationCredentialContext } from "./integration-token-auth.service.js";
+import { StorePlanSelectionService } from "../stores/store-plan-selection.service.js";
 
 @ApiTags("Integrations")
 @ApiSecurity("SelfXIntegrationToken")
@@ -50,13 +53,36 @@ export class IntegrationApiController {
     private readonly catalogSync: IntegrationCatalogSyncService,
     private readonly settings: IntegrationSettingsService,
     private readonly entitlements: EntitlementsService,
+    @Optional() private readonly plans?: StorePlanSelectionService,
   ) {}
+
+  @Get("me/plan-selection")
+  @Header("Cache-Control", "private, no-store")
+  @RequireIntegrationScopes()
+  async planSelection(
+    @IntegrationCredential() credential: IntegrationCredentialContext,
+  ) {
+    const workspace = await this.plans!.workspace(credential.storeId);
+    const origin = storefrontWebOrigin();
+    const url = origin ? new URL("/app/billing", origin) : null;
+    url?.searchParams.set("store", credential.storeId);
+    return {
+      billingOwner: workspace.billingOwner,
+      manageUrl: url?.toString() ?? null,
+      scheduled: workspace.scheduled,
+    };
+  }
 
   @Get("me/credit-summary")
   @RequireIntegrationScopes()
-  @ApiOperation({ summary: "Read this integration's SelfX Store plan and shared credit balance" })
+  @ApiOperation({
+    summary:
+      "Read this integration's SelfX Store plan and shared credit balance",
+  })
   @ApiOkResponse({ type: ShopifyStorefrontCreditSummaryDto })
-  creditSummary(@IntegrationCredential() credential: IntegrationCredentialContext) {
+  creditSummary(
+    @IntegrationCredential() credential: IntegrationCredentialContext,
+  ) {
     return this.entitlements.getStoreCreditSummary(credential.storeId);
   }
 

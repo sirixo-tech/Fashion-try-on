@@ -3,7 +3,7 @@ Tags: woocommerce, catalog, virtual-try-on, kiosk
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.5.3
+Stable tag: 0.5.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -32,7 +32,7 @@ Uninstalling clears local plugin data and leaves WooCommerce products and the re
 
 The WordPress plugin is free to install. Catalog sync and Try-On require a SelfX account, an active connected SelfX Store and a plan that supports WooCommerce. Running Try-On also requires available credits or enabled usage billing, depending on the plan.
 
-Eligible new Stores can receive a one-time Starter trial with no monthly fee and a default allowance of 10 shared Try-On credits. Check the allowance shown in your SelfX account. Reconnecting does not grant another trial. Ongoing paid plans and any additional credit or usage charges are billed separately through SelfX. Open [Store billing in SelfX](https://selfxweb-production.up.railway.app/app/billing) after signing in to see the plans, prices, currency and usage rates applicable to your Store before purchasing.
+Eligible new Stores can receive a one-time Starter trial with no monthly fee and a default allowance of 10 shared Try-On credits. Check the allowance shown in your SelfX account. Reconnecting or changing plans does not grant another trial. Choose Manage plan in WooCommerce > SelfX to sign in and manage this linked Store's shared subscription. SelfX-billed INR plans use the SelfX-owned PhonePe account. Fixed plans cover one month and require a new payment to renew; usage-only plans collect the completed month's successful Try-On usage, with further usage paused while a bill is overdue. Shopify-billed Stores use Shopify for approval. Current and scheduled plans are shared across all linked applications. Check the displayed prices, currency, usage rate and effective date before accepting.
 
 == Installation ==
 
@@ -56,6 +56,10 @@ Automatic classic placement and shortcodes retain theme styling; these editor
 controls apply to the SelfX Try-On block. Use one placement to avoid duplicates.
 
 == Changelog ==
+
+= 0.5.4 =
+* Add Manage plan for the linked Store and show scheduled plan changes across SelfX, Shopify and WooCommerce.
+* Explain one-time trials, PhonePe plan payments and monthly usage settlement.
 
 = 0.5.3 =
 * Set the WordPress.org package folder and translation domain to the requested selfx-tryon slug.

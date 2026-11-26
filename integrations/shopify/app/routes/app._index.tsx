@@ -3,6 +3,7 @@ import {
   beginShopifyBilling,
   billingEnabled,
   cancelShopifyBilling,
+  cancelPendingShopifyChange,
   syncShopifyBilling,
   scheduledShopifyPlan,
   shopifyBillingOwnership,
@@ -258,13 +259,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
   const intent = formData.get("intent");
-  if (intent === "billing:choose" || intent === "billing:cancel") {
+  if (
+    intent === "billing:choose" ||
+    intent === "billing:cancel" ||
+    intent === "billing:cancel-pending"
+  ) {
     try {
       const {
         session: billingSession,
         admin,
         redirect,
       } = await authenticate.admin(request);
+      if (intent === "billing:cancel-pending") {
+        await cancelPendingShopifyChange(billingSession.shop, admin);
+        return redirect("/app?panel=plans");
+      }
       if (intent === "billing:cancel") {
         if (formData.get("confirmCancel") !== "yes")
           throw new Error("Confirm cancellation before continuing.");
@@ -276,6 +285,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         admin,
         String(formData.get("planId") ?? ""),
         String(formData.get("usageCap") ?? ""),
+        String(formData.get("clientRequestId") ?? "") || undefined,
       );
       return redirect(approval, { target: "_top" });
     } catch (error) {
@@ -741,6 +751,12 @@ export default function Index() {
           Your change to {loaded.scheduledBilling.name} starts at your next
           renewal ({formatDate(loaded.scheduledBilling.effectiveAfter)}). Your
           current allowance remains until then.
+          <Form method="post">
+            <input type="hidden" name="intent" value="billing:cancel-pending" />
+            <s-button type="submit" variant="secondary">
+              Cancel scheduled change
+            </s-button>
+          </Form>
         </s-banner>
       ) : null}
       <CreditUsagePanel
@@ -2087,7 +2103,6 @@ export function PlansPanel({
   retrying,
   onRetry,
   availableCredits,
-  billingUrl,
   billingOwnership,
   shopifyBillingEnabled,
   creditHealth,
@@ -2145,12 +2160,12 @@ export function PlansPanel({
           <s-stack gap="base">
             <s-text color="subdued">
               {billingOwnership === "SHOPIFY_MANAGED"
-                ? "This plan has an active Shopify billing agreement. Cancelling it will stop paid Try-On access."
+                ? "Shopify manages this Store’s billing agreements. Choose another plan below; cancelling stops paid Try-On access."
                 : canChooseShopifyPlan
                   ? "Choose a plan below to review and approve its charges through Shopify. Plan terms come from SelfX."
                   : billingOwnership === "SELFX_MANAGED"
-                    ? "This Store’s plan and credits are managed in SelfX. Shopify shows the assigned plan and usage."
-                    : "Shopify billing status could not be verified. Your Store’s plan can still be managed in SelfX."}
+                    ? "Plan selection is temporarily unavailable. Refresh this page or retry when Shopify billing is available. Your current plan is unchanged."
+                    : "Shopify billing status could not be verified. Refresh to retry. Your current plan is unchanged."}
             </s-text>
             {billingOwnership === "SHOPIFY_MANAGED" ? (
               <Form method="post">
@@ -2168,14 +2183,6 @@ export function PlansPanel({
                   Cancel Shopify plan
                 </s-button>
               </Form>
-            ) : !shopifyBillingEnabled && billingUrl ? (
-              <SelfxActionButton
-                href={billingUrl}
-                target="_blank"
-                tone="primary"
-              >
-                Manage plan in SelfX
-              </SelfxActionButton>
             ) : null}
           </s-stack>
         </s-box>
@@ -2215,7 +2222,7 @@ export function PlansPanel({
               <s-text color="subdued">
                 {canChooseShopifyPlan
                   ? "Plan options come from SelfX. Shopify handles payment approval and billing."
-                  : "Plan assignment, credits and upgrades are managed in SelfX."}
+                  : "Plan selection is temporarily unavailable. Your existing plan and credits are unchanged."}
               </s-text>
             </s-stack>
           </s-stack>
@@ -2270,6 +2277,8 @@ export function PlansPanel({
               ref={planCarouselRef}
               role="region"
               aria-label="Available SelfX plans"
+              // Scrollable plans must remain keyboard-focusable.
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
               tabIndex={0}
             >
               <div className="selfx-shopify-plan-carousel__track">

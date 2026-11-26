@@ -185,6 +185,50 @@ describe.skipIf(!url)(
         }),
       ).toBe(0);
     });
+    it("serializes approval preparation and reuses the saved destination for repeated requests", async () => {
+      const f = await fixture();
+      const clientRequestId = createSelfxId();
+      const prepared = await Promise.all(
+        [0, 1].map(() =>
+          billing.prepare({
+            shop: f.shop,
+            planId: f.price.id,
+            clientRequestId,
+          }),
+        ),
+      );
+      expect(prepared[0]!.id).toBe(prepared[1]!.id);
+      expect(prepared.filter((item) => item.createAllowed)).toHaveLength(1);
+      const destination = `https://${f.shop}/admin/charges/123/confirm`;
+      await billing.attach(
+        prepared[0]!.id,
+        f.shop,
+        `gid://shopify/AppSubscription/${Date.now()}`,
+        destination,
+      );
+      expect(
+        await billing.prepare({
+          shop: f.shop,
+          planId: f.price.id,
+          clientRequestId,
+        }),
+      ).toMatchObject({ createAllowed: false, confirmationUrl: destination });
+      const other = await plan();
+      await expect(
+        billing.prepare({ shop: f.shop, planId: other.id, clientRequestId }),
+      ).rejects.toMatchObject({
+        response: { error: { code: "PLAN_CHANGE_REQUEST_CONFLICT" } },
+      });
+      await expect(
+        billing.prepare({
+          shop: f.shop,
+          planId: other.id,
+          clientRequestId: createSelfxId(),
+        }),
+      ).rejects.toMatchObject({
+        response: { error: { code: "PLAN_CHANGE_PENDING" } },
+      });
+    });
     it("defers a plan change until renewal and grants its allowance only once when due", async () => {
       const f = await fixture(),
         first = await f.approval();

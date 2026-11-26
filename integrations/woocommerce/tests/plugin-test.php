@@ -23,6 +23,7 @@ function wp_safe_remote_request($url, $args) {
     if (str_ends_with($url, '/me')) { return array('code' => 200, 'body' => json_encode($context)); }
     if (str_ends_with($url, '/me/credit-summary')) { return array('code' => 200, 'body' => json_encode(array('availableCredits' => 10,
         'subscription' => array('status' => 'TRIALING', 'pricingPlan' => array('name' => 'Starter', 'billingMode' => 'CREDIT_LIMITED'))))); }
+    if (str_ends_with($url, '/me/plan-selection')) { return array('code' => 200, 'body' => json_encode(array('billingOwner' => 'SELFX', 'manageUrl' => 'https://app.example/app/billing?store=store-a', 'scheduled' => array('planName' => 'Next plan', 'effectiveAfter' => '2026-12-01T00:00:00Z')))); }
     if (str_contains($url, '/storefront/availability?')) { return array('code' => 200, 'body' => '{"available":true}'); }
     if (str_ends_with($url, '/storefront/settings')) { return array('code' => 200, 'body' => $args['method'] === 'PATCH' ? $args['body'] : '{"visitorTryOnLimit":5,"visitorTryOnLimitPeriod":"DAY","monthlyStoreTryOnLimit":0}'); }
     $body = json_decode($args['body'], true);
@@ -386,6 +387,7 @@ test('incremental queue query failure is retried instead of reported as synchron
 test('settings HTML escapes Store names, never reveals the token and schedules background reconciliation', function () {
     $plugin = setup(); $config = get_option(SelfX_WC_Plugin::CONFIG); $config['storeName'] = '<script>alert(1)</script>'; update_option(SelfX_WC_Plugin::CONFIG, $config);
     ob_start(); $plugin->page(); $html = ob_get_clean(); equal(str_contains($html, '<script>'), false); equal(str_contains($html, 'selfx_woocommerce_' . str_repeat('a', 43)), false);
+    equal(str_contains($html, 'Manage plan'), true); equal(str_contains($html, 'store=store-a'), true); equal(str_contains($html, 'Next plan'), true);
     $plugin->initialize(); global $scheduled; equal(count(array_filter($scheduled, fn($s) => $s['hook'] === 'selfx_wc_reconcile')), 1);
     $plugin->initialize(); equal(count(array_filter($scheduled, fn($s) => $s['hook'] === 'selfx_wc_reconcile')), 1);
 });

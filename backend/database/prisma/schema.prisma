@@ -769,6 +769,7 @@ model DeletedStoreObject {
 }
 
 model Organization {
+  planPurchases                  StorePlanPurchase[]
   customerStoreQrs               CustomerStoreQr[]
   shopifyBillingAgreements       ShopifyBillingAgreement[]
   commerceTaxSettings            StoreTaxSettings?
@@ -1838,6 +1839,44 @@ model CustomerCreditAccount {
   @@map("customer_credit_accounts")
 }
 
+model StorePlanPurchase {
+  approvedCycles       StoreBillingCycle[] @relation("PhonePeCycleOrigin")
+  id                   String              @id @db.Uuid
+  organizationId       String              @map("organization_id") @db.Uuid
+  pricingPlanId        String              @map("pricing_plan_id") @db.Uuid
+  actorUserId          String              @map("actor_user_id") @db.Uuid
+  requestKey           String?             @unique @map("request_key") @db.Char(64)
+  requestFingerprint   String              @map("request_fingerprint") @db.Char(64)
+  merchantOrderId      String              @unique @map("merchant_order_id") @db.VarChar(63)
+  providerOrderId      String?             @map("provider_order_id") @db.VarChar(100)
+  status               String              @default("INITIALIZING") @db.VarChar(24)
+  amountMinor          Int                 @map("amount_minor")
+  currency             String              @db.Char(3)
+  pricingSnapshot      Json                @map("pricing_snapshot")
+  baseSubscription     Json                @map("base_subscription")
+  effectiveAfter       DateTime?           @map("effective_after") @db.Timestamptz(3)
+  billingCycleId       String?             @unique @map("billing_cycle_id") @db.Uuid
+  checkoutUrl          String?             @map("checkout_url") @db.Text
+  encryptedPayload     String              @map("encrypted_payload") @db.Text
+  initializationVector String              @map("initialization_vector") @db.VarChar(128)
+  authenticationTag    String              @map("authentication_tag") @db.VarChar(128)
+  keyVersion           String              @map("key_version") @db.VarChar(80)
+  expiresAt            DateTime            @map("expires_at") @db.Timestamptz(3)
+  paidAt               DateTime?           @map("paid_at") @db.Timestamptz(3)
+  activatedAt          DateTime?           @map("activated_at") @db.Timestamptz(3)
+  checkedAt            DateTime?           @map("checked_at") @db.Timestamptz(3)
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization         Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  pricingPlan          PricingPlan         @relation(fields: [pricingPlanId], references: [id], onDelete: Restrict)
+  billingCycle         StoreBillingCycle?  @relation(fields: [organizationId, billingCycleId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([organizationId, billingCycleId])
+  @@unique([organizationId, id])
+  @@index([organizationId, status, createdAt])
+  @@index([status, checkedAt])
+  @@map("store_plan_purchases")
+}
+
 model MobilePaymentConnection {
   id                   String   @id @db.VarChar(32)
   environment          String   @db.VarChar(16)
@@ -2092,6 +2131,10 @@ model ShopifyBillingAgreement {
   shopDomain             String                    @map("shop_domain") @db.VarChar(180)
   status                 String                    @default("PENDING") @db.VarChar(24)
   externalSubscriptionId String?                   @unique @map("external_subscription_id") @db.VarChar(180)
+  requestKey             String?                   @unique @map("request_key") @db.Char(64)
+  requestFingerprint     String?                   @map("request_fingerprint") @db.Char(64)
+  confirmationUrl        String?                   @map("confirmation_url") @db.VarChar(2048)
+  creationStartedAt      DateTime?                 @map("creation_started_at") @db.Timestamptz(3)
   usageLineItemId        String?                   @map("usage_line_item_id") @db.VarChar(220)
   usageCapCents          Int?                      @map("usage_cap_cents")
   pricingSnapshot        Json                      @map("pricing_snapshot")
@@ -2402,6 +2445,7 @@ model UsageEvent {
 }
 
 model PricingPlan {
+  storePurchases           StorePlanPurchase[]
   shopifyBillingAgreements ShopifyBillingAgreement[]
   id                       String                    @id @db.Uuid
   code                     String                    @unique @db.VarChar(80)
@@ -2536,6 +2580,10 @@ model PricingPlanRate {
 }
 
 model StoreBillingCycle {
+  phonepePurchaseId    String?              @map("phonepe_purchase_id") @db.Uuid
+  approvedPurchase     StorePlanPurchase?   @relation("PhonePeCycleOrigin", fields: [organizationId, phonepePurchaseId], references: [organizationId, id], onDelete: Restrict)
+  purchase             StorePlanPurchase?
+  billingProvider      String?              @map("billing_provider") @db.VarChar(24)
   id                   String               @id @db.Uuid
   organizationId       String               @map("organization_id") @db.Uuid
   subscriptionId       String               @map("subscription_id") @db.Uuid

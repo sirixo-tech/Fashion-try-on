@@ -3,6 +3,10 @@ import { HttpStatus } from "@nestjs/common";
 import type { Prisma, KioskTryOnRun, PricingPlan } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
+import {
+  assertPhonePeUsageSettled,
+  phonepeManaged,
+} from "./phonepe-store-billing.js";
 export function shopifyManaged(metadata: Prisma.JsonValue | null) {
   return (
     !!metadata &&
@@ -12,10 +16,21 @@ export function shopifyManaged(metadata: Prisma.JsonValue | null) {
   );
 }
 export async function effectiveShopifyPlan(
-  tx: Pick<Prisma.TransactionClient, "shopifyBillingAgreement">,
+  tx: Pick<
+    Prisma.TransactionClient,
+    "shopifyBillingAgreement" | "storePlanPurchase"
+  >,
   metadata: Prisma.JsonValue | null,
   fallback: PricingPlan | null,
 ): Promise<PricingPlan | null> {
+  if (phonepeManaged(metadata)) {
+    const id = (metadata as { phonepePurchaseId?: string }).phonepePurchaseId;
+    const purchase = id
+      ? await tx.storePlanPurchase.findUnique({ where: { id } })
+      : null;
+    const plan = purchase?.pricingSnapshot as PricingPlan | undefined;
+    return plan?.id === purchase?.pricingPlanId ? plan! : fallback;
+  }
   if (!shopifyManaged(metadata)) return fallback;
   const id = (metadata as { shopifyAgreementId?: string }).shopifyAgreementId;
   if (!id) return fallback;
@@ -28,10 +43,15 @@ export async function effectiveShopifyPlan(
   return terms?.id === agreement?.pricingPlanId ? terms! : fallback;
 }
 export async function assertShopifyBillingActive(
-  tx: Pick<Prisma.TransactionClient, "shopifyBillingAgreement">,
+  tx: Pick<
+    Prisma.TransactionClient,
+    "shopifyBillingAgreement" | "storeBillingCycle"
+  >,
   organizationId: string,
   metadata: Prisma.JsonValue | null,
 ) {
+  // Historical PhonePe usage remains payable even after a plan/provider change.
+  await assertPhonePeUsageSettled(tx, organizationId);
   if (!shopifyManaged(metadata)) return;
   const id = (metadata as { shopifyAgreementId?: string }).shopifyAgreementId;
   if (

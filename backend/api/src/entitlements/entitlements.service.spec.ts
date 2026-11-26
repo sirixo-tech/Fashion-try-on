@@ -199,6 +199,7 @@ type FakeLedgerEntry = Record<string, unknown> & {
 
 class FakeEntitlementsPrisma {
   $queryRaw = vi.fn().mockResolvedValue([]);
+  storeBillingCycle = { findFirst: vi.fn().mockResolvedValue(null) };
   subscriptions = new Map<string, FakeSubscription>();
   plans = new Map<string, FakePlan>();
   ledger: FakeLedgerEntry[] = [];

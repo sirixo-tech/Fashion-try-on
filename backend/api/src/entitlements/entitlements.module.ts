@@ -15,6 +15,7 @@ import { MobilePlansService } from "./mobile-plans.service.js";
 import { CustomCreditPlansService } from "./custom-credit-plans.service.js";
 import { AdminCustomCreditPlansController } from "./admin-custom-credit-plans.controller.js";
 import { StoreImpersonationService } from "../stores/store-impersonation.service.js";
+import { StorePlanSelectionService } from "../stores/store-plan-selection.service.js";
 
 @Module({
   imports: [AuthModule, DatabaseModule],
@@ -26,6 +27,7 @@ import { StoreImpersonationService } from "../stores/store-impersonation.service
     PricingController,
   ],
   providers: [
+    StorePlanSelectionService,
     EntitlementsService,
     PricingFeaturesService,
     PricingControlService,
@@ -36,6 +38,7 @@ import { StoreImpersonationService } from "../stores/store-impersonation.service
     GarmentPreviewSettingsService,
   ],
   exports: [
+    StorePlanSelectionService,
     EntitlementsService,
     PricingFeaturesService,
     PricingControlService,

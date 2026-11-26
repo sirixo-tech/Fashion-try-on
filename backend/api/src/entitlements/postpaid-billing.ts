@@ -12,6 +12,7 @@ import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { monthlyBillingPeriod } from "./billing-period.js";
+import { phonepeManaged } from "./phonepe-store-billing.js";
 import {
   reserveShopifyUsage,
   settleShopifyUsage,
@@ -166,7 +167,9 @@ export async function ensurePostpaidCycle(
     return existing;
   }
   // Historical entry uses the switch-date price. Subsequent cycles use the version in effect at their start.
-  const frozenShopifyTerms = shopifyManaged(subscription.metadata);
+  const frozenShopifyTerms =
+    shopifyManaged(subscription.metadata) ||
+    phonepeManaged(subscription.metadata);
   const rate =
     firstRate || frozenShopifyTerms
       ? null
@@ -198,6 +201,17 @@ export async function ensurePostpaidCycle(
       periodEnd: end,
       currency: terms.currency,
       creditUnitPriceCents: terms.creditUnitPriceCents!,
+      billingProvider:
+        subscription.metadata &&
+        typeof subscription.metadata === "object" &&
+        !Array.isArray(subscription.metadata) &&
+        subscription.metadata.billingProvider === "PHONEPE"
+          ? "PHONEPE"
+          : null,
+      phonepePurchaseId: phonepeManaged(subscription.metadata)
+        ? (subscription.metadata as { phonepePurchaseId: string })
+            .phonepePurchaseId
+        : null,
     },
     update: {},
   });

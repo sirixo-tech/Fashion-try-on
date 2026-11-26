@@ -193,16 +193,18 @@ export class EntitlementsService {
       pricingPlanId: string;
       actorUserId?: string;
       externalPeriod?: { start: Date; end: Date };
-      billingProvider?: "SHOPIFY";
+      billingProvider?: "SHOPIFY" | "PHONEPE";
       shopifyAgreementId?: string;
+      phonepePurchaseId?: string;
       approvedPlanSnapshot?: import("@prisma/client").PricingPlan;
     },
     transaction?: Prisma.TransactionClient,
   ): Promise<StoreCreditSummary> {
     const activate = async (tx: Prisma.TransactionClient) => {
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${input.organizationId}::uuid FOR UPDATE`;
       const now = new Date();
       const plan =
-        input.billingProvider === "SHOPIFY" &&
+        input.billingProvider &&
         input.approvedPlanSnapshot?.id === input.pricingPlanId
           ? input.approvedPlanSnapshot
           : await tx.pricingPlan.findFirst({
@@ -299,6 +301,7 @@ export class EntitlementsService {
               ? {
                   billingProvider: input.billingProvider,
                   shopifyAgreementId: input.shopifyAgreementId,
+                  phonepePurchaseId: input.phonepePurchaseId,
                 }
               : {}),
           },
@@ -318,6 +321,7 @@ export class EntitlementsService {
               ? {
                   billingProvider: input.billingProvider,
                   shopifyAgreementId: input.shopifyAgreementId,
+                  phonepePurchaseId: input.phonepePurchaseId,
                 }
               : {}),
           },
@@ -338,7 +342,7 @@ export class EntitlementsService {
             ? undefined
             : plan,
         );
-        if (!sameActivePeriod && input.billingProvider !== "SHOPIFY")
+        if (!sameActivePeriod && !input.billingProvider)
           await importCurrentCycleHistory(tx, cycle, now);
       }
 
@@ -826,7 +830,11 @@ export class EntitlementsService {
         );
       } catch (error) {
         if (error instanceof ApiErrorException)
-          subscription.status = StoreSubscriptionStatus.CANCELLED;
+          subscription.status =
+            (error.getResponse() as { error?: { code?: string } }).error
+              ?.code === "STORE_USAGE_PAYMENT_DUE"
+              ? StoreSubscriptionStatus.PAST_DUE
+              : StoreSubscriptionStatus.CANCELLED;
         else throw error;
       }
     }

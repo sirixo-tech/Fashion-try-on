@@ -48,7 +48,21 @@ export class ShopifyBillingController {
     @Body() body: AttachShopifyBillingDto,
   ) {
     this.auth.requireServiceToken(token);
-    return this.billing.attach(id, body.shop, body.subscriptionId);
+    return this.billing.attach(
+      id,
+      body.shop,
+      body.subscriptionId,
+      body.confirmationUrl,
+    );
+  }
+  @Post(":id/decline")
+  decline(
+    @Headers(SHOPIFY_APP_SERVICE_TOKEN_HEADER) token: string | undefined,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: ShopifyBillingShopDto,
+  ) {
+    this.auth.requireServiceToken(token);
+    return this.billing.declineUncreated(id, body.shop);
   }
   @Post(":id/confirm")
   confirm(

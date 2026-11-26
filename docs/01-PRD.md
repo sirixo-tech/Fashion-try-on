@@ -3084,3 +3084,7 @@ All major product questions required for the initial product baseline have been 
 Further implementation detail must be added to the appropriate supporting document rather than unnecessarily expanding this PRD.
 
 A new PRD version should only be required when the product itself materially changes.
+
+### Merchant self-service plans (2026-11-26)
+
+The user approved one shared subscription per linked SelfX Store across the merchant application, Shopify and WooCommerce. Merchants may choose paid plans themselves. Shopify approvals and charges use Shopify Billing API; SelfX-billed INR plans use the existing SelfX-owned PhonePe account, never a merchant gateway. Fixed PhonePe plans purchase one month without automatic debits. Usage-only PhonePe plans bill completed monthly usage and pause further usage while a bill is overdue. Paid changes are scheduled for renewal while the current paid allowance continues. Starter is a one-time Store trial, cannot be selected again, and is never reset by channel linking, reinstalls, plan changes or cancellation. Existing prepaid/manual terms must not be silently replaced or billed twice. Personal mobile plans and shopping-order payments remain separate.

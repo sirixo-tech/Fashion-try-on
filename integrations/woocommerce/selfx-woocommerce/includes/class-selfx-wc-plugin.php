@@ -472,6 +472,18 @@ final class SelfX_WC_Plugin {
                 $mode = $plan['billingMode'] ?? 'CREDIT_LIMITED';
                 $status = $summary['subscription']['status'] ?? 'UNAVAILABLE';
                 echo '<h3>SelfX plan and usage</h3><p><strong>' . esc_html($name) . '</strong> · ' . esc_html($status) . '</p>';
+                try {
+                    $management = $client->request('GET', '/api/v1/integrations/me/plan-selection');
+                    if (!empty($management['scheduled']['planName']) && !empty($management['scheduled']['effectiveAfter'])) {
+                        echo '<p>Scheduled plan: <strong>' . esc_html($management['scheduled']['planName']) . '</strong> from ' . esc_html($management['scheduled']['effectiveAfter']) . '.</p>';
+                    }
+                    if (!empty($management['manageUrl'])) {
+                        echo '<p><a class="button button-primary" target="_blank" rel="noopener noreferrer" href="' . esc_url($management['manageUrl']) . '">Manage plan</a></p>';
+                    }
+                    echo '<p>Plans, credits and usage are shared by this linked SelfX Store. Starter is a one-time trial.</p>';
+                } catch (Throwable $error) {
+                    echo '<p>Plan management is temporarily unavailable. Refresh to retry.</p>';
+                }
                 if (!in_array($status, array('ACTIVE', 'TRIALING'), true)) {
                     echo '<p>Try-On is unavailable while this Store plan is inactive. Review billing in SelfX.</p>';
                 } elseif ($mode === 'POSTPAID_PAYG') {

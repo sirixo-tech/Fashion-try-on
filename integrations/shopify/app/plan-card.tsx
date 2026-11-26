@@ -1,4 +1,5 @@
-import { Form } from "react-router";
+import { useEffect, useState } from "react";
+import { Form, useNavigation } from "react-router";
 import type { SelfxStorefrontPricingPlan } from "./selfx-storefront-tryon.server";
 
 export function PlanCard({
@@ -97,45 +98,70 @@ export function PlanCard({
           {canPurchase
             ? "Plan details are set in SelfX; Shopify will show the payment approval."
             : canChooseShopifyPlan
-              ? "Free Starter access is assigned automatically by SelfX."
-              : "Available plans are assigned by your SelfX administrator."}
+              ? "Starter is a one-time Store trial. Changing plans never renews its allowance."
+              : "Plan selection is temporarily unavailable. Refresh to retry."}
         </div>
       )}
       {!active && canPurchase ? (
-        <Form method="post" className="selfx-shopify-plan-card__purchase">
-          <input type="hidden" name="intent" value="billing:choose" />
-          <input type="hidden" name="planId" value={plan.id} />
-          {plan.billingMode === "POSTPAID_PAYG" ? (
-            <label className="selfx-shopify-plan-card__usage-cap">
-              Shopify spending cap (
-              {formatMoney(plan.creditUnitPriceCents ?? 0, plan.currency)}{" "}
-              minimum)
-              <input
-                type="number"
-                name="usageCap"
-                min={((plan.creditUnitPriceCents ?? 1) / 100).toFixed(2)}
-                step="0.01"
-                required
-              />
-              <small>
-                Maximum Shopify charges for successful Try-Ons in a billing
-                period.
-              </small>
-            </label>
-          ) : null}
-          <button
-            className="selfx-shopify-button selfx-shopify-button--primary"
-            type="submit"
-          >
-            {hasActiveShopifyBilling ? "Upgrade" : "Buy"}
-          </button>
-        </Form>
+        <PlanPurchaseForm
+          plan={plan}
+          hasActiveShopifyBilling={hasActiveShopifyBilling}
+        />
       ) : active ? (
         <div className="selfx-shopify-plan-card__status" role="status">
           In use
         </div>
       ) : null}
     </div>
+  );
+}
+
+function PlanPurchaseForm({
+  plan,
+  hasActiveShopifyBilling,
+}: {
+  plan: SelfxStorefrontPricingPlan;
+  hasActiveShopifyBilling: boolean;
+}) {
+  const [clientRequestId, setClientRequestId] = useState("");
+  const navigation = useNavigation();
+  useEffect(() => {
+    if (navigation.state === "idle") setClientRequestId(crypto.randomUUID());
+  }, [navigation.state]);
+  const submitting = navigation.state !== "idle";
+  return (
+    <Form method="post" className="selfx-shopify-plan-card__purchase">
+      <input type="hidden" name="intent" value="billing:choose" />
+      <input type="hidden" name="planId" value={plan.id} />
+      <input type="hidden" name="clientRequestId" value={clientRequestId} />
+      {plan.billingMode === "POSTPAID_PAYG" ? (
+        <label className="selfx-shopify-plan-card__usage-cap">
+          Shopify spending cap (
+          {formatMoney(plan.creditUnitPriceCents ?? 0, plan.currency)} minimum)
+          <input
+            type="number"
+            name="usageCap"
+            min={((plan.creditUnitPriceCents ?? 1) / 100).toFixed(2)}
+            step="0.01"
+            required
+          />
+          <small>
+            Maximum Shopify charges for successful Try-Ons in a billing period.
+          </small>
+        </label>
+      ) : null}
+      <button
+        className="selfx-shopify-button selfx-shopify-button--primary"
+        type="submit"
+        disabled={submitting || !clientRequestId}
+      >
+        {submitting
+          ? "Processing…"
+          : hasActiveShopifyBilling
+            ? "Change plan"
+            : "Choose plan"}
+      </button>
+    </Form>
   );
 }
 

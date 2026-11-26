@@ -1,10 +1,11 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { Prisma, type PricingPlan } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { EntitlementsService } from "../entitlements/entitlements.service.js";
+import { assertPhonePeUsageSettled } from "../entitlements/phonepe-store-billing.js";
 import type {
   PrepareShopifyBillingDto,
   VerifyShopifyBillingDto,
@@ -84,58 +85,205 @@ export class ShopifyBillingService {
     )
       throw billingError("Choose an active Shopify-compatible SelfX plan.");
     const price = snapshot(plan);
-    const active = await this.prisma.shopifyBillingAgreement.findFirst({
-      where: {
-        organizationId: integration.organizationId,
-        status: "ACTIVE",
-        periodEnd: { gt: new Date() },
-      },
-      orderBy: { createdAt: "desc" },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT id FROM organizations WHERE id = ${integration.organizationId}::uuid FOR UPDATE`;
+      const connection = await tx.integration.findFirst({
+        where: {
+          id: integration.id,
+          status: "ACTIVE",
+          organization: { status: "ACTIVE" },
+        },
+      });
+      if (!connection)
+        throw billingError("The Store connection is no longer active.");
+      await assertPhonePeUsageSettled(tx, integration.organizationId);
+      const requestKey = createHash("sha256")
+        .update(`${integration.id}:${input.clientRequestId ?? randomUUID()}`)
+        .digest("hex");
+      const fingerprint = createHash("sha256")
+        .update(
+          JSON.stringify({
+            planId: input.planId,
+            usageCapCents: input.usageCapCents ?? null,
+          }),
+        )
+        .digest("hex");
+      const preparedResponse = (
+        agreement: import("@prisma/client").ShopifyBillingAgreement,
+        createAllowed: boolean,
+      ) => {
+        const terms = agreement.pricingSnapshot as unknown as Snapshot;
+        return {
+          id: agreement.id,
+          plan: terms,
+          usageCapCents: agreement.usageCapCents,
+          usageTerms:
+            terms.billingMode === "POSTPAID_PAYG"
+              ? shopifyUsageTerms(terms.creditUnitPriceCents!, terms.currency)
+              : null,
+          createAllowed,
+          confirmationUrl:
+            agreement.status === "PENDING" && !agreement.approvedAt
+              ? agreement.confirmationUrl
+              : null,
+          status: agreement.status,
+        };
+      };
+      const existing = await tx.shopifyBillingAgreement.findUnique({
+        where: { requestKey },
+      });
+      if (existing) {
+        if (existing.requestFingerprint !== fingerprint)
+          throw billingError(
+            "This request was already used for another plan or spending cap.",
+            "PLAN_CHANGE_REQUEST_CONFLICT",
+          );
+        return preparedResponse(existing, false);
+      }
+      const phonePe = await tx.storePlanPurchase.findFirst({
+        where: {
+          organizationId: integration.organizationId,
+          status: {
+            in: [
+              "INITIALIZING",
+              "INITIATING",
+              "PENDING",
+              "UNKNOWN",
+              "SCHEDULED",
+              "REVIEW_REQUIRED",
+            ],
+          },
+        },
+      });
+      if (phonePe)
+        throw billingError(
+          "Finish or resolve this Store's PhonePe payment before changing its billing provider.",
+          "PLAN_CHANGE_PENDING",
+        );
+      const current = await tx.storeSubscription.findUnique({
+        where: { organizationId: integration.organizationId },
+        include: { pricingPlan: true },
+      });
+      if (
+        current?.status === "ACTIVE" &&
+        current.pricingPlan?.billingMode !== "POSTPAID_PAYG" &&
+        (!current.currentPeriodEnd || current.currentPeriodEnd > new Date()) &&
+        current.pricingPlan?.code !== "selfx-default-starter" &&
+        !(
+          current.metadata &&
+          typeof current.metadata === "object" &&
+          !Array.isArray(current.metadata) &&
+          current.metadata.billingProvider === "SHOPIFY"
+        )
+      )
+        throw billingError(
+          "This Store already has a SelfX-billed paid plan. Finish its current billing period before moving billing to Shopify.",
+          "BILLING_PROVIDER_CONFLICT",
+        );
+      const pending = await tx.shopifyBillingAgreement.findFirst({
+        where: {
+          organizationId: integration.organizationId,
+          status: { in: ["PENDING", "FROZEN"] },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (pending) {
+        if (
+          pending.status === "PENDING" &&
+          pending.requestFingerprint === fingerprint
+        )
+          return preparedResponse(pending, false);
+        throw billingError(
+          "Finish or cancel the pending Shopify change before choosing another plan.",
+          "PLAN_CHANGE_PENDING",
+        );
+      }
+      const active = await tx.shopifyBillingAgreement.findFirst({
+        where: {
+          organizationId: integration.organizationId,
+          status: "ACTIVE",
+          periodEnd: { gt: new Date() },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (
+        active &&
+        (active.pricingSnapshot as unknown as Snapshot).currency !==
+          price.currency
+      )
+        throw billingError(
+          "Choose a plan in your current billing currency. Shopify cannot defer a currency change until renewal.",
+        );
+      const usage = price.billingMode === "POSTPAID_PAYG";
+      if (
+        usage &&
+        (!input.usageCapCents ||
+          !price.creditUnitPriceCents ||
+          input.usageCapCents < price.creditUnitPriceCents)
+      )
+        throw billingError(
+          "Enter a usage spending cap covering at least one Try-On.",
+        );
+      if (!usage && price.monthlyPriceCents <= 0)
+        throw billingError(
+          "The free Starter allowance is assigned when you connect. This plan does not need Shopify payment approval.",
+        );
+      if (
+        active?.pricingPlanId === plan.id &&
+        active.usageCapCents === (usage ? input.usageCapCents! : null)
+      )
+        throw billingError(
+          "This plan is already active. Your allowance has not been reset.",
+          "PLAN_ALREADY_ACTIVE",
+        );
+      const agreement = await tx.shopifyBillingAgreement.create({
+        data: {
+          id: createSelfxId(),
+          organizationId: integration.organizationId,
+          integrationId: integration.id,
+          pricingPlanId: plan.id,
+          shopDomain: input.shop,
+          requestKey,
+          requestFingerprint: fingerprint,
+          creationStartedAt: new Date(),
+          effectiveAfter: active?.periodEnd ?? null,
+          usageCapCents: usage ? input.usageCapCents! : null,
+          pricingSnapshot: price as unknown as Prisma.InputJsonObject,
+        },
+      });
+      return preparedResponse(agreement, true);
     });
-    if (
-      active &&
-      (active.pricingSnapshot as unknown as Snapshot).currency !==
-        price.currency
-    )
-      throw billingError(
-        "Choose a plan in your current billing currency. Shopify cannot defer a currency change until renewal.",
-      );
-    const usage = price.billingMode === "POSTPAID_PAYG";
-    if (
-      usage &&
-      (!input.usageCapCents ||
-        !price.creditUnitPriceCents ||
-        input.usageCapCents < price.creditUnitPriceCents)
-    )
-      throw billingError(
-        "Enter a usage spending cap covering at least one Try-On.",
-      );
-    if (!usage && price.monthlyPriceCents <= 0)
-      throw billingError(
-        "The free Starter allowance is assigned when you connect. This plan does not need Shopify payment approval.",
-      );
-    const agreement = await this.prisma.shopifyBillingAgreement.create({
-      data: {
-        id: createSelfxId(),
-        organizationId: integration.organizationId,
-        integrationId: integration.id,
-        pricingPlanId: plan.id,
-        shopDomain: input.shop,
-        effectiveAfter: active?.periodEnd ?? null,
-        usageCapCents: usage ? input.usageCapCents! : null,
-        pricingSnapshot: price as unknown as Prisma.InputJsonObject,
-      },
-    });
-    return {
-      id: agreement.id,
-      plan: price,
-      usageCapCents: agreement.usageCapCents,
-      usageTerms: usage
-        ? shopifyUsageTerms(price.creditUnitPriceCents!, price.currency)
-        : null,
-    };
   }
-  async attach(id: string, shop: string, subscriptionId: string) {
+  async declineUncreated(id: string, shop: string) {
+    // Only used for a definitive Shopify user error with no created subscription.
+    await this.prisma.shopifyBillingAgreement.updateMany({
+      where: {
+        id,
+        shopDomain: shop,
+        status: "PENDING",
+        externalSubscriptionId: null,
+      },
+      data: { status: "DECLINED", confirmationUrl: null },
+    });
+    return { recorded: true };
+  }
+  async attach(
+    id: string,
+    shop: string,
+    subscriptionId: string,
+    confirmationUrl?: string,
+  ) {
+    if (confirmationUrl) {
+      const url = new URL(confirmationUrl);
+      if (
+        url.protocol !== "https:" ||
+        url.username ||
+        url.password ||
+        url.port ||
+        ![shop, "admin.shopify.com"].includes(url.hostname)
+      )
+        throw billingError("Invalid Shopify approval destination.");
+    }
     const current = await this.prisma.shopifyBillingAgreement.findFirst({
       where: { id, shopDomain: shop, status: "PENDING" },
     });
@@ -162,7 +310,10 @@ export class ShopifyBillingService {
             { externalSubscriptionId: subscriptionId },
           ],
         },
-        data: { externalSubscriptionId: subscriptionId },
+        data: {
+          externalSubscriptionId: subscriptionId,
+          ...(confirmationUrl ? { confirmationUrl } : {}),
+        },
       });
     });
     if (changed.count !== 1)
@@ -177,7 +328,6 @@ export class ShopifyBillingService {
       where: {
         integrationId: integration.id,
         status: { in: ["PENDING", "ACTIVE", "FROZEN"] },
-        externalSubscriptionId: { not: null },
       },
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
       take: 25,
@@ -188,6 +338,8 @@ export class ShopifyBillingService {
         effectiveAfter: true,
         approvedAt: true,
         pricingSnapshot: true,
+        creationStartedAt: true,
+        createdAt: true,
       },
     });
   }

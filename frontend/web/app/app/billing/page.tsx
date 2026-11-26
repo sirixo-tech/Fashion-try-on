@@ -1,5 +1,10 @@
 "use client";
 import { RegionalDateTime } from "@/lib/regional-settings";
+import {
+  StorePlanAction,
+  StorePlanPayments,
+  useStorePlanSelection,
+} from "@/components/store-plan-selection";
 
 import {
   useCallback,
@@ -131,6 +136,9 @@ export default function BillingPage() {
     async function loadAccess() {
       setError(null);
       try {
+        const requestedStoreId = new URLSearchParams(
+          window.location.search,
+        ).get("store");
         const access = await getCurrentPlatformAccess(token).catch(() => ({
           isSuperadmin: false,
           permissions: [] as CurrentPlatformAccess["permissions"],
@@ -143,10 +151,26 @@ export default function BillingPage() {
           if (cancelled) return;
           setClientStores(stores.data);
           setStoreOptions(stores.data.map(storeOptionFromAdminStore));
+          if (
+            requestedStoreId &&
+            stores.data.some((store) => store.id === requestedStoreId)
+          )
+            setStoreId(requestedStoreId);
           return;
         }
 
-        const store = await getCurrentMerchantStore(token);
+        const defaultStore = await getCurrentMerchantStore(token);
+        const requestedStore =
+          requestedStoreId && requestedStoreId !== defaultStore?.id
+            ? await getStore(token, requestedStoreId)
+            : null;
+        const store = requestedStore
+          ? {
+              id: requestedStore.id,
+              name: requestedStore.name,
+              status: requestedStore.status,
+            }
+          : defaultStore;
         if (cancelled) return;
         setCurrentStore(store);
         const options = store ? [{ id: store.id, name: store.name }] : [];
@@ -331,6 +355,8 @@ export default function BillingPage() {
         </PageSection>
       ) : (
         <MerchantBilling
+          accessToken={accessToken}
+          onPlanChanged={() => void loadBilling()}
           store={billingStore}
           diagnostics={creditDiagnostics}
           plans={availablePlans}
@@ -415,12 +441,16 @@ export default function BillingPage() {
 }
 
 function MerchantBilling({
+  accessToken,
+  onPlanChanged,
   store,
   diagnostics,
   plans,
   features,
   loading,
 }: {
+  accessToken: string | null;
+  onPlanChanged: () => void;
   store: AdminStoreDetail | null;
   diagnostics: StoreCreditDiagnostics | null;
   plans: PricingPlan[];
@@ -543,6 +573,9 @@ function MerchantBilling({
             <BillingHistoryTable diagnostics={diagnostics} loading={loading} />
           )}
           <AvailablePlansPanel
+            accessToken={accessToken}
+            storeId={store?.id ?? null}
+            onPlanChanged={onPlanChanged}
             plans={plans}
             features={features}
             currentPlanId={plan?.id ?? null}
@@ -681,23 +714,31 @@ function BillingHistoryTable({
 }
 
 function AvailablePlansPanel({
+  accessToken,
+  storeId,
+  onPlanChanged,
   plans,
   features,
   currentPlanId,
 }: {
+  accessToken: string | null;
+  storeId: string | null;
+  onPlanChanged: () => void;
   plans: PricingPlan[];
   features: PlanFeature[];
   currentPlanId: string | null;
 }) {
+  const controls = useStorePlanSelection(accessToken, storeId, onPlanChanged);
   return (
     <div className="rounded-lg border bg-card">
       <div className="border-b p-5">
         <h2 className="text-lg font-semibold">Available plans</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Online payment is not enabled yet. Contact SelfX support to upgrade,
-          downgrade or change channels.
+          Choose a plan for this Store. Verified changes are shared across
+          SelfX, Shopify and WooCommerce.
         </p>
       </div>
+      <StorePlanPayments controls={controls} />
       <div className="grid gap-3 p-5">
         {plans.length === 0 ? (
           <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
@@ -746,14 +787,7 @@ function AvailablePlansPanel({
                         : displayNumber(plan.includedCredits)
                     }
                   />
-                  <PlanLine
-                    label="Trial credits"
-                    value={
-                      plan.billingMode === "POSTPAID_PAYG"
-                        ? "Not applicable"
-                        : displayNumber(plan.trialCredits)
-                    }
-                  />
+                  <PlanLine label="Starter trial" value="Once per Store" />
                   <PlanLine
                     label="Store locations"
                     value={
@@ -785,9 +819,11 @@ function AvailablePlansPanel({
                     ))}
                   </ul>
                 ) : null}
-                <Button className="mt-4 w-full" variant="outline" disabled>
-                  Contact support
-                </Button>
+                <StorePlanAction
+                  controls={controls}
+                  plan={plan}
+                  current={plan.id === currentPlanId}
+                />
               </div>
             );
           })

@@ -77,6 +77,7 @@ const tables = [
   "try_on_share_capabilities",
   "usage_events",
   "store_subscriptions",
+  "store_plan_purchases",
   "store_billing_cycles",
   "billable_generations",
   "credit_ledger_entries",
@@ -134,6 +135,28 @@ export class StorePurgeService implements OnModuleInit, OnModuleDestroy {
           // Prevent new links while selecting user identities and Store resources.
           await lockStore(tx, storeId);
           await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${storeId}::uuid FOR UPDATE`;
+          if (
+            await tx.storePlanPurchase.count({
+              where: {
+                organizationId: storeId,
+                status: {
+                  in: [
+                    "INITIALIZING",
+                    "INITIATING",
+                    "PENDING",
+                    "UNKNOWN",
+                    "DUE",
+                    "SCHEDULED",
+                    "REVIEW_REQUIRED",
+                  ],
+                },
+              },
+            })
+          )
+            deletionError(
+              "STORE_PAYMENT_RESOLUTION_REQUIRED",
+              "Settle or resolve this Store's payments and scheduled changes before permanently deleting it.",
+            );
           if (
             await tx.shopifyBillingAgreement.count({
               where: {

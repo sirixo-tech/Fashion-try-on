@@ -10,6 +10,7 @@ export const CREATE_SUBSCRIPTION = `mutation SelfxCreateSubscription($name: Stri
 export const READ_SUBSCRIPTION = `query SelfxReadSubscription($id: ID!) { node(id: $id) { ... on AppSubscription { id status test currentPeriodEnd lineItems { id plan { pricingDetails { __typename ... on AppRecurringPricing { interval price { amount currencyCode } } ... on AppUsagePricing { cappedAmount { amount currencyCode } terms } } } } } } }`;
 export const CREATE_USAGE = `mutation SelfxCreateUsage($line: ID!, $price: MoneyInput!, $description: String!, $key: String!) { appUsageRecordCreate(subscriptionLineItemId: $line, price: $price, description: $description, idempotencyKey: $key) { appUsageRecord { id } userErrors { field message } } }`;
 export const CANCEL_SUBSCRIPTION = `mutation SelfxCancelSubscription($id: ID!) { appSubscriptionCancel(id: $id) { appSubscription { id status } userErrors { field message } } }`;
+export const RECOVER_SUBSCRIPTIONS = `query SelfxRecoverSubscriptions($after: String) { currentAppInstallation { allSubscriptions(first: 50, after: $after) { nodes { id status returnUrl } pageInfo { hasNextPage endCursor } } } }`;
 
 async function central<T>(
   path: string,
@@ -78,6 +79,9 @@ export function billingEnabled() {
 }
 type Prepared = {
   id: string;
+  createAllowed?: boolean;
+  confirmationUrl?: string | null;
+  status?: string;
   plan: {
     name: string;
     currency: string;
@@ -88,7 +92,13 @@ type Prepared = {
   usageCapCents: number | null;
   usageTerms: string | null;
 };
-type Agreement = { id: string; externalSubscriptionId: string; status: string };
+type Agreement = {
+  id: string;
+  externalSubscriptionId: string | null;
+  status: string;
+  creationStartedAt?: string | null;
+  createdAt?: string;
+};
 export type ShopifyBillingOwnership = "SELFX_MANAGED" | "SHOPIFY_MANAGED";
 
 export async function shopifyBillingOwnership(
@@ -199,6 +209,70 @@ export async function syncShopifyBilling(shop: string, admin: BillingAdmin) {
   if (!billingEnabled()) return;
   const agreements = await central<Agreement[]>("/agreements", shop);
   for (const agreement of agreements) {
+    if (!agreement.externalSubscriptionId) {
+      // A lost response must never cause a second payable approval. Recover by
+      // the server-owned return URL, then retire unapproved orphan requests.
+      const started = new Date(
+        agreement.creationStartedAt ?? agreement.createdAt ?? "",
+      );
+      if (
+        !Number.isFinite(started.getTime()) ||
+        Date.now() - started.getTime() < 120_000
+      )
+        continue;
+      let after: string | null = null;
+      let recovered: { id: string; status: string } | undefined;
+      let complete = false;
+      const expected = new URL(
+        "/app/billing/return",
+        process.env.SHOPIFY_APP_URL,
+      );
+      expected.searchParams.set("agreement", agreement.id);
+      for (let page = 0; page < 4; page++) {
+        const response: {
+          currentAppInstallation: {
+            allSubscriptions: {
+              nodes: Array<{ id: string; status: string; returnUrl: string }>;
+              pageInfo: { hasNextPage: boolean; endCursor: string | null };
+            };
+          };
+        } = await graphql(admin, RECOVER_SUBSCRIPTIONS, { after });
+        const list = response.currentAppInstallation.allSubscriptions;
+        recovered = list.nodes.find(
+          (subscription) => subscription.returnUrl === expected.toString(),
+        );
+        if (recovered || !list.pageInfo.hasNextPage) {
+          complete = true;
+          break;
+        }
+        after = list.pageInfo.endCursor;
+      }
+      if (!complete)
+        throw new Error(
+          "Shopify is still verifying an interrupted approval. Your current plan is unchanged.",
+        );
+      if (
+        recovered &&
+        ["ACTIVE", "ACCEPTED", "FROZEN"].includes(recovered.status)
+      ) {
+        await central(`/${agreement.id}/attach`, shop, {
+          subscriptionId: recovered.id,
+        });
+        agreement.externalSubscriptionId = recovered.id;
+      } else {
+        if (recovered?.status === "PENDING") {
+          const cancelled = await graphql<{
+            appSubscriptionCancel: { userErrors: unknown[] };
+          }>(admin, CANCEL_SUBSCRIPTION, { id: recovered.id });
+          if (cancelled.appSubscriptionCancel.userErrors.length)
+            throw new Error(
+              "Shopify could not resolve the interrupted approval. Refresh to check it again.",
+            );
+        }
+        await central(`/${agreement.id}/decline`, shop, {});
+        continue;
+      }
+    }
     const data = await graphql<{ node: NativeSubscription | null }>(
       admin,
       READ_SUBSCRIPTION,
@@ -249,6 +323,7 @@ export async function beginShopifyBilling(
   admin: BillingAdmin,
   planId: string,
   usageCap?: string,
+  clientRequestId?: string,
 ) {
   if (!billingEnabled())
     throw new Error(
@@ -260,8 +335,28 @@ export async function beginShopifyBilling(
     throw new Error("Enter a spending cap with up to two decimal places.");
   const prepared = await central<Prepared>("/prepare", shop, {
     planId,
+    ...(clientRequestId ? { clientRequestId } : {}),
     ...(cap ? { usageCapCents: cents(cap) } : {}),
   });
+  if (prepared.createAllowed === false) {
+    if (prepared.confirmationUrl) {
+      const destination = new URL(prepared.confirmationUrl);
+      if (
+        destination.protocol !== "https:" ||
+        destination.username ||
+        destination.password ||
+        destination.port ||
+        ![shop, "admin.shopify.com"].includes(destination.hostname)
+      )
+        throw new Error("Shopify returned an unexpected approval destination.");
+      return destination.toString();
+    }
+    throw new Error(
+      prepared.status === "PENDING"
+        ? "This plan change is already being processed or scheduled. Refresh Plans to check it before trying again."
+        : "This plan request has already finished. Refresh Plans before choosing another plan.",
+    );
+  }
   const returnUrl = new URL("/app/billing/return", process.env.SHOPIFY_APP_URL);
   returnUrl.searchParams.set("agreement", prepared.id);
   const lineItems: Record<string, unknown>[] = [];
@@ -302,6 +397,8 @@ export async function beginShopifyBilling(
     test: process.env.SHOPIFY_BILLING_TEST_MODE === "true",
   });
   const created = result.appSubscriptionCreate;
+  if (created.userErrors.length && !created.appSubscription)
+    await central(`/${prepared.id}/decline`, shop, {});
   if (
     created.userErrors.length ||
     !created.appSubscription ||
@@ -315,12 +412,14 @@ export async function beginShopifyBilling(
     target.protocol !== "https:" ||
     target.username ||
     target.password ||
+    target.port ||
     ![shop, "admin.shopify.com"].includes(target.hostname)
   )
     throw new Error("Shopify returned an unexpected approval destination.");
   try {
     await central(`/${prepared.id}/attach`, shop, {
       subscriptionId: created.appSubscription.id,
+      confirmationUrl: target.toString(),
     });
   } catch (error) {
     // A concurrent disconnect must not leave a new payable approval behind.
@@ -335,8 +434,10 @@ export async function cancelShopifyBilling(shop: string, admin: BillingAdmin) {
   if (!billingEnabled())
     throw new Error("This Store's plan is managed in SelfX, not Shopify.");
   const agreements = await central<Agreement[]>("/agreements", shop);
-  const cancelableAgreements = agreements.filter((agreement) =>
-    ["ACTIVE", "FROZEN", "PENDING"].includes(agreement.status),
+  const cancelableAgreements = agreements.filter(
+    (agreement) =>
+      agreement.externalSubscriptionId &&
+      ["ACTIVE", "FROZEN", "PENDING"].includes(agreement.status),
   );
   if (cancelableAgreements.length === 0)
     throw new Error("There is no active Shopify billing plan to cancel.");
@@ -348,6 +449,31 @@ export async function cancelShopifyBilling(shop: string, admin: BillingAdmin) {
     if (data.appSubscriptionCancel.userErrors.length)
       throw new Error(
         "Shopify could not cancel the plan or pending approval. The connection was retained. Decline pending approvals or retry cancellation in Shopify.",
+      );
+  }
+  await syncShopifyBilling(shop, admin);
+}
+
+export async function cancelPendingShopifyChange(
+  shop: string,
+  admin: BillingAdmin,
+) {
+  if (!billingEnabled()) throw new Error("Shopify billing is not enabled.");
+  const agreements = await central<Agreement[]>("/agreements", shop);
+  const pending = agreements.filter(
+    (item) => item.status === "PENDING" && item.externalSubscriptionId,
+  );
+  if (!pending.length)
+    throw new Error(
+      "There is no pending Shopify change to cancel. Refresh Plans.",
+    );
+  for (const agreement of pending) {
+    const response = await graphql<{
+      appSubscriptionCancel: { userErrors: unknown[] };
+    }>(admin, CANCEL_SUBSCRIPTION, { id: agreement.externalSubscriptionId });
+    if (response.appSubscriptionCancel.userErrors.length)
+      throw new Error(
+        "Shopify could not cancel the pending change. Refresh to check its status.",
       );
   }
   await syncShopifyBilling(shop, admin);

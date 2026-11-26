@@ -2,6 +2,10 @@ import { Module } from "@nestjs/common";
 import { MailModule } from "../mail/mail.module.js";
 import { StoreKiosksController } from "./store-kiosks.controller.js";
 import {
+  StorePlanSelectionController,
+  StorePlanPaymentCallbacksController,
+} from "./store-plan-selection.controller.js";
+import {
   StorePaymentTestsController,
   StorePaymentTestCallbacksController,
 } from "../payments/store-payment-tests.controller.js";
@@ -61,6 +65,8 @@ import {
     TryOnModule,
   ],
   controllers: [
+    StorePlanSelectionController,
+    StorePlanPaymentCallbacksController,
     StorePaymentTestsController,
     StorePaymentTestCallbacksController,
     StoreKiosksController,
