@@ -140,6 +140,78 @@ describe.skipIf(!url)(
       }
       return { store, integration, shop, price, approval };
     }
+    it.each(["CANCELLED", "DECLINED", "EXPIRED"])(
+      "closes a verified old live approval as %s after switching to test mode without granting credits",
+      async (status) => {
+        const f = await fixture();
+        vi.stubEnv("SHOPIFY_BILLING_TEST_MODE", "false");
+        const old = await f.approval();
+        vi.stubEnv("SHOPIFY_BILLING_TEST_MODE", "true");
+        const closed = { ...old.body, test: false, status };
+        const trialBefore = await db.creditLedgerEntry.count({
+          where: { organizationId: f.store, entryType: "TRIAL_GRANTED" },
+        });
+        await billing.confirm(old.prepared.id, closed);
+        await billing.confirm(old.prepared.id, closed);
+        expect(
+          (
+            await db.shopifyBillingAgreement.findUniqueOrThrow({
+              where: { id: old.prepared.id },
+            })
+          ).status,
+        ).toBe(status);
+        expect(
+          await db.creditLedgerEntry.count({
+            where: { organizationId: f.store, entryType: "PLAN_GRANTED" },
+          }),
+        ).toBe(0);
+        const fresh = await f.approval();
+        expect(fresh.prepared.id).not.toBe(old.prepared.id);
+        await billing.confirm(fresh.prepared.id, fresh.body);
+        expect(
+          await db.creditLedgerEntry.count({
+            where: { organizationId: f.store, entryType: "PLAN_GRANTED" },
+          }),
+        ).toBe(1);
+        expect(
+          await db.creditLedgerEntry.count({
+            where: { organizationId: f.store, entryType: "TRIAL_GRANTED" },
+          }),
+        ).toBe(trialBefore);
+      },
+    );
+    it.each(["ACTIVE", "ACCEPTED", "PENDING", "FROZEN"])(
+      "still rejects %s from a different billing mode",
+      async (status) => {
+        const f = await fixture(),
+          old = await f.approval();
+        await expect(
+          billing.confirm(old.prepared.id, {
+            ...old.body,
+            status,
+            test: false,
+          }),
+        ).rejects.toMatchObject({
+          response: {
+            error: {
+              message: "The Shopify billing environment does not match SelfX.",
+            },
+          },
+        });
+        expect(
+          (
+            await db.shopifyBillingAgreement.findUniqueOrThrow({
+              where: { id: old.prepared.id },
+            })
+          ).status,
+        ).toBe("PENDING");
+        expect(
+          await db.creditLedgerEntry.count({
+            where: { organizationId: f.store, entryType: "PLAN_GRANTED" },
+          }),
+        ).toBe(0);
+      },
+    );
     it("retires a verified missing installation without cancelling its replacement or renewing the trial", async () => {
       const f = await fixture(),
         first = await f.approval();

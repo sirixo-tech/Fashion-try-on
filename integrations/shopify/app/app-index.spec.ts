@@ -15,6 +15,7 @@ const connection = vi.hoisted(() => ({
   restart: vi.fn(),
   sync: vi.fn(),
   beginBilling: vi.fn(),
+  resumeBilling: vi.fn(),
   routeError: undefined as unknown,
 }));
 
@@ -25,6 +26,7 @@ vi.mock("react-router", async (original) => ({
 vi.mock("./selfx-billing.server", async (original) => ({
   ...(await original<typeof import("./selfx-billing.server")>()),
   beginShopifyBilling: connection.beginBilling,
+  resumeUnapprovedShopifyPlan: connection.resumeBilling,
 }));
 
 vi.mock("./shopify.server", () => ({
@@ -43,6 +45,7 @@ import {
   ErrorBoundary,
   headers,
   PlansPanel,
+  BillingVerificationNotice,
 } from "./routes/app._index";
 import type { ComponentProps } from "react";
 
@@ -66,12 +69,67 @@ function renderErrorBoundary() {
   }
 }
 
+describe("billing verification cancellation recovery", () => {
+  it.each([null, "Basic"])(
+    "shows cancellation only when an unapproved native plan exists (%s)",
+    (pendingPlanName) => {
+      const router = createMemoryRouter([
+        {
+          path: "/",
+          Component: () =>
+            createElement(BillingVerificationNotice, {
+              message: "Billing needs a retry.",
+              pendingPlanName,
+              onRetry: vi.fn(),
+            }),
+        },
+      ]);
+      try {
+        const markup = renderToStaticMarkup(
+          createElement(RouterProvider, { router }),
+        );
+        expect(markup).toContain("Retry billing verification");
+        expect(markup.includes("Review pending approval")).toBe(
+          Boolean(pendingPlanName),
+        );
+        expect(markup.includes('value="billing:review-pending"')).toBe(
+          Boolean(pendingPlanName),
+        );
+        expect(markup).not.toContain('value="billing:choose"');
+      } finally {
+        router.dispose();
+      }
+    },
+  );
+});
+
 describe("Shopify approval redirect and authentication responses", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     connection.routeError = undefined;
   });
   const approvalUrl = `https://${shop}/admin/charges/123/confirm`;
+  it("reopens the pending approval through authenticated top-level navigation without creating another charge", async () => {
+    const redirect = new Response(null, {
+      status: 401,
+      headers: { "X-Shopify-API-Request-Failure-Reauthorize-Url": approvalUrl },
+    });
+    connection.resumeBilling.mockResolvedValue(approvalUrl);
+    const navigate = vi.fn(() => {
+      throw redirect;
+    });
+    connection.authenticate.mockResolvedValue({
+      session: { shop },
+      admin: {},
+      redirect: navigate,
+    });
+    await expect(
+      action({ request: connectionRequest("billing:review-pending") } as never),
+    ).rejects.toBe(redirect);
+    expect(connection.resumeBilling).toHaveBeenCalledExactlyOnceWith(shop);
+    expect(connection.beginBilling).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(approvalUrl, { target: "_top" });
+  });
   it("preserves the SDK approval redirect rather than turning its 401 into an action error", async () => {
     const redirect = new Response(null, {
       status: 401,

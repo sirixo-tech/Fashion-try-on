@@ -8,6 +8,8 @@ import {
   CANCEL_SUBSCRIPTION,
   RECOVER_SUBSCRIPTIONS,
   VERIFY_INSTALLATION,
+  unapprovedShopifyPlan,
+  resumeUnapprovedShopifyPlan,
 } from "./selfx-billing.server";
 
 const shop = "merchant.myshopify.com",
@@ -47,6 +49,77 @@ describe("Shopify billing server boundary", () => {
       });
     return Response.json({ attached: true });
   }
+  it("offers recovery only for an attached approval the merchant has not approved", async () => {
+    fetchImpl.mockResolvedValue(
+      Response.json([
+        {
+          id: "scheduled",
+          status: "PENDING",
+          externalSubscriptionId: "scheduled-native",
+          approvedAt: new Date().toISOString(),
+          pricingSnapshot: { name: "Scheduled" },
+        },
+        {
+          id: "creating",
+          status: "PENDING",
+          externalSubscriptionId: null,
+          approvedAt: null,
+          pricingSnapshot: { name: "Creating" },
+        },
+        {
+          id,
+          status: "PENDING",
+          externalSubscriptionId: nativeId,
+          approvedAt: null,
+          pricingSnapshot: { name: "Basic" },
+        },
+      ]),
+    );
+    expect(await unapprovedShopifyPlan(shop)).toEqual({ name: "Basic" });
+    fetchImpl.mockResolvedValue(Response.json([]));
+    expect(await unapprovedShopifyPlan(shop)).toBeNull();
+  });
+  it("reopens the original pending approval without preparing or creating another subscription", async () => {
+    const confirmationUrl = `https://${shop}/admin/charges/123/confirm`;
+    fetchImpl.mockResolvedValue(
+      Response.json([
+        {
+          id,
+          status: "PENDING",
+          externalSubscriptionId: nativeId,
+          approvedAt: null,
+          confirmationUrl,
+        },
+      ]),
+    );
+    expect(await resumeUnapprovedShopifyPlan(shop)).toBe(confirmationUrl);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls[0]![1].method).toBe("GET");
+    expect(admin.graphql).not.toHaveBeenCalled();
+  });
+  it.each([
+    "https://attacker.test/confirm",
+    "https://user:password@merchant.myshopify.com/confirm",
+    "http://merchant.myshopify.com/confirm",
+  ])(
+    "refuses an unsafe saved approval destination %s",
+    async (confirmationUrl) => {
+      fetchImpl.mockResolvedValue(
+        Response.json([
+          {
+            id,
+            status: "PENDING",
+            externalSubscriptionId: nativeId,
+            approvedAt: null,
+            confirmationUrl,
+          },
+        ]),
+      );
+      await expect(resumeUnapprovedShopifyPlan(shop)).rejects.toThrow(
+        "unexpected approval destination",
+      );
+    },
+  );
   it("uses central plan prices, asks Shopify for approval and defers changes until renewal", async () => {
     fetchImpl.mockImplementation(central);
     admin.graphql.mockResolvedValue(

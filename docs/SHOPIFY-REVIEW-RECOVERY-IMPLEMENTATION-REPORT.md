@@ -66,3 +66,15 @@ Edited `integrations/shopify/app/routes/app._index.tsx` to forward SDK headers w
 Validation: all 131 Shopify app/connector tests across 24 suites passed, including the HTTP reproduction and authentication/billing regressions. Shopify production build, project typecheck, changed-source/test ESLint and whitespace checks passed.
 
 Redeploy the Shopify app server service (`Fashion-try-on`) with this follow-up, reopen the embedded app and choose the plan again. Existing pending approval recovery remains in place. Then verify the actual Shopify approval screen, acceptance/decline, scheduled plan state and charge history. This follow-up has not been deployed by the agent.
+
+## Follow-up: existing live approval after enabling test mode
+
+Read-only deployment checks confirmed `SHOPIFY_BILLING_ENABLED=true` and `SHOPIFY_BILLING_TEST_MODE=true` on both services. A targeted read-only Shopify Admin API query confirmed that the earlier Basic agreement remained native PENDING with `test=false`. No native cancellation, approval or billing mutation was run during diagnosis.
+
+The mode guard also rejected terminal updates for the older request, so even a later verified decline could not clear the blocking agreement after the settings changed. The API now accepts verified CANCELLED, DECLINED and EXPIRED reconciliation across modes, while preserving the mode check for ACTIVE, ACCEPTED, PENDING and FROZEN. Closing an old request does not activate paid access or grant credits.
+
+The billing warning now offers Review pending approval. The authenticated server action reopens the saved Shopify URL after validating its HTTPS scheme, host, credentials and port. It prepares no new agreement and submits no charge. The pending approval must be declined in Shopify and verified before a fresh selection can proceed. The saved URL remains server-side until that explicit navigation. The internal service-token-protected agreement listing includes it for this recovery.
+
+Edited the billing service and PostgreSQL tests, Shopify billing server helpers/tests, embedded route/tests, technical requirements and this report. No new runtime files or migration were introduced. Validation passed: 19 real PostgreSQL billing tests, 139 Shopify app/connector tests, project typechecks, Shopify production build and changed-source lint/whitespace checks. One initial database regression run timed out during a host execution interruption; the full 19-test suite passed on rerun without a test-timeout increase.
+
+Deploy `@selfx/api` first and then `Fashion-try-on`. Keep both existing test flags unchanged. In the embedded app choose Review pending approval, cancel/decline the earlier live approval in Shopify, then Retry billing verification. Once the pending request clears, select Basic again and verify that Shopify identifies the new approval as a test charge. No theme extension deployment or database migration is needed for this follow-up. Live completion of that merchant-driven recovery remains to be tested after deployment.

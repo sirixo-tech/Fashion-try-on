@@ -152,6 +152,58 @@ export async function shopifyBillingOwnership(
     : "SELFX_MANAGED";
 }
 
+export async function unapprovedShopifyPlan(
+  shop: string,
+): Promise<{ name: string } | null> {
+  if (!billingEnabled()) return null;
+  const agreements = await central<
+    Array<
+      Agreement & {
+        approvedAt: string | null;
+        pricingSnapshot: { name: string };
+      }
+    >
+  >("/agreements", shop);
+  const pending = agreements.find(
+    (item) =>
+      item.status === "PENDING" &&
+      !item.approvedAt &&
+      item.externalSubscriptionId,
+  );
+  return pending ? { name: pending.pricingSnapshot.name } : null;
+}
+
+export async function resumeUnapprovedShopifyPlan(
+  shop: string,
+): Promise<string> {
+  if (!billingEnabled()) throw new Error("Shopify billing is not enabled.");
+  const agreements = await central<
+    Array<
+      Agreement & { approvedAt: string | null; confirmationUrl: string | null }
+    >
+  >("/agreements", shop);
+  const pending = agreements.find(
+    (item) =>
+      item.status === "PENDING" &&
+      !item.approvedAt &&
+      item.externalSubscriptionId,
+  );
+  if (!pending?.confirmationUrl)
+    throw new Error(
+      "The pending approval could not be reopened. Retry billing verification to refresh its status.",
+    );
+  const target = new URL(pending.confirmationUrl);
+  if (
+    target.protocol !== "https:" ||
+    target.username ||
+    target.password ||
+    target.port ||
+    ![shop, "admin.shopify.com"].includes(target.hostname)
+  )
+    throw new Error("Shopify returned an unexpected approval destination.");
+  return target.toString();
+}
+
 export async function scheduledShopifyPlan(
   shop: string,
 ): Promise<{ name: string; effectiveAfter: string } | null> {

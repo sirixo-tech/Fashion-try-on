@@ -334,6 +334,7 @@ export class ShopifyBillingService {
       select: {
         id: true,
         externalSubscriptionId: true,
+        confirmationUrl: true,
         status: true,
         effectiveAfter: true,
         approvedAt: true,
@@ -385,7 +386,15 @@ export class ShopifyBillingService {
         "Shopify subscription does not match this Store's approval.",
       );
     const price = agreement.pricingSnapshot as unknown as Snapshot;
-    if (input.test !== (process.env.SHOPIFY_BILLING_TEST_MODE === "true"))
+    // Closing a verified old approval cannot grant access and must remain
+    // possible after the deployment switches between live and test billing.
+    const terminal = ["CANCELLED", "DECLINED", "EXPIRED"].includes(
+      input.status,
+    );
+    if (
+      !terminal &&
+      input.test !== (process.env.SHOPIFY_BILLING_TEST_MODE === "true")
+    )
       throw billingError(
         "The Shopify billing environment does not match SelfX.",
       );

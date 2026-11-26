@@ -6,6 +6,8 @@ import {
   cancelPendingShopifyChange,
   syncShopifyBilling,
   scheduledShopifyPlan,
+  unapprovedShopifyPlan,
+  resumeUnapprovedShopifyPlan,
   shopifyBillingOwnership,
   type ShopifyBillingOwnership,
 } from "../selfx-billing.server";
@@ -233,6 +235,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ? await safeShopifyBillingOwnership(session.shop)
         : null,
     billingVerificationError,
+    unapprovedBilling:
+      connectionReady && billingVerificationError
+        ? await unapprovedShopifyPlan(session.shop).catch(() => null)
+        : null,
     shopifyBillingEnabled: billingEnabled(),
     scheduledBilling: connectionReady
       ? await scheduledShopifyPlan(session.shop).catch(() => null)
@@ -274,7 +280,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (
     intent === "billing:choose" ||
     intent === "billing:cancel" ||
-    intent === "billing:cancel-pending"
+    intent === "billing:cancel-pending" ||
+    intent === "billing:review-pending"
   ) {
     try {
       const {
@@ -282,6 +289,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         admin,
         redirect,
       } = await authenticate.admin(request);
+      if (intent === "billing:review-pending") {
+        const approval = await resumeUnapprovedShopifyPlan(billingSession.shop);
+        return redirect(approval, { target: "_top" });
+      }
       if (intent === "billing:cancel-pending") {
         await cancelPendingShopifyChange(billingSession.shop, admin);
         return redirect("/app?panel=plans");
@@ -759,15 +770,11 @@ export default function Index() {
       </s-grid>
 
       {loaded.billingVerificationError ? (
-        <s-banner heading="Billing needs verification" tone="warning">
-          {loaded.billingVerificationError}
-          <s-button
-            variant="secondary"
-            onClick={() => revalidator.revalidate()}
-          >
-            Retry billing verification
-          </s-button>
-        </s-banner>
+        <BillingVerificationNotice
+          message={loaded.billingVerificationError}
+          pendingPlanName={loaded.unapprovedBilling?.name}
+          onRetry={() => revalidator.revalidate()}
+        />
       ) : null}
       {loaded.scheduledBilling ? (
         <s-banner tone="info">
@@ -1995,6 +2002,40 @@ function LanguageSettingsPanel({
         </fetcher.Form>
       </s-stack>
     </s-section>
+  );
+}
+
+export function BillingVerificationNotice({
+  message,
+  pendingPlanName,
+  onRetry,
+}: {
+  message: string;
+  pendingPlanName?: string | null;
+  onRetry: () => void;
+}) {
+  return (
+    <s-banner heading="Billing needs verification" tone="warning">
+      {message}
+      {pendingPlanName ? (
+        <>
+          <p>
+            An approval for {pendingPlanName} is still pending. To start a fresh
+            plan selection, open that approval in Shopify and cancel it. Then
+            retry billing verification.
+          </p>
+          <Form method="post">
+            <input type="hidden" name="intent" value="billing:review-pending" />
+            <s-button type="submit" variant="secondary">
+              Review pending approval
+            </s-button>
+          </Form>
+        </>
+      ) : null}
+      <s-button variant="secondary" onClick={onRetry}>
+        Retry billing verification
+      </s-button>
+    </s-banner>
   );
 }
 
