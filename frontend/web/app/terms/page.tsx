@@ -26,7 +26,7 @@ const sections = [
   ],
   [
     "Photos, results and deletion",
-    "Original customer photos, outfit captures and sensitive provider inputs expire within seven days. Mobile saved generated results expire within 30 days of creation; generated results in other channels retain their seven-day maximum. Download a result before expiry if you want your own copy. You can remove saved looks, delete your photos or delete your account in the app. Some non-image consent, security, delivery and usage records remain for the operation and protection of the service. See the Privacy Policy for details.",
+    "Saved Wardrobe garment photos remain private until you delete them, delete all your photos or delete your account. Temporary Try-On photos, outfit captures and sensitive provider inputs expire within seven days. Mobile saved generated results expire within 30 days of creation; generated results in other channels retain their seven-day maximum. Download a result before expiry if you want your own copy. You can remove saved looks, delete your photos or delete your account in the app. Some non-image consent, security, delivery and usage records remain for the operation and protection of the service. See the Privacy Policy for details.",
   ],
   [
     "Availability, notifications and updates",

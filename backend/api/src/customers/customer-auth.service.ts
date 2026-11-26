@@ -1659,6 +1659,16 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     await tx.customerIdentity.deleteMany({
       where: { customerId: customer.id },
     });
+    await tx.customerWardrobeItem.updateMany({
+      where: { customerId: customer.id, deletedAt: null },
+      data: {
+        deletedAt: new Date(),
+        readyAt: null,
+        name: "Deleted garment",
+        colour: null,
+        notes: null,
+      },
+    });
     await tx.customerSavedGarment.deleteMany({
       where: { customerId: customer.id },
     });

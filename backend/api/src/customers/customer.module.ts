@@ -1,3 +1,5 @@
+import { CustomerWardrobeService } from "./customer-wardrobe.service.js";
+import { CustomerWardrobeController } from "./customer-wardrobe.controller.js";
 import { Module } from "@nestjs/common";
 import {
   AdminContentReportsController,
@@ -56,6 +58,7 @@ import {
     AppsModule,
   ],
   controllers: [
+    CustomerWardrobeController,
     AdminContentReportsController,
     CustomerContentReportsController,
     CustomerAvatarController,
@@ -71,6 +74,7 @@ import {
     CustomerNotificationsController,
   ],
   providers: [
+    CustomerWardrobeService,
     ContentReportsService,
     CustomerProfilePhotoService,
     CustomerMobilePaymentsService,

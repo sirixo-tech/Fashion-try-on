@@ -74,6 +74,7 @@ class CustomerExperience extends ChangeNotifier {
   bool demoLoading = false;
   String? demoError, demoModelId;
   List<CustomerLook> looks = [];
+  int photoDeletionRevision = 0;
   List<Json> savedGarments = [];
   bool savedGarmentsLoading = false;
   List<Json> products = [];
@@ -603,6 +604,31 @@ class CustomerExperience extends ChangeNotifier {
     }
   }
 
+  Future<void> chooseWardrobe(String itemId) async {
+    if (session == null || busy || generating || hasUncertainRequest) return;
+    final epoch = _epoch, sessionId = session!['id'];
+    busy = true;
+    _notify();
+    try {
+      final result = await auth.authorized(
+        '/try-on/sessions/$sessionId/wardrobe',
+        method: 'POST',
+        body: {'itemId': itemId},
+      );
+      if (!_valid(epoch) || session?['id'] != sessionId) return;
+      outfit = CustomerPhoto.fromJson(result);
+      outfitPreview = null;
+      demoProduct = null;
+      product = null;
+      _requestId = null;
+    } finally {
+      if (_valid(epoch)) {
+        busy = false;
+        _notify();
+      }
+    }
+  }
+
   Future<void> generate() async {
     if (busy || generating || (!canGenerate && !hasUncertainRequest)) return;
     final epoch = _epoch;
@@ -755,6 +781,7 @@ class CustomerExperience extends ChangeNotifier {
     looks = [];
     products = [];
     _requestId = null;
+    ++photoDeletionRevision;
     _notify();
     await refresh();
   }

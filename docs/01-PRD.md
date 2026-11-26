@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### CUSTOMER-WARDROBE-1 — Private saved garments (2026-11-26)
+
+Implement the user-approved personal Wardrobe in Saved, with multi-photo import,
+camera, the existing crop editor, per-item review, category/search, edit/delete
+and one-garment personal Try-On. Favourite catalog products remain separate.
+Wardrobe originals stay private until deleted; processing copies retain seven-day
+expiry and mobile generated results retain 30-day expiry. Delete my photos and
+account deletion include saved wardrobe images and metadata. Upload retries use
+customer-scoped UUIDv7 identity plus request/image fingerprints. No outfit builder,
+AI classification/removal, calendar, new pricing or Store sponsorship changes.
+See CUSTOMER-WARDROBE-1.md for migration, verification and rollout.
+
 ### CONTENT-REPORTS-2 — Mobile generated-image reporting (2026-11-24)
 
 Add the approved Report action beside New Try-On, plus reporting on saved-look

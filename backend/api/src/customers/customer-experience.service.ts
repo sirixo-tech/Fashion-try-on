@@ -1310,6 +1310,16 @@ export class CustomerExperienceService
           );
       }
       const now = new Date();
+      await tx.customerWardrobeItem.updateMany({
+        where: { customerId, deletedAt: null },
+        data: {
+          deletedAt: now,
+          readyAt: null,
+          name: "Deleted garment",
+          colour: null,
+          notes: null,
+        },
+      });
       await tx.customerProfilePhoto.updateMany({
         where: { customerId, deletedAt: null },
         data: { deletedAt: now, expiresAt: now },

@@ -94,6 +94,14 @@ export default function PrivacyPage() {
             under your control.
           </p>
           <p className="leading-7 text-muted-foreground">
+            Garment photos you explicitly save to Wardrobe are private to your
+            account and stay until you delete the item, use Delete my photos, or
+            delete your account. Item names, categories, colours and notes help
+            you organize your collection. Temporary copies used for Try-On
+            expire within seven days; saving a garment does not extend generated
+            result retention or share the saved original with merchants.
+          </p>
+          <p className="leading-7 text-muted-foreground">
             Profile pictures are separate from try-on photos. New profile
             pictures stay private to your account until you replace or remove
             them. Delete my photos and account deletion also remove profile

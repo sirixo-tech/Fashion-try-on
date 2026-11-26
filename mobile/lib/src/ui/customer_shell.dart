@@ -170,7 +170,16 @@ class _CustomerShellState extends State<CustomerShell>
     Json? demoProduct,
     String? demoModelId,
     bool uploadPerson = false,
+    Json? wardrobeItem,
   }) => run(() async {
+    if (wardrobeItem != null && experience.storeMode) {
+      await customerInfo(
+        context,
+        'Wardrobe',
+        'Leave Store mode to try on your own clothes.',
+      );
+      return;
+    }
     final ready = await prepareCustomerStudio(
       context,
       experience,
@@ -179,6 +188,10 @@ class _CustomerShellState extends State<CustomerShell>
       demoModelId: demoModelId ?? experience.demoModelId,
     );
     if (!ready || !mounted) return;
+    if (wardrobeItem != null) {
+      await experience.chooseWardrobe(wardrobeItem['id'] as String);
+    }
+    if (!mounted) return;
     if (Navigator.canPop(context)) Navigator.pop(context);
     setState(() => tab = 1);
     if (uploadPerson && mounted) {
@@ -370,6 +383,7 @@ class _CustomerShellState extends State<CustomerShell>
                   ),
                   CustomerSavedScreen(
                     experience: experience,
+                    onTryOnWardrobe: (item) => studio(wardrobeItem: item),
                     onHome: () => setState(() => tab = 0),
                     onPlans: plans,
                     onTryOnGarment: (item, store) => studio(

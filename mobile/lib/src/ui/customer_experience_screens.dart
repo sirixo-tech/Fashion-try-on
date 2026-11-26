@@ -1,3 +1,4 @@
+import 'customer_wardrobe_screen.dart';
 import '../l10n/customer_copy.dart';
 import 'dart:async';
 import 'dart:io';
@@ -2137,12 +2138,14 @@ class CustomerSavedScreen extends StatefulWidget {
   final VoidCallback onHome;
   final VoidCallback onPlans;
   final Future<void> Function(Json item, bool store) onTryOnGarment;
+  final Future<void> Function(Json item)? onTryOnWardrobe;
   const CustomerSavedScreen({
     super.key,
     required this.experience,
     required this.onHome,
     required this.onPlans,
     required this.onTryOnGarment,
+    this.onTryOnWardrobe,
   });
   @override
   State<CustomerSavedScreen> createState() => _CustomerSavedScreenState();
@@ -2153,6 +2156,7 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
   String? downloadingId;
   String? activeAction;
   bool showGarments = false;
+  bool favouriteProducts = false;
   @override
   void initState() {
     super.initState();
@@ -2301,6 +2305,31 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                 savedTab(true, 'Wardrobe', Icons.checkroom_rounded),
               ],
             ),
+            if (showGarments) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ChoiceChip(
+                    label: const CustomerText('My clothes'),
+                    selected: !favouriteProducts,
+                    onSelected: (_) =>
+                        setState(() => favouriteProducts = false),
+                  ),
+                  ChoiceChip(
+                    label: const CustomerText('Favourite products'),
+                    selected: favouriteProducts,
+                    onSelected: (_) => setState(() => favouriteProducts = true),
+                  ),
+                ],
+              ),
+              if (!favouriteProducts)
+                CustomerWardrobePanel(
+                  experience: exp,
+                  onTryOn: widget.onTryOnWardrobe,
+                ),
+            ],
             const SizedBox(height: 14),
             if (exp.remaining case final int credits when credits < 10) ...[
               Material(
@@ -2378,7 +2407,10 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                 child: const CustomerText('Try again'),
               ),
             ],
-            if (showGarments && exp.savedGarments.isEmpty && error == null) ...[
+            if (showGarments &&
+                favouriteProducts &&
+                exp.savedGarments.isEmpty &&
+                error == null) ...[
               const SizedBox(height: 40),
               const Center(
                 child: Icon(Icons.favorite_border_rounded, size: 48),
@@ -2389,7 +2421,7 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                 textAlign: TextAlign.center,
               ),
             ],
-            if (showGarments)
+            if (showGarments && favouriteProducts)
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),

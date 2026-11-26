@@ -30,6 +30,7 @@ enum CustomerActionPurpose {
 }
 
 model Customer {
+  wardrobeItems          CustomerWardrobeItem[]
   contentReports         ContentReport[]
   savedGarments          CustomerSavedGarment[]
   profilePhotos          CustomerProfilePhoto[]
@@ -109,6 +110,32 @@ model ContentReport {
   @@index([reason, createdAt, id])
   @@index([createdAt, id])
   @@map("content_reports")
+}
+
+model CustomerWardrobeItem {
+  id                 String    @id @db.Uuid
+  customerId         String    @map("customer_id") @db.Uuid
+  customer           Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  name               String    @db.VarChar(120)
+  category           String    @db.VarChar(24)
+  colour             String?   @db.VarChar(40)
+  notes              String?   @db.VarChar(500)
+  storageKey         String    @unique @map("storage_key")
+  requestHash        String    @map("request_hash") @db.Char(64)
+  contentHash        String?   @map("content_hash") @db.Char(64)
+  termsVersion       String    @map("terms_version") @db.VarChar(40)
+  termsAcceptedAt    DateTime  @map("terms_accepted_at") @db.Timestamptz(3)
+  retentionVersion   String    @map("retention_version") @db.VarChar(40)
+  retentionStatement String    @map("retention_statement")
+  readyAt            DateTime? @map("ready_at") @db.Timestamptz(3)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
+  storageDeletedAt   DateTime? @map("storage_deleted_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([customerId, deletedAt, createdAt, id], map: "customer_wardrobe_owner_created_idx")
+  @@index([storageDeletedAt, deletedAt])
+  @@map("customer_wardrobe_items")
 }
 
 model CustomerSavedGarment {

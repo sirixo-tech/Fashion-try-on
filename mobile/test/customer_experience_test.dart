@@ -423,6 +423,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Wardrobe'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Favourite products'));
+    await tester.pumpAndSettle();
     expect(find.byType(FilledButton), findsOneWidget);
     await tester.tap(find.text('Terracotta Blazer'));
     await tester.pumpAndSettle();
