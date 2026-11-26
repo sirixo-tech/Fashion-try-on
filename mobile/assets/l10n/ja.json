@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "アップロードが変更されました。この服を追加するには最初からやり直してください。",
   "Your garment could not be saved. Please try again.": "服を保存できませんでした。もう一度お試しください。",
   "Refresh": "更新",
-  "Load more": "さらに読み込む"
+  "Load more": "さらに読み込む",
+  "More options": "その他のオプション",
+  "View full screen": "全画面で表示",
+  "Previous garment": "前の服",
+  "Next garment": "次の服",
+  "{p0} of {p1}": "{p1}点中{p0}点目"
 }

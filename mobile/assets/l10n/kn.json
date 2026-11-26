@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "ಈ ಅಪ್‌ಲೋಡ್ ಬದಲಾಗಿದೆ. ಉಡುಪು ಸೇರಿಸಲು ಮತ್ತೆ ಪ್ರಾರಂಭಿಸಿ.",
   "Your garment could not be saved. Please try again.": "ನಿಮ್ಮ ಉಡುಪು ಉಳಿಸಲಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
   "Refresh": "ರಿಫ್ರೆಶ್",
-  "Load more": "ಇನ್ನಷ್ಟು ಲೋಡ್ ಮಾಡಿ"
+  "Load more": "ಇನ್ನಷ್ಟು ಲೋಡ್ ಮಾಡಿ",
+  "More options": "ಇನ್ನಷ್ಟು ಆಯ್ಕೆಗಳು",
+  "View full screen": "ಪೂರ್ಣ ಪರದೆಯಲ್ಲಿ ನೋಡಿ",
+  "Previous garment": "ಹಿಂದಿನ ಉಡುಪು",
+  "Next garment": "ಮುಂದಿನ ಉಡುಪು",
+  "{p0} of {p1}": "{p1}ರಲ್ಲಿ {p0}"
 }

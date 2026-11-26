@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "Загрузка изменилась. Начните заново, чтобы добавить эту вещь.",
   "Your garment could not be saved. Please try again.": "Не удалось сохранить вещь. Попробуйте ещё раз.",
   "Refresh": "Обновить",
-  "Load more": "Загрузить ещё"
+  "Load more": "Загрузить ещё",
+  "More options": "Другие действия",
+  "View full screen": "На весь экран",
+  "Previous garment": "Предыдущая вещь",
+  "Next garment": "Следующая вещь",
+  "{p0} of {p1}": "{p0} из {p1}"
 }

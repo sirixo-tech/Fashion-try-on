@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "இந்தப் பதிவேற்றம் மாறியுள்ளது. ஆடையைச் சேர்க்க மீண்டும் தொடங்கவும்.",
   "Your garment could not be saved. Please try again.": "ஆடையைச் சேமிக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
   "Refresh": "புதுப்பிக்கவும்",
-  "Load more": "மேலும் ஏற்றவும்"
+  "Load more": "மேலும் ஏற்றவும்",
+  "More options": "மேலும் விருப்பங்கள்",
+  "View full screen": "முழுத் திரையில் காண்க",
+  "Previous garment": "முந்தைய ஆடை",
+  "Next garment": "அடுத்த ஆடை",
+  "{p0} of {p1}": "{p1} இல் {p0}"
 }

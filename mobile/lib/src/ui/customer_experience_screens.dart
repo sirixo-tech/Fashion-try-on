@@ -1,3 +1,4 @@
+import 'customer_credit_badge.dart';
 import 'customer_wardrobe_screen.dart';
 import '../l10n/customer_copy.dart';
 import 'dart:async';
@@ -2156,7 +2157,6 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
   String? downloadingId;
   String? activeAction;
   bool showGarments = false;
-  bool favouriteProducts = false;
   @override
   void initState() {
     super.initState();
@@ -2294,9 +2294,20 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 10, 24, 28),
           children: [
-            CustomerText(
-              'Saved',
-              style: Theme.of(context).textTheme.headlineMedium,
+            Row(
+              children: [
+                Expanded(
+                  child: CustomerText(
+                    'Saved',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                ),
+                CustomerCreditBadge(
+                  remaining: exp.remaining,
+                  onTap: widget.onPlans,
+                  buttonKey: const ValueKey('saved-header-credits'),
+                ),
+              ],
             ),
             const SizedBox(height: 14),
             Row(
@@ -2306,99 +2317,20 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
               ],
             ),
             if (showGarments) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ChoiceChip(
-                    label: const CustomerText('My clothes'),
-                    selected: !favouriteProducts,
-                    onSelected: (_) =>
-                        setState(() => favouriteProducts = false),
-                  ),
-                  ChoiceChip(
-                    label: const CustomerText('Favourite products'),
-                    selected: favouriteProducts,
-                    onSelected: (_) => setState(() => favouriteProducts = true),
-                  ),
-                ],
-              ),
-              if (!favouriteProducts)
-                CustomerWardrobePanel(
-                  experience: exp,
-                  onTryOn: widget.onTryOnWardrobe,
-                ),
-            ],
-            const SizedBox(height: 14),
-            if (exp.remaining case final int credits when credits < 10) ...[
-              Material(
-                clipBehavior: Clip.antiAlias,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.zero,
-                  child: Ink(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFF9E3F08), Color(0xFFF06A08)],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.toll_rounded,
-                            color: Colors.white,
-                            size: 30,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: CustomerText(
-                              '$credits credits left',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            width: 1,
-                            height: 30,
-                            color: Colors.white.withValues(alpha: .35),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton.icon(
-                            onPressed: widget.onPlans,
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 10,
-                              ),
-                              textStyle: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            iconAlignment: IconAlignment.end,
-                            icon: const Icon(Icons.arrow_forward_rounded),
-                            label: const CustomerText('Plans & credits'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
               const SizedBox(height: 14),
+              CustomerWardrobePanel(
+                experience: exp,
+                onTryOn: widget.onTryOnWardrobe,
+                onFavourites: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CustomerFavouriteProductsScreen(
+                      experience: exp,
+                      onTryOnGarment: widget.onTryOnGarment,
+                    ),
+                  ),
+                ),
+              ),
             ],
             if (error != null) ...[
               CustomerNotice(error!, error: true),
@@ -2407,143 +2339,6 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                 child: const CustomerText('Try again'),
               ),
             ],
-            if (showGarments &&
-                favouriteProducts &&
-                exp.savedGarments.isEmpty &&
-                error == null) ...[
-              const SizedBox(height: 40),
-              const Center(
-                child: Icon(Icons.favorite_border_rounded, size: 48),
-              ),
-              const SizedBox(height: 14),
-              const CustomerText(
-                'Your saved garments will appear here.',
-                textAlign: TextAlign.center,
-              ),
-            ],
-            if (showGarments && favouriteProducts)
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: exp.savedGarments.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: .68,
-                ),
-                itemBuilder: (context, index) {
-                  final saved = exp.savedGarments[index];
-                  final product = saved['product'] as Json?;
-                  final store = saved['source'] == 'STORE';
-                  final id = saved['id'] as String;
-                  final image = store
-                      ? ((product?['image'] as Map?)?['url'] as String?)
-                      : demoProductImage(id);
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Material(
-                      color: CustomerColors.canvas,
-                      child: InkWell(
-                        onTap: product == null
-                            ? null
-                            : () => widget.onTryOnGarment(product, store),
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  image == null
-                                      ? const Icon(Icons.checkroom_outlined)
-                                      : store
-                                      ? Image.network(image, fit: BoxFit.cover)
-                                      : Image.asset(image, fit: BoxFit.cover),
-                                  Align(
-                                    alignment: Alignment.topRight,
-                                    child: IconButton.filledTonal(
-                                      tooltip: tr(
-                                        context,
-                                        'Remove saved garment',
-                                      ),
-                                      onPressed: () async {
-                                        try {
-                                          await exp.toggleSavedGarment(
-                                            saved['source'] as String,
-                                            id,
-                                          );
-                                        } catch (caught) {
-                                          if (context.mounted) {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: CustomerText(
-                                                  CustomerExperience.message(
-                                                    caught,
-                                                  ),
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        }
-                                      },
-                                      icon: const Icon(Icons.favorite_rounded),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
-                              child: Text(
-                                product?['name'] as String? ??
-                                    tr(context, 'Unavailable garment'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: FilledButton.icon(
-                                  onPressed: product == null
-                                      ? null
-                                      : () => widget.onTryOnGarment(
-                                          product,
-                                          store,
-                                        ),
-                                  style: FilledButton.styleFrom(
-                                    minimumSize: const Size(0, 42),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                    ),
-                                    textStyle: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  icon: const Icon(
-                                    Icons.auto_awesome_rounded,
-                                    size: 16,
-                                  ),
-                                  label: const CustomerText('Try on'),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
             if (!showGarments && exp.looks.isEmpty && error == null) ...[
               const SizedBox(height: 40),
               const Center(
@@ -3180,5 +2975,203 @@ class PremiumPanel extends StatelessWidget {
       ],
     ),
     child: child,
+  );
+}
+
+class CustomerFavouriteProductsScreen extends StatefulWidget {
+  final CustomerExperience experience;
+  final Future<void> Function(Json item, bool store) onTryOnGarment;
+  const CustomerFavouriteProductsScreen({
+    super.key,
+    required this.experience,
+    required this.onTryOnGarment,
+  });
+  @override
+  State<CustomerFavouriteProductsScreen> createState() =>
+      _CustomerFavouriteProductsScreenState();
+}
+
+class _CustomerFavouriteProductsScreenState
+    extends State<CustomerFavouriteProductsScreen> {
+  String? error;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(load());
+    });
+  }
+
+  Future<void> load() async {
+    try {
+      await widget.experience.loadSavedGarments();
+      if (mounted) setState(() => error = null);
+    } catch (caught) {
+      if (mounted) setState(() => error = CustomerExperience.message(caught));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.experience,
+    builder: (context, _) {
+      final exp = widget.experience;
+      return Scaffold(
+        appBar: AppBar(title: const CustomerText('Favourite products')),
+        body: RefreshIndicator(
+          onRefresh: load,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
+            children: [
+              if (error != null) ...[
+                CustomerNotice(error!, error: true),
+                TextButton(
+                  onPressed: load,
+                  child: const CustomerText('Try again'),
+                ),
+              ],
+              if (exp.savedGarmentsLoading && exp.savedGarments.isEmpty)
+                const Center(child: CircularProgressIndicator()),
+              if (!exp.savedGarmentsLoading &&
+                  exp.savedGarments.isEmpty &&
+                  error == null) ...[
+                const SizedBox(height: 40),
+                const Center(
+                  child: Icon(Icons.favorite_border_rounded, size: 48),
+                ),
+                const SizedBox(height: 14),
+                const CustomerText(
+                  'Your saved garments will appear here.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: exp.savedGarments.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: .68,
+                ),
+                itemBuilder: (context, index) {
+                  final saved = exp.savedGarments[index];
+                  final product = saved['product'] as Json?;
+                  final store = saved['source'] == 'STORE';
+                  final id = saved['id'] as String;
+                  final image = store
+                      ? ((product?['image'] as Map?)?['url'] as String?)
+                      : demoProductImage(id);
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Material(
+                      color: CustomerColors.canvas,
+                      child: InkWell(
+                        onTap: product == null
+                            ? null
+                            : () => widget.onTryOnGarment(product, store),
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  image == null
+                                      ? const Icon(Icons.checkroom_outlined)
+                                      : store
+                                      ? Image.network(image, fit: BoxFit.cover)
+                                      : Image.asset(image, fit: BoxFit.cover),
+                                  Align(
+                                    alignment: Alignment.topRight,
+                                    child: IconButton.filledTonal(
+                                      tooltip: tr(
+                                        context,
+                                        'Remove saved garment',
+                                      ),
+                                      onPressed: () async {
+                                        try {
+                                          await exp.toggleSavedGarment(
+                                            saved['source'] as String,
+                                            id,
+                                          );
+                                        } catch (caught) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: CustomerText(
+                                                  CustomerExperience.message(
+                                                    caught,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      },
+                                      icon: const Icon(Icons.favorite_rounded),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
+                              child: Text(
+                                product?['name'] as String? ??
+                                    tr(context, 'Unavailable garment'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: product == null
+                                      ? null
+                                      : () => widget.onTryOnGarment(
+                                          product,
+                                          store,
+                                        ),
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size(0, 42),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.auto_awesome_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const CustomerText('Try on'),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
   );
 }

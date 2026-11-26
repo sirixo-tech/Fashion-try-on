@@ -13,11 +13,13 @@ class CustomerWardrobePanel extends StatefulWidget {
   final CustomerExperience experience;
   final Future<void> Function(Json)? onTryOn;
   final CustomerWardrobePicker? picker;
+  final VoidCallback? onFavourites;
   const CustomerWardrobePanel({
     super.key,
     required this.experience,
     this.onTryOn,
     this.picker,
+    this.onFavourites,
   });
   @override
   State<CustomerWardrobePanel> createState() => _CustomerWardrobePanelState();
@@ -157,46 +159,36 @@ class _CustomerWardrobePanelState extends State<CustomerWardrobePanel> {
         Row(
           children: [
             Expanded(
-              child: CustomerText(
-                'My clothes',
-                style: Theme.of(context).textTheme.titleLarge,
+              child: TextField(
+                controller: search,
+                maxLength: 120,
+                decoration: InputDecoration(
+                  labelText: tr(context, 'Search your wardrobe'),
+                  counterText: '',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: IconButton(
+                    tooltip: tr(context, 'Refresh'),
+                    onPressed: importing ? null : () => wardrobe.load(),
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                ),
+                onChanged: (value) {
+                  debounce?.cancel();
+                  debounce = Timer(
+                    const Duration(milliseconds: 300),
+                    () => wardrobe.load(query: value),
+                  );
+                },
               ),
             ),
-            IconButton(
-              tooltip: tr(context, 'Refresh'),
-              onPressed: importing ? null : () => wardrobe.load(),
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-            IconButton.filled(
-              tooltip: tr(context, 'Add garment'),
-              onPressed: importing
-                  ? null
-                  : () => add(CustomerPhotoSource.gallery),
-              icon: const Icon(Icons.add_rounded),
+            const SizedBox(width: 8),
+            IconButton.filledTonal(
+              key: const ValueKey('wardrobe-favourites'),
+              tooltip: tr(context, 'Favourite products'),
+              onPressed: importing ? null : widget.onFavourites,
+              icon: const Icon(Icons.favorite_border_rounded),
             ),
           ],
-        ),
-        const SizedBox(height: 8),
-        const CustomerText(
-          'Private. Saved until you delete them.',
-          style: TextStyle(color: CustomerColors.muted),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: search,
-          maxLength: 120,
-          decoration: InputDecoration(
-            labelText: tr(context, 'Search your wardrobe'),
-            counterText: '',
-            prefixIcon: const Icon(Icons.search_rounded),
-          ),
-          onChanged: (value) {
-            debounce?.cancel();
-            debounce = Timer(
-              const Duration(milliseconds: 300),
-              () => wardrobe.load(query: value),
-            );
-          },
         ),
         const SizedBox(height: 12),
         SizedBox(
@@ -701,35 +693,124 @@ class CustomerWardrobeDetail extends StatefulWidget {
 }
 
 class _CustomerWardrobeDetailState extends State<CustomerWardrobeDetail> {
-  late Json item = widget.item;
   late final String? owner = widget.wardrobe.auth.profile?.id;
-  bool busy = false;
+  late List<Json> garments;
+  late int selected;
+  late final PageController pages;
+  final thumbnails = ScrollController();
+  bool busy = false, invalidated = false;
   String? error;
+  Json get item => garments[selected];
+  bool get ownerStill =>
+      widget.wardrobe.auth.profile?.id == owner &&
+      widget.wardrobe.auth.stage == CustomerStage.ready;
   @override
   void initState() {
     super.initState();
+    garments = widget.wardrobe.items
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList();
+    selected = garments.indexWhere((entry) => entry['id'] == widget.item['id']);
+    if (selected < 0) {
+      garments = [Map<String, dynamic>.from(widget.item)];
+      selected = 0;
+    }
+    pages = PageController(initialPage: selected);
     widget.wardrobe.auth.addListener(authChanged);
+    widget.wardrobe.addListener(collectionChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        revealThumbnail();
+        prefetch();
+      }
+    });
   }
 
   void authChanged() {
-    if (mounted &&
-        (widget.wardrobe.auth.profile?.id != owner ||
-            widget.wardrobe.auth.stage != CustomerStage.ready)) {
-      setState(
-        () => item = {...item, 'name': '', 'notes': null, 'colour': null},
-      );
-      Navigator.pop(context);
+    if (mounted && !ownerStill) {
+      setState(() {
+        invalidated = true;
+        garments = [];
+      });
+      final route = ModalRoute.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && route?.isActive == true) {
+          Navigator.of(context).removeRoute(route!);
+        }
+      });
     }
+  }
+
+  void collectionChanged() {
+    if (!mounted || !ownerStill || invalidated) return;
+    final known = garments.map((entry) => entry['id']).toSet();
+    setState(
+      () => garments = [
+        ...garments,
+        ...widget.wardrobe.items
+            .where((entry) => !known.contains(entry['id']))
+            .map((entry) => Map<String, dynamic>.from(entry)),
+      ],
+    );
+  }
+
+  void prefetch() {
+    if (ownerStill &&
+        !invalidated &&
+        widget.wardrobe.hasMore &&
+        !widget.wardrobe.loading &&
+        selected >= garments.length - 3 &&
+        widget.wardrobe.error == null) {
+      unawaited(widget.wardrobe.load(more: true));
+    }
+  }
+
+  void revealThumbnail() {
+    if (!thumbnails.hasClients) return;
+    final target =
+        (selected * 80 - (thumbnails.position.viewportDimension - 72) / 2)
+            .clamp(0.0, thumbnails.position.maxScrollExtent)
+            .toDouble();
+    unawaited(
+      thumbnails.animateTo(
+        target,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      ),
+    );
+  }
+
+  void changed(int index) {
+    setState(() {
+      selected = index;
+      error = null;
+    });
+    revealThumbnail();
+    prefetch();
+  }
+
+  void select(int index) {
+    if (busy || index < 0 || index >= garments.length) return;
+    unawaited(
+      pages.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+      ),
+    );
   }
 
   @override
   void dispose() {
     widget.wardrobe.auth.removeListener(authChanged);
+    widget.wardrobe.removeListener(collectionChanged);
+    pages.dispose();
+    thumbnails.dispose();
     super.dispose();
   }
 
   Future<void> action(Future<void> Function() work) async {
-    if (busy) return;
+    if (busy || !ownerStill || invalidated) return;
     setState(() {
       busy = true;
       error = null;
@@ -737,13 +818,16 @@ class _CustomerWardrobeDetailState extends State<CustomerWardrobeDetail> {
     try {
       await work();
     } catch (caught) {
-      if (mounted) setState(() => error = CustomerExperience.message(caught));
+      if (mounted && ownerStill) {
+        setState(() => error = CustomerExperience.message(caught));
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
   }
 
   Future<void> edit() => action(() async {
+    final id = item['id'];
     final updated = await Navigator.push<Json>(
       context,
       MaterialPageRoute(
@@ -751,10 +835,14 @@ class _CustomerWardrobeDetailState extends State<CustomerWardrobeDetail> {
             CustomerWardrobeEditor(wardrobe: widget.wardrobe, item: item),
       ),
     );
-    if (!mounted || widget.wardrobe.auth.profile?.id != owner) return;
-    if (updated != null && mounted) setState(() => item = updated);
+    if (!mounted || !ownerStill || updated == null) return;
+    setState(() {
+      final index = garments.indexWhere((entry) => entry['id'] == id);
+      if (index >= 0) garments[index] = updated;
+    });
   });
   Future<void> remove() => action(() async {
+    final id = item['id'] as String;
     final yes = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -774,73 +862,325 @@ class _CustomerWardrobeDetailState extends State<CustomerWardrobeDetail> {
         ],
       ),
     );
-    if (yes != true) return;
-    await widget.wardrobe.remove(item['id'] as String);
-    if (mounted) Navigator.pop(context);
+    if (yes != true || !mounted || !ownerStill) return;
+    await widget.wardrobe.remove(id);
+    if (mounted && ownerStill) Navigator.pop(context);
   });
+  Future<void> fullscreen() => Navigator.push<void>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => _WardrobeFullscreen(
+        auth: widget.wardrobe.auth,
+        item: Map<String, dynamic>.from(item),
+      ),
+    ),
+  );
+  @override
+  Widget build(BuildContext context) {
+    if (invalidated || !ownerStill || garments.isEmpty) {
+      return const Scaffold(body: SizedBox.shrink());
+    }
+    final width = MediaQuery.sizeOf(context).width - 40;
+    final imageHeight = (width / .82)
+        .clamp(
+          160.0,
+          (MediaQuery.sizeOf(context).height * .54).clamp(160.0, 640.0),
+        )
+        .toDouble();
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          item['name'] as String,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: [
+          PopupMenuButton<String>(
+            key: const ValueKey('wardrobe-actions'),
+            tooltip: tr(context, 'More options'),
+            enabled: !busy,
+            onSelected: (value) {
+              if (value == 'edit') {
+                unawaited(edit());
+              } else {
+                unawaited(remove());
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'edit',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const CustomerText('Edit garment'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.red,
+                  ),
+                  title: const CustomerText(
+                    'Delete',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          key: const ValueKey('wardrobe-detail-scroll'),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          children: [
+            Container(
+              height: imageHeight,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: CustomerColors.line),
+              ),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: PageView.builder(
+                      key: const ValueKey('wardrobe-pages'),
+                      controller: pages,
+                      itemCount: garments.length,
+                      physics: busy
+                          ? const NeverScrollableScrollPhysics()
+                          : null,
+                      onPageChanged: changed,
+                      itemBuilder: (context, index) => Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: WardrobeImage(
+                          key: ValueKey(
+                            'wardrobe-page-${garments[index]['id']}',
+                          ),
+                          auth: widget.wardrobe.auth,
+                          id: garments[index]['id'] as String,
+                        ),
+                      ),
+                    ),
+                  ),
+                  PositionedDirectional(
+                    top: 10,
+                    end: 10,
+                    child: IconButton.filledTonal(
+                      tooltip: tr(context, 'View full screen'),
+                      onPressed: busy ? null : fullscreen,
+                      icon: const Icon(Icons.fullscreen_rounded),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (garments.length > 1 || widget.wardrobe.hasMore) ...[
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    tooltip: tr(context, 'Previous garment'),
+                    onPressed: busy || selected == 0
+                        ? null
+                        : () => select(selected - 1),
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                  Flexible(
+                    child: CustomerText(
+                      '${selected + 1} of ${garments.length}${widget.wardrobe.hasMore ? '+' : ''}',
+                      key: const ValueKey('wardrobe-position'),
+                      style: const TextStyle(
+                        color: CustomerColors.muted,
+                        fontSize: 13,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: tr(context, 'Next garment'),
+                    onPressed: busy || selected >= garments.length - 1
+                        ? null
+                        : () => select(selected + 1),
+                    icon: const Icon(Icons.chevron_right_rounded),
+                  ),
+                ],
+              ),
+              SizedBox(
+                height: 80,
+                child: ListView.builder(
+                  key: const ValueKey('wardrobe-thumbnails'),
+                  controller: thumbnails,
+                  scrollDirection: Axis.horizontal,
+                  itemCount:
+                      garments.length + (widget.wardrobe.hasMore ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == garments.length) {
+                      return SizedBox(
+                        width: 80,
+                        child: widget.wardrobe.loading
+                            ? const Center(child: CircularProgressIndicator())
+                            : IconButton(
+                                tooltip: tr(context, 'Load more'),
+                                onPressed: () =>
+                                    widget.wardrobe.load(more: true),
+                                icon: const Icon(Icons.add_rounded),
+                              ),
+                      );
+                    }
+                    final garment = garments[index];
+                    return Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 8),
+                      child: Semantics(
+                        button: true,
+                        selected: selected == index,
+                        label: garment['name'] as String,
+                        child: Material(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            key: ValueKey(
+                              'wardrobe-thumbnail-${garment['id']}',
+                            ),
+                            onTap: busy ? null : () => select(index),
+                            child: Container(
+                              width: 72,
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: selected == index
+                                      ? CustomerColors.orange
+                                      : CustomerColors.line,
+                                  width: selected == index ? 2 : 1,
+                                ),
+                              ),
+                              child: WardrobeImage(
+                                auth: widget.wardrobe.auth,
+                                id: garment['id'] as String,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+            if (widget.wardrobe.error != null) ...[
+              const SizedBox(height: 8),
+              CustomerNotice(widget.wardrobe.error!, error: true),
+              TextButton(
+                onPressed: () => widget.wardrobe.load(more: true),
+                child: const CustomerText('Try again'),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Chip(
+                avatar: const Icon(Icons.checkroom_outlined, size: 18),
+                label: CustomerText(
+                  wardrobeCategories[item['category']] ?? 'Other',
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            if ((item['colour'] as String?)?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(item['colour'] as String),
+              ),
+            if ((item['notes'] as String?)?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(item['notes'] as String),
+              ),
+            if (error != null) ...[
+              const SizedBox(height: 12),
+              CustomerNotice(error!, error: true),
+            ],
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              key: const ValueKey('wardrobe-try-on'),
+              onPressed: busy || widget.onTryOn == null
+                  ? null
+                  : () => action(
+                      () => widget.onTryOn!(Map<String, dynamic>.from(item)),
+                    ),
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: const CustomerText('Try it on'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WardrobeFullscreen extends StatefulWidget {
+  final CustomerController auth;
+  final Json item;
+  const _WardrobeFullscreen({required this.auth, required this.item});
+  @override
+  State<_WardrobeFullscreen> createState() => _WardrobeFullscreenState();
+}
+
+class _WardrobeFullscreenState extends State<_WardrobeFullscreen> {
+  late final String? owner = widget.auth.profile?.id;
+  bool get valid =>
+      owner == widget.auth.profile?.id &&
+      widget.auth.stage == CustomerStage.ready;
+  @override
+  void initState() {
+    super.initState();
+    widget.auth.addListener(authChanged);
+  }
+
+  void authChanged() {
+    if (!valid && mounted) {
+      setState(() {});
+      final route = ModalRoute.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && route?.isActive == true) {
+          Navigator.of(context).removeRoute(route!);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.auth.removeListener(authChanged);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(
-        item['name'] as String,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      actions: [
-        IconButton(
-          tooltip: tr(context, 'Edit garment'),
-          onPressed: busy ? null : edit,
-          icon: const Icon(Icons.edit_outlined),
-        ),
-        IconButton(
-          tooltip: tr(context, 'Delete'),
-          onPressed: busy ? null : remove,
-          icon: const Icon(Icons.delete_outline_rounded),
-        ),
-      ],
-    ),
-    body: ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        AspectRatio(
-          aspectRatio: .75,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: WardrobeImage(
-              auth: widget.wardrobe.auth,
-              id: item['id'] as String,
+    appBar: AppBar(title: valid ? Text(widget.item['name'] as String) : null),
+    body: valid
+        ? SafeArea(
+            child: InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: SizedBox.expand(
+                child: WardrobeImage(
+                  auth: widget.auth,
+                  id: widget.item['id'] as String,
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        CustomerText(
-          wardrobeCategories[item['category']] ?? 'Other',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        if ((item['colour'] as String?)?.isNotEmpty == true)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Text(item['colour'] as String),
-          ),
-        if ((item['notes'] as String?)?.isNotEmpty == true)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Text(item['notes'] as String),
-          ),
-        const SizedBox(height: 16),
-        const CustomerText('Private. Saved until you delete them.'),
-        if (error != null) CustomerNotice(error!, error: true),
-      ],
-    ),
-    bottomNavigationBar: SafeArea(
-      minimum: const EdgeInsets.all(16),
-      child: FilledButton.icon(
-        onPressed: busy || widget.onTryOn == null
-            ? null
-            : () => action(() => widget.onTryOn!(item)),
-        icon: const Icon(Icons.auto_awesome_rounded),
-        label: const CustomerText('Try it on'),
-      ),
-    ),
+          )
+        : const SizedBox.shrink(),
   );
 }

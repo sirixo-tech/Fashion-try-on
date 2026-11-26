@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "업로드가 변경되었습니다. 이 의류를 추가하려면 다시 시작하세요.",
   "Your garment could not be saved. Please try again.": "의류를 저장할 수 없습니다. 다시 시도하세요.",
   "Refresh": "새로고침",
-  "Load more": "더 불러오기"
+  "Load more": "더 불러오기",
+  "More options": "더 많은 옵션",
+  "View full screen": "전체 화면으로 보기",
+  "Previous garment": "이전 의류",
+  "Next garment": "다음 의류",
+  "{p0} of {p1}": "{p1}개 중 {p0}개"
 }

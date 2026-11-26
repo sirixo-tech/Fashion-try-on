@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "આ અપલોડ બદલાયો છે. કપડું ઉમેરવા ફરી શરૂ કરો.",
   "Your garment could not be saved. Please try again.": "તમારું કપડું સાચવી શકાયું નહીં. ફરી પ્રયાસ કરો.",
   "Refresh": "તાજું કરો",
-  "Load more": "વધુ લોડ કરો"
+  "Load more": "વધુ લોડ કરો",
+  "More options": "વધુ વિકલ્પો",
+  "View full screen": "પૂર્ણ સ્ક્રીનમાં જુઓ",
+  "Previous garment": "પાછલું કપડું",
+  "Next garment": "આગળનું કપડું",
+  "{p0} of {p1}": "{p1}માંથી {p0}"
 }

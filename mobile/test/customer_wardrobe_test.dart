@@ -1,6 +1,10 @@
+import 'package:flutter/services.dart';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
+import 'package:selfx_customer/src/ui/customer_experience_screens.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:selfx_customer/src/auth/customer_api.dart';
@@ -25,6 +29,7 @@ final garment = <String, dynamic>{
 
 class WardrobeApi extends FakeCustomerApi implements CustomerMediaApi {
   bool failUpload = false;
+  Uint8List? imageBytes;
   final uploads = <String>[];
   @override
   Future<Map<String, dynamic>> upload(
@@ -41,7 +46,8 @@ class WardrobeApi extends FakeCustomerApi implements CustomerMediaApi {
   }
 
   @override
-  Future<Uint8List> download(String path, String token) async => photoBytes;
+  Future<Uint8List> download(String path, String token) async =>
+      imageBytes ?? photoBytes;
 }
 
 class WardrobePicker implements CustomerWardrobePicker {
@@ -62,6 +68,32 @@ class WardrobePicker implements CustomerWardrobePicker {
 }
 
 void main() {
+  setUpAll(() async {
+    if (!const bool.fromEnvironment('SELFX_RENDER_WARDROBE')) return;
+    final sdk = Platform.environment['FLUTTER_ROOT'];
+    if (sdk == null) {
+      throw StateError('FLUTTER_ROOT is required for rendered reviews');
+    }
+    Future<void> font(String family, List<String> files) async {
+      final loader = FontLoader(family);
+      for (final file in files) {
+        loader.addFont(File(file).readAsBytes().then(ByteData.sublistView));
+      }
+      await loader.load();
+    }
+
+    final fonts = '$sdk/bin/cache/artifacts/material_fonts';
+    await font('Roboto', [
+      '$fonts/roboto-regular.ttf',
+      '$fonts/roboto-bold.ttf',
+    ]);
+    await font('MaterialIcons', ['$fonts/materialicons-regular.otf']);
+    if (Platform.isWindows) {
+      await font('serif', [
+        '${Platform.environment['WINDIR']}/Fonts/georgia.ttf',
+      ]);
+    }
+  });
   late WardrobeApi api;
   late CustomerController auth;
   late CustomerWardrobe wardrobe;
@@ -222,6 +254,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Your wardrobe starts here'), findsOneWidget);
       await tester.ensureVisible(find.text('Import photos').first);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Import photos').first);
       await tester.pumpAndSettle();
       expect(find.text('1 / 2'), findsOneWidget);
@@ -276,16 +309,22 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       expect(selections, 0);
+      await tester.ensureVisible(find.text('Try it on'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Try it on'));
       await tester.pumpAndSettle();
       expect(selections, 1);
-      await tester.tap(find.byTooltip('Edit garment'));
+      await tester.tap(find.byKey(const ValueKey('wardrobe-actions')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit garment'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField).first, 'Blue shirt');
       await tester.tap(find.text('Save garment'));
       await tester.pumpAndSettle();
       expect(find.text('Blue shirt'), findsOneWidget);
-      await tester.tap(find.byTooltip('Delete'));
+      await tester.tap(find.byKey(const ValueKey('wardrobe-actions')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
       await tester.pumpAndSettle();
       expect(api.calls.where((c) => c.method == 'DELETE'), isEmpty);
       await tester.tap(find.text('Delete'));
@@ -298,4 +337,357 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  Future<void> mountDetail(
+    WidgetTester tester, {
+    Json? initial,
+    Future<void> Function(Json)? onTryOn,
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: customerTheme(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CustomerWardrobeDetail(
+                    wardrobe: wardrobe,
+                    item: initial ?? wardrobe.items.first,
+                    onTryOn: onTryOn,
+                  ),
+                ),
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+  }
+
+  List<Json> collection() => [
+    garment,
+    {
+      'id': 'garment-b',
+      'name': 'Grey jacket',
+      'category': 'JACKETS',
+      'colour': 'Grey',
+      'notes': 'Winter layer',
+    },
+    {
+      'id': 'garment-c',
+      'name': 'Black trousers',
+      'category': 'BOTTOMS',
+      'colour': 'Black',
+      'notes': 'Workwear',
+    },
+  ];
+  testWidgets(
+    'swipe, thumbnails, metadata and Try-On use the same selected garment',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      wardrobe.items = collection();
+      String? chosen;
+      await mountDetail(
+        tester,
+        initial: wardrobe.items[1],
+        onTryOn: (item) async {
+          chosen = item['id'] as String;
+        },
+      );
+      expect(find.text('Grey jacket'), findsOneWidget);
+      expect(find.text('2 of 3'), findsOneWidget);
+      expect(find.text('Private. Saved until you delete them.'), findsNothing);
+      await tester.drag(
+        find.byKey(const ValueKey('wardrobe-pages')),
+        const Offset(-320, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Black trousers'), findsOneWidget);
+      expect(find.text('Bottoms'), findsOneWidget);
+      expect(find.text('Workwear'), findsOneWidget);
+      expect(find.text('3 of 3'), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const ValueKey('wardrobe-try-on')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('wardrobe-try-on')));
+      await tester.pumpAndSettle();
+      expect(chosen, 'garment-c');
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('wardrobe-thumbnail-garment-a')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('wardrobe-thumbnail-garment-a')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Navy shirt'), findsOneWidget);
+      expect(find.text('1 of 3'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'viewer loads the next filtered page, retries errors and preserves the current garment',
+    (tester) async {
+      wardrobe.items = [garment];
+      wardrobe.page = 1;
+      wardrobe.hasMore = true;
+      wardrobe.search = 'navy';
+      wardrobe.category = 'TOPS';
+      var fail = true;
+      api.handler = (path, method, body) async {
+        if (fail) {
+          throw const CustomerApiException('NETWORK_ERROR', 'Connection lost.');
+        }
+        return page([collection()[1]], number: 2);
+      };
+      await mountDetail(tester);
+      expect(find.text('Navy shirt'), findsOneWidget);
+      expect(find.text('1 of 1+'), findsOneWidget);
+      expect(Uri.parse(api.calls.last.path).queryParameters, {
+        'page': '2',
+        'search': 'navy',
+        'category': 'TOPS',
+      });
+      fail = false;
+      await tester.ensureVisible(find.text('Try again'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Try again'));
+      await tester.pumpAndSettle();
+      expect(find.text('Navy shirt'), findsOneWidget);
+      expect(find.text('1 of 2'), findsOneWidget);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('wardrobe-thumbnail-garment-b')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('wardrobe-thumbnail-garment-b')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Grey jacket'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets('overflow edit and delete target the garment selected by swipe', (
+    tester,
+  ) async {
+    wardrobe.items = collection();
+    api.handler = (path, method, body) async => method == 'PATCH'
+        ? {
+            'item': {...collection()[1], ...?body},
+          }
+        : page([]);
+    await mountDetail(tester);
+    await tester.drag(
+      find.byKey(const ValueKey('wardrobe-pages')),
+      const Offset(-700, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Grey jacket'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('wardrobe-actions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit garment'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, 'Edited jacket');
+    await tester.tap(find.text('Save garment'));
+    await tester.pumpAndSettle();
+    expect(
+      api.calls.lastWhere((call) => call.method == 'PATCH').path,
+      '/wardrobe/garment-b',
+    );
+    expect(find.text('Edited jacket'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('wardrobe-actions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(api.calls.where((call) => call.method == 'DELETE'), isEmpty);
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(
+      api.calls.singleWhere((call) => call.method == 'DELETE').path,
+      '/wardrobe/garment-b',
+    );
+    expect(find.text('Open'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets(
+    'fullscreen zoom and the viewer discard private previews after sign-out',
+    (tester) async {
+      wardrobe.items = collection();
+      await mountDetail(tester);
+      await tester.tap(find.byTooltip('View full screen'));
+      await tester.pumpAndSettle();
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+      // Session persistence was initialized outside the widget fake-async zone.
+      await tester.runAsync(() => auth.signOut());
+      await tester.pumpAndSettle();
+      expect(find.byType(WardrobeImage), findsNothing);
+      expect(find.text('Navy shirt'), findsNothing);
+      expect(find.text('Open'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'compact Saved header and favourite icon replace the redundant strips',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      api.imageBytes = File(
+        'assets/editorial/navy-overshirt.webp',
+      ).readAsBytesSync();
+      api.handler = (path, method, body) async {
+        if (path == '/experience') {
+          return {
+            'trial': {'remaining': 6},
+            'generationAvailable': true,
+          };
+        }
+        if (path.startsWith('/wardrobe')) return page(collection());
+        if (path == '/saved-garments') return {'items': <Json>[]};
+        return {
+          'data': <Json>[],
+          'pagination': {'hasMore': false},
+        };
+      };
+      final experience = CustomerExperience(auth);
+      await experience.refresh();
+      var plans = 0;
+      final boundary = GlobalKey();
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: boundary,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            builder: (context, child) => DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  stops: [0, .55, 1],
+                  colors: [
+                    Color(0xFFFFF8EF),
+                    Color(0xFFFAF7F2),
+                    Color(0xFFF4E4D6),
+                  ],
+                ),
+              ),
+              child: child,
+            ),
+            theme: customerTheme(),
+            home: Scaffold(
+              body: CustomerSavedScreen(
+                experience: experience,
+                onTryOnWardrobe: (item) async {},
+                onHome: () {},
+                onPlans: () {
+                  plans++;
+                },
+                onTryOnGarment: (item, store) async {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('6 credits left'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('saved-header-credits')));
+      expect(plans, 1);
+      await tester.tap(find.text('Wardrobe'));
+      await tester.pumpAndSettle();
+      expect(find.text('My clothes'), findsNothing);
+      expect(find.text('Private. Saved until you delete them.'), findsNothing);
+      expect(find.text('Favourite products'), findsNothing);
+      await captureWardrobe(tester, boundary, 'wardrobe-compact');
+      await tester.tap(find.byTooltip('Favourite products'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CustomerFavouriteProductsScreen), findsOneWidget);
+      expect(find.text('Favourite products'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.byType(CustomerWardrobePanel), findsOneWidget);
+      await tester.tap(find.text('Navy shirt'));
+      await tester.pumpAndSettle();
+      await captureWardrobe(tester, boundary, 'wardrobe-viewer');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      experience.dispose();
+    },
+  );
+  for (final configuration in [
+    (const Size(320, 740), TextDirection.rtl, 1.4),
+    (const Size(844, 390), TextDirection.ltr, 1.0),
+  ]) {
+    testWidgets(
+      'garment controls fit ${configuration.$1} ${configuration.$2}',
+      (tester) async {
+        tester.view.physicalSize = configuration.$1;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        wardrobe.items = collection();
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: customerTheme(),
+            builder: (context, child) => Directionality(
+              textDirection: configuration.$2,
+              child: MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: TextScaler.linear(configuration.$3)),
+                child: child!,
+              ),
+            ),
+            home: CustomerWardrobeDetail(
+              wardrobe: wardrobe,
+              item: garment,
+              onTryOn: (item) async {},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('wardrobe-try-on')),
+          150,
+          scrollable: find
+              .descendant(
+                of: find.byKey(const ValueKey('wardrobe-detail-scroll')),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+}
+
+Future<void> captureWardrobe(
+  WidgetTester tester,
+  GlobalKey boundary,
+  String name,
+) async {
+  if (!const bool.fromEnvironment('SELFX_RENDER_WARDROBE')) return;
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 150)),
+  );
+  await tester.pumpAndSettle();
+  await tester.runAsync(() async {
+    final image =
+        await (boundary.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary)
+            .toImage(pixelRatio: 1.5);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    final file = File('../tmp/customer-mobile-review/$name.png');
+    await file.parent.create(recursive: true);
+    await file.writeAsBytes(bytes!.buffer.asUint8List());
+    image.dispose();
+  });
 }

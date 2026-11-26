@@ -491,7 +491,7 @@ void main() {
         lessThan(tester.getTopLeft(find.text('EN')).dx),
       );
       expect(find.text('10'), findsOneWidget);
-      await tap(tester, find.text('Saved'));
+      await tap(tester, find.text('My Looks'));
       expect(find.text('Your first look\nis yet to come.'), findsOneWidget);
       await tap(tester, find.text('Me'));
       expect(find.text('Ava Morgan'), findsOneWidget);
@@ -513,7 +513,7 @@ void main() {
       'SelfX Tryon',
     );
     await login(tester);
-    await tap(tester, find.text('Saved'));
+    await tap(tester, find.text('My Looks'));
     expect(find.text('Your first look\nis yet to come.'), findsOneWidget);
 
     await tester.binding.handlePopRoute();

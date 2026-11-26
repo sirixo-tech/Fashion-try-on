@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### CUSTOMER-WARDROBE-2 — Compact browsing and garment viewer (2026-11-26)
+
+Reuse Home's compact credit control in Saved and remove the large credit strip.
+Wardrobe opens private clothes directly, with Favourite products behind the heart
+beside search; remove the My clothes heading, subtitle and secondary tab strip.
+Private garment details use a rounded, zoomable image, horizontal paging and
+synchronized selected thumbnails, metadata and actions. Preserve filtered order
+and bounded page loading. Put Edit/Delete in the overflow menu and Try it on
+directly below details; model selection remains in the existing Try-On flow.
+This is a mobile UI update; API, schema, storage, retention and billing are unchanged.
+See CUSTOMER-WARDROBE-1.md for details and verification.
+
 ### CUSTOMER-WARDROBE-1 — Private saved garments (2026-11-26)
 
 Implement the user-approved personal Wardrobe in Saved, with multi-photo import,

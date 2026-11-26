@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "Unggahan ini berubah. Mulai lagi untuk menambahkan pakaian ini.",
   "Your garment could not be saved. Please try again.": "Pakaian Anda tidak dapat disimpan. Silakan coba lagi.",
   "Refresh": "Segarkan",
-  "Load more": "Muat lebih banyak"
+  "Load more": "Muat lebih banyak",
+  "More options": "Opsi lainnya",
+  "View full screen": "Lihat layar penuh",
+  "Previous garment": "Pakaian sebelumnya",
+  "Next garment": "Pakaian berikutnya",
+  "{p0} of {p1}": "{p0} dari {p1}"
 }

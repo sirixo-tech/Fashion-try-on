@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "ഈ അപ്‌ലോഡ് മാറിയിരിക്കുന്നു. വസ്ത്രം ചേർക്കാൻ വീണ്ടും തുടങ്ങുക.",
   "Your garment could not be saved. Please try again.": "വസ്ത്രം സേവ് ചെയ്യാനായില്ല. വീണ്ടും ശ്രമിക്കുക.",
   "Refresh": "പുതുക്കുക",
-  "Load more": "കൂടുതൽ ലോഡ് ചെയ്യുക"
+  "Load more": "കൂടുതൽ ലോഡ് ചെയ്യുക",
+  "More options": "കൂടുതൽ ഓപ്ഷനുകൾ",
+  "View full screen": "പൂർണ്ണ സ്‌ക്രീനിൽ കാണുക",
+  "Previous garment": "മുമ്പത്തെ വസ്ത്രം",
+  "Next garment": "അടുത്ത വസ്ത്രം",
+  "{p0} of {p1}": "{p1}ൽ {p0}"
 }

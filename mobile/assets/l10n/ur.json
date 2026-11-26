@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "یہ اپ لوڈ بدل گیا ہے۔ لباس شامل کرنے کے لیے دوبارہ شروع کریں۔",
   "Your garment could not be saved. Please try again.": "لباس محفوظ نہیں ہو سکا۔ دوبارہ کوشش کریں۔",
   "Refresh": "ریفریش",
-  "Load more": "مزید لوڈ کریں"
+  "Load more": "مزید لوڈ کریں",
+  "More options": "مزید اختیارات",
+  "View full screen": "پوری اسکرین پر دیکھیں",
+  "Previous garment": "پچھلا لباس",
+  "Next garment": "اگلا لباس",
+  "{p0} of {p1}": "{p1} میں سے {p0}"
 }

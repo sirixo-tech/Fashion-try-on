@@ -1,3 +1,4 @@
+import 'customer_credit_badge.dart';
 import '../l10n/customer_copy.dart';
 import 'dart:async';
 import '../services/customer_push.dart';
@@ -294,72 +295,10 @@ class _CustomerShellState extends State<CustomerShell>
                       icon: const Icon(Icons.qr_code_scanner_rounded, size: 24),
                     ),
                     CustomerLanguageMenu(auth: auth),
-                    Tooltip(
-                      message: tr(
-                        context,
-                        experience.remaining == 0
-                            ? 'Add credits'
-                            : 'Personal free trial credits. Store-sponsored usage is separate.',
-                      ),
-                      child: Semantics(
-                        button: true,
-                        label: tr(
-                          context,
-                          experience.remaining == 0
-                              ? 'Add credits'
-                              : 'Personal credits: ${experience.remaining ?? 'unavailable'}',
-                        ),
-                        child: Material(
-                          color: CustomerColors.tint,
-                          borderRadius: BorderRadius.circular(24),
-                          child: InkWell(
-                            key: const ValueKey('header-credits'),
-                            borderRadius: BorderRadius.circular(24),
-                            onTap: plans,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 12,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    experience.remaining == 0
-                                        ? Icons.add_rounded
-                                        : Icons.auto_awesome_rounded,
-                                    color: CustomerColors.orange,
-                                    size: 17,
-                                  ),
-                                  const SizedBox(width: 5),
-                                  if (experience.remaining == 0)
-                                    ConstrainedBox(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 66,
-                                      ),
-                                      child: FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        child: const CustomerText(
-                                          'Add credits',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                  else
-                                    CustomerText(
-                                      experience.remaining?.toString() ?? '—',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                    CustomerCreditBadge(
+                      remaining: experience.remaining,
+                      onTap: plans,
+                      buttonKey: const ValueKey('header-credits'),
                     ),
                   ],
                 ),

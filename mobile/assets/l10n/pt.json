@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "Este envio mudou. Comece de novo para adicionar esta peça.",
   "Your garment could not be saved. Please try again.": "Não foi possível salvar sua peça. Tente novamente.",
   "Refresh": "Atualizar",
-  "Load more": "Carregar mais"
+  "Load more": "Carregar mais",
+  "More options": "Mais opções",
+  "View full screen": "Ver em tela cheia",
+  "Previous garment": "Peça anterior",
+  "Next garment": "Próxima peça",
+  "{p0} of {p1}": "{p0} de {p1}"
 }

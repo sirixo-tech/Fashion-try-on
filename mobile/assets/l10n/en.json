@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "This upload changed. Start again to add this garment.",
   "Your garment could not be saved. Please try again.": "Your garment could not be saved. Please try again.",
   "Refresh": "Refresh",
-  "Load more": "Load more"
+  "Load more": "Load more",
+  "More options": "More options",
+  "View full screen": "View full screen",
+  "Previous garment": "Previous garment",
+  "Next garment": "Next garment",
+  "{p0} of {p1}": "{p0} of {p1}"
 }

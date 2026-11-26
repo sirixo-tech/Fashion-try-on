@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "এই আপলোড পরিবর্তিত হয়েছে। পোশাকটি যোগ করতে আবার শুরু করুন।",
   "Your garment could not be saved. Please try again.": "পোশাক সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
   "Refresh": "রিফ্রেশ",
-  "Load more": "আরও লোড করুন"
+  "Load more": "আরও লোড করুন",
+  "More options": "আরও বিকল্প",
+  "View full screen": "পূর্ণ পর্দায় দেখুন",
+  "Previous garment": "আগের পোশাক",
+  "Next garment": "পরের পোশাক",
+  "{p0} of {p1}": "{p1}টির মধ্যে {p0}"
 }

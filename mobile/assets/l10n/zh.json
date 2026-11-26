@@ -718,5 +718,10 @@
   "This upload changed. Start again to add this garment.": "本次上传已更改。请重新开始添加此衣物。",
   "Your garment could not be saved. Please try again.": "无法保存衣物，请重试。",
   "Refresh": "刷新",
-  "Load more": "加载更多"
+  "Load more": "加载更多",
+  "More options": "更多选项",
+  "View full screen": "全屏查看",
+  "Previous garment": "上一件衣服",
+  "Next garment": "下一件衣服",
+  "{p0} of {p1}": "第 {p0} 件，共 {p1} 件"
 }
