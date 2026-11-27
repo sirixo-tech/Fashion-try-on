@@ -82,6 +82,10 @@ import { ProductClassificationModal } from "../product-classification-modal";
 import { PlanCard } from "../plan-card";
 import { PlanDataNotice } from "../plan-data-notice";
 import { loadSelfxPlanData } from "../selfx-plan-data.server";
+import {
+  buildTryOnBlockThemeEditorUrl,
+  type ThemeBlockStatus,
+} from "../selfx-theme-editor";
 
 const tryOnBlockHandle = "selfx_try_it_on";
 const lowCreditThreshold = 20;
@@ -92,12 +96,7 @@ const limitPeriods = [
 ] as const;
 
 type ThemeBlockView = {
-  status:
-    | "NOT_CHECKED"
-    | "INSTALLED"
-    | "NOT_INSTALLED"
-    | "NO_MAIN_THEME"
-    | "UNAVAILABLE";
+  status: ThemeBlockStatus;
   themeName: string | null;
   checkedFilenames: string[];
   errorMessage: string | null;
@@ -229,6 +228,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     connectionHealth.state === "CONNECTED"
       ? connection
       : { ...connection, status: "ERROR" as const };
+  const themeBlock = await safeThemeBlockView({
+    accessToken: session.accessToken,
+    connected: connectionHealth.state === "CONNECTED",
+    shop: session.shop,
+  });
   return {
     connection,
     shopifyBillingOwnership:
@@ -245,11 +249,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ? await scheduledShopifyPlan(session.shop).catch(() => null)
       : null,
     connectionHealth,
-    themeBlock: await safeThemeBlockView({
-      accessToken: session.accessToken,
-      connected: connectionHealth.state === "CONNECTED",
-      shop: session.shop,
-    }),
+    themeBlock,
     ...(await planData),
     usageSummary: await safeUsageSummary(session.shop, verifiedConnection),
     productControls: await safeProductControls(
@@ -263,7 +263,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }),
     selfxBillingUrl: safeSelfxBillingUrl(),
     selfxPublicUrls: safeSelfxPublicUrls(),
-    themeEditorUrl: buildTryOnBlockThemeEditorUrl(session.shop),
+    themeEditorUrl: buildTryOnBlockThemeEditorUrl(
+      session.shop,
+      process.env.SHOPIFY_API_KEY,
+      themeBlock.status,
+    ),
   };
 };
 
@@ -1504,7 +1508,7 @@ function SetupPanel({
               ) : themeBlock.status === "NOT_CHECKED" ? (
                 <s-badge tone="neutral">Connect SelfX to check</s-badge>
               ) : (
-                <s-badge tone="neutral">Could not verify</s-badge>
+                <s-badge tone="neutral">Unable to verify</s-badge>
               )}
             </s-grid-item>
           </s-grid>
@@ -4923,15 +4927,6 @@ function selfxConnectionIntent(
     intent === "sync"
     ? intent
     : null;
-}
-
-function buildTryOnBlockThemeEditorUrl(shop: string): string | null {
-  // eslint-disable-next-line no-undef
-  const apiKey = process.env.SHOPIFY_API_KEY?.trim();
-  const shopDomain = normalizeShopDomain(shop);
-  if (!apiKey || !shopDomain) return null;
-
-  return `https://${shopDomain}/admin/themes/current/editor?template=product&addAppBlockId=${apiKey}/selfx_try_it_on&target=mainSection`;
 }
 
 function shopifyApiVersion(): string {

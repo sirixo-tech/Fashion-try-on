@@ -1,3 +1,4 @@
+import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 import {
   type ShopifyProductCollection,
   type ShopifyProduct,
@@ -86,6 +87,7 @@ type ThemeFilesQueryData = {
         code?: string;
         filename?: string;
       }>;
+      pageInfo: PageInfo;
     };
   } | null;
 };
@@ -210,14 +212,33 @@ export class ShopifyAdminClient {
       return { status: "NO_MAIN_THEME", checkedFilenames };
     }
 
-    const data = await this.graphql<ThemeFilesQueryData>(themeFilesQuery, {
-      themeId: mainTheme.id,
-      filenames: checkedFilenames,
-    });
-    const installed =
-      data.theme?.files.nodes.some((file) =>
-        themeFileContainsAppBlock(file.body?.content, blockHandle),
-      ) ?? false;
+    let installed = false;
+    let after: string | null = null;
+    for (let page = 0; ; page++) {
+      if (page >= 50)
+        throw new Error("Theme template verification exceeded its limit.");
+      const data: ThemeFilesQueryData = await this.graphql<ThemeFilesQueryData>(
+        themeFilesQuery,
+        {
+          themeId: mainTheme.id,
+          filenames: checkedFilenames,
+          after,
+        },
+      );
+      const files = data.theme?.files;
+      if (!files || files.userErrors.length)
+        throw new Error("Shopify theme templates could not be read.");
+      // An unreadable template is an unknown result, never proof of absence.
+      for (const file of files.nodes)
+        installed =
+          themeFileContainsAppBlock(file.body?.content, blockHandle) ||
+          installed;
+      if (installed || !files.pageInfo.hasNextPage) break;
+      const next = files.pageInfo.endCursor;
+      if (!next || next === after)
+        throw new Error("Shopify returned an invalid theme pagination cursor.");
+      after = next;
+    }
     return {
       status: installed ? "INSTALLED" : "NOT_INSTALLED",
       themeId: mainTheme.id,
@@ -391,19 +412,19 @@ const productCollectionsQuery = [
 
 const themesQuery = [
   "query SelfxThemes {",
-  "  themes(first: 10) {",
+  "  themes(first: 1, roles: [MAIN]) {",
   "    nodes { id name role }",
   "  }",
   "}",
 ].join("\n");
 
 const themeFilesQuery = [
-  "query SelfxThemeTemplate($themeId: ID!, $filenames: [String!]!) {",
+  "query SelfxThemeTemplate($themeId: ID!, $filenames: [String!]!, $after: String) {",
   "  theme(id: $themeId) {",
   "    id",
   "    name",
   "    role",
-  "    files(filenames: $filenames, first: 10) {",
+  "    files(filenames: $filenames, first: 100, after: $after) {",
   "      nodes {",
   "        filename",
   "        body {",
@@ -411,6 +432,7 @@ const themeFilesQuery = [
   "        }",
   "      }",
   "      userErrors { code filename }",
+  "      pageInfo { hasNextPage endCursor }",
   "    }",
   "  }",
   "}",
@@ -420,31 +442,37 @@ function themeFileContainsAppBlock(
   content: string | undefined,
   blockHandle: string,
 ): boolean {
-  if (!content) return false;
-  try {
-    return jsonValueContainsAppBlock(
-      JSON.parse(content) as unknown,
-      blockHandle,
-    );
-  } catch {
-    return false;
-  }
+  if (!content)
+    throw new Error("Shopify returned an unreadable theme template.");
+  const errors: ParseError[] = [];
+  const parsed: unknown = parseJsonc(content, errors, {
+    allowTrailingComma: true,
+  });
+  if (
+    errors.length ||
+    !parsed ||
+    typeof parsed !== "object" ||
+    Array.isArray(parsed)
+  )
+    throw new Error("Shopify returned an invalid theme template.");
+  return jsonValueContainsAppBlock(parsed, blockHandle);
 }
 
 function jsonValueContainsAppBlock(
   value: unknown,
   blockHandle: string,
 ): boolean {
-  if (typeof value === "string") {
-    return (
-      value.startsWith("shopify://apps/") &&
-      value.includes(`/blocks/${blockHandle}/`)
-    );
-  }
   if (Array.isArray(value)) {
     return value.some((item) => jsonValueContainsAppBlock(item, blockHandle));
   }
   if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (
+      typeof record.type === "string" &&
+      record.type.startsWith("shopify://apps/") &&
+      record.type.includes(`/blocks/${blockHandle}/`)
+    )
+      return true;
     return Object.values(value).some((item) =>
       jsonValueContainsAppBlock(item, blockHandle),
     );
