@@ -1,5 +1,9 @@
 ## Document Evolution
 
+## Human session expiry (2026-11-28)
+
+Human web/mobile logins use DigitalTag timing defaults: 24 hours before idle enforcement, 15 minutes inactivity thereafter, and a 30-hour hard maximum. All three are backend env-configurable. Access and refresh both enforce server session validity; background traffic never counts as activity. Migration, client navigation, tests and rollout requirements are defined in [HUMAN-SESSION-POLICY.md](HUMAN-SESSION-POLICY.md). This supersedes earlier human session expiry and delayed access-token revocation behavior. Device and integration authentication are unchanged.
+
 ### OUTFIT-PLANNER-1 — Private scheduled outfits (2026-11-26)
 
 Add the approved weekly planner beside Wardrobe photo import. Customers choose a

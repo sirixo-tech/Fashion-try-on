@@ -59,7 +59,10 @@ describe("Customer sign-in account feedback", () => {
     db.customerIdentity.findMany.mockResolvedValue([]);
     db.customer.findUnique.mockResolvedValue(null);
     db.customer.findUniqueOrThrow.mockResolvedValue(account);
-    db.customerSession.create.mockResolvedValue({ id: randomUUID() });
+    db.customerSession.create.mockImplementation(async ({ data }) => ({
+      ...data,
+      authenticatedAt: new Date(),
+    }));
     passwords.hashPassword.mockResolvedValue("dummy-hash");
     passwords.verifyPassword.mockResolvedValue(false);
     jwt.signAsync.mockResolvedValue("access-token");

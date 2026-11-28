@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'customer_api.dart';
 import 'customer_identity.dart';
@@ -23,6 +24,12 @@ class CustomerController extends ChangeNotifier {
   String? _accessToken;
   String? _refreshToken;
   DateTime? _accessExpiresAt;
+  Map<String, dynamic>? _sessionTiming;
+  Timer? _sessionTimer;
+  Duration _serverOffset = Duration.zero;
+  DateTime? _lastActivityReport;
+  bool _sessionChecking = false;
+  bool _queuedActivity = false;
   Future<void>? _refreshing;
   Future<void>? _storageTail;
   int _epoch = 0;
@@ -132,6 +139,9 @@ class CustomerController extends ChangeNotifier {
     _accessToken = result['accessToken'] as String;
     _refreshToken = refresh;
     _accessExpiresAt = DateTime.parse(result['accessTokenExpiresAt'] as String);
+    if (result['session'] case final Map<String, dynamic> timing) {
+      _applySessionTiming(timing);
+    }
     profile = CustomerProfile.fromJson(
       result['customer'] as Map<String, dynamic>,
     );
@@ -478,7 +488,94 @@ class CustomerController extends ChangeNotifier {
     _notify();
   }
 
+  void _applySessionTiming(Map<String, dynamic> timing) {
+    final previous = _sessionTiming;
+    if (previous != null &&
+        DateTime.parse(
+          timing['serverTime'] as String,
+        ).isBefore(DateTime.parse(previous['serverTime'] as String))) {
+      return;
+    }
+    _sessionTiming = timing;
+    _serverOffset = DateTime.parse(
+      timing['serverTime'] as String,
+    ).difference(DateTime.now());
+    _sessionTimer?.cancel();
+    final delay = DateTime.parse(
+      timing['expiresAt'] as String,
+    ).difference(DateTime.now().add(_serverOffset));
+    _sessionTimer = Timer(
+      delay.isNegative ? Duration.zero : delay,
+      () => unawaited(checkSession()),
+    );
+  }
+
+  void recordUserActivity() {
+    if (stage != CustomerStage.ready || _sessionTiming == null) return;
+    final now = DateTime.now();
+    final interval = Duration(
+      milliseconds: ((_sessionTiming!['idleTimeoutSeconds'] as num) * 250)
+          .clamp(1, 30000)
+          .toInt(),
+    );
+    if (_lastActivityReport != null &&
+        now.difference(_lastActivityReport!) < interval) {
+      return;
+    }
+    _lastActivityReport = now;
+    unawaited(checkSession(activity: true));
+  }
+
+  Future<void> checkSession({bool activity = false}) async {
+    if (_disposed || _refreshToken == null || _sessionTiming == null) return;
+    if (_sessionChecking) {
+      if (activity) _queuedActivity = true;
+      return;
+    }
+    final epoch = _epoch;
+    _sessionChecking = true;
+    try {
+      final timing = await authorized(
+        activity ? '/auth/activity' : '/auth/session',
+        method: activity ? 'POST' : 'GET',
+      ).timeout(const Duration(seconds: 5));
+      if (!_disposed && epoch == _epoch) _applySessionTiming(timing);
+    } catch (error) {
+      if (_disposed || epoch != _epoch) return;
+      final expired = !DateTime.now()
+          .add(_serverOffset)
+          .isBefore(DateTime.parse(_sessionTiming!['expiresAt'] as String));
+      if (expired ||
+          (error is CustomerApiException &&
+              (error.status == 401 || error.status == 403))) {
+        ++_epoch;
+        try {
+          await _clear();
+        } finally {
+          stage = CustomerStage.authentication;
+          _notify();
+        }
+      } else {
+        _sessionTimer?.cancel();
+        _sessionTimer = Timer(
+          const Duration(seconds: 5),
+          () => unawaited(checkSession()),
+        );
+      }
+    } finally {
+      _sessionChecking = false;
+      if (_queuedActivity && !_disposed && epoch == _epoch) {
+        _queuedActivity = false;
+        unawaited(checkSession(activity: true));
+      }
+    }
+  }
+
   Future<void> _clear() async {
+    _sessionTimer?.cancel();
+    _sessionTiming = null;
+    _queuedActivity = false;
+    _lastActivityReport = null;
     _profileRequests = 0;
     profileLoading = false;
     _accessToken = null;
@@ -507,6 +604,7 @@ class CustomerController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _sessionTimer?.cancel();
     countries.dispose();
     phone.cancel();
     _disposed = true;

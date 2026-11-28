@@ -1,3 +1,4 @@
+import { loadSessionPolicy } from "../auth/session-policy.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 
 export const CUSTOMER_TERMS_VERSION = "2026-10-26";
@@ -32,6 +33,7 @@ export function customerConfig(env: NodeJS.ProcessEnv = process.env) {
       .split(",")
       .map((value) => value.trim())
       .filter(Boolean),
+    sessionPolicy: loadSessionPolicy(env),
     accessSeconds: 600,
     refreshDays: 30,
   };

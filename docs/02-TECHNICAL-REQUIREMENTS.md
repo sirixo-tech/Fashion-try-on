@@ -1,5 +1,9 @@
 ## Document Evolution
 
+## Human session expiry (2026-11-28)
+
+Human web/mobile logins use DigitalTag timing defaults: 24 hours before idle enforcement, 15 minutes inactivity thereafter, and a 30-hour hard maximum. All three are backend env-configurable. Access and refresh both enforce server session validity; background traffic never counts as activity. Migration, client navigation, tests and rollout requirements are defined in [HUMAN-SESSION-POLICY.md](HUMAN-SESSION-POLICY.md). This supersedes earlier human session expiry and delayed access-token revocation behavior. Device and integration authentication are unchanged.
+
 ### OUTFIT-PLANNER-1 — Private scheduled outfits (2026-11-26)
 
 Add the approved weekly planner beside Wardrobe photo import. Customers choose a
@@ -1416,7 +1420,7 @@ Protected route coverage:
     staff suspension
     password-change invalidation
     security response
-    Current staff/admin logout behavior revokes refresh sessions. Existing short-lived JWT access credentials may remain usable until their configured expiry unless a later approved design adds immediate access-token revocation.
+    Staff/admin access and refresh both validate the database session, including revocation and the configurable human-session expiry policy. See HUMAN-SESSION-POLICY.md.
     For web applications, secure HttpOnly cookies should be preferred over long-lived authentication credentials stored in localStorage.
     Native applications must use platform-secure storage.
 

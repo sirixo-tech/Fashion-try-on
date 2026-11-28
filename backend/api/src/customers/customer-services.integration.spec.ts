@@ -81,6 +81,7 @@ describe.skipIf(!url)(
           customerId,
           familyId: sessionId,
           tokenHash: "a".repeat(64),
+          lastUserActivityAt: new Date(),
           expiresAt: new Date(Date.now() + 86400000),
         },
       });

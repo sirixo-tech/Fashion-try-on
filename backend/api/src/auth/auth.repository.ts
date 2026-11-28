@@ -156,10 +156,43 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
         refreshTokenHash: input.refreshTokenHash,
         expiresAt: input.expiresAt,
         lastUsedAt: input.lastUsedAt,
+        lastUserActivityAt: input.lastUsedAt,
         deviceLabel: input.deviceLabel,
         userAgentJson: input.userAgentJson as Prisma.InputJsonValue | undefined,
       },
     });
+  }
+
+  async recordSessionActivity(
+    session: AuthSessionRecord,
+    now: Date,
+    policy: import("./session-policy.js").SessionPolicy,
+  ): Promise<boolean> {
+    const result = await this.prisma.userSession.updateMany({
+      where: {
+        id: session.id,
+        revokedAt: null,
+        expiresAt: { gt: now },
+        lastUserActivityAt: session.lastUserActivityAt,
+        createdAt: {
+          gt: new Date(now.getTime() - policy.hardMaxSeconds * 1000),
+        },
+        OR: [
+          {
+            createdAt: {
+              gt: new Date(now.getTime() - policy.reauthAfterSeconds * 1000),
+            },
+          },
+          {
+            lastUserActivityAt: {
+              gt: new Date(now.getTime() - policy.idleTimeoutSeconds * 1000),
+            },
+          },
+        ],
+      },
+      data: { lastUserActivityAt: now },
+    });
+    return result.count === 1;
   }
 
   async findSessionWithUser(

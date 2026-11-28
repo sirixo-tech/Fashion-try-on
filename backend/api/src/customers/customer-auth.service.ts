@@ -1,3 +1,4 @@
+import { sessionTiming } from "../auth/session-policy.js";
 import { createHash, createHmac, randomBytes, randomInt } from "node:crypto";
 import {
   Injectable,
@@ -642,7 +643,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         if (
           !session ||
           session.revokedAt ||
-          session.expiresAt <= new Date() ||
+          this.sessionExpired(session) ||
           session.customer.status !== "ACTIVE" ||
           session.customer.securityVersion !==
             principal.customer.securityVersion
@@ -1034,7 +1035,15 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         familyId: id,
         customerId,
         tokenHash: this.digest("refresh", refreshToken),
-        expiresAt: new Date(Date.now() + this.config.refreshDays * 86400000),
+        expiresAt: new Date(
+          Date.now() +
+            Math.min(
+              this.config.refreshDays * 86400,
+              this.config.sessionPolicy.hardMaxSeconds,
+            ) *
+              1000,
+        ),
+        lastUserActivityAt: new Date(),
         deviceName,
       },
     });
@@ -1042,12 +1051,18 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       where: { id: customerId },
       data: { lastActiveAt: new Date() },
     });
-    return this.bundle(customer, session.id, refreshToken);
+    return this.bundle(
+      customer,
+      session.id,
+      refreshToken,
+      this.timing(session),
+    );
   }
   private async bundle(
     customer: Customer,
     sessionId: string,
     refreshToken: string,
+    session: ReturnType<typeof sessionTiming>,
   ) {
     const accessToken = await this.jwt.signAsync(
       {
@@ -1067,6 +1082,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     return {
       accessToken,
       refreshToken,
+      session,
       accessTokenExpiresAt: new Date(
         Date.now() + this.config.accessSeconds * 1000,
       ).toISOString(),
@@ -1092,10 +1108,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         });
         return null;
       }
-      if (
-        current.expiresAt <= new Date() ||
-        current.customer.status !== "ACTIVE"
-      )
+      if (this.sessionExpired(current) || current.customer.status !== "ACTIVE")
         return null;
       await tx.customerSession.update({
         where: { id: current.id },
@@ -1112,6 +1125,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
           expiresAt: current.expiresAt,
           deviceName: current.deviceName,
           authenticatedAt: current.authenticatedAt,
+          lastUserActivityAt: current.lastUserActivityAt,
         },
       });
       await tx.customerPushDevice.updateMany({
@@ -1122,10 +1136,56 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         where: { id: current.customerId },
         data: { lastActiveAt: new Date() },
       });
-      return this.bundle(current.customer, id, next);
+      return this.bundle(current.customer, id, next, this.timing(current));
     });
     if (!result) unauthorized();
     return result;
+  }
+  private timing(session: {
+    authenticatedAt: Date;
+    lastUserActivityAt: Date | null;
+    expiresAt: Date;
+  }) {
+    return sessionTiming(
+      this.config.sessionPolicy,
+      session.authenticatedAt,
+      session.lastUserActivityAt,
+      session.expiresAt,
+    );
+  }
+  private sessionExpired(session: {
+    authenticatedAt: Date;
+    lastUserActivityAt: Date | null;
+    expiresAt: Date;
+  }) {
+    return new Date(this.timing(session).expiresAt) <= new Date();
+  }
+  async sessionStatus(header: string | undefined, activity = false) {
+    const principal = await this.requireCustomer(header);
+    return this.db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM customers WHERE id = ${principal.customer.id}::uuid FOR UPDATE`;
+      const session = await tx.customerSession.findUnique({
+        where: { id: principal.sessionId },
+        include: { customer: true },
+      });
+      if (
+        !session ||
+        session.revokedAt ||
+        this.sessionExpired(session) ||
+        session.customer.status !== "ACTIVE" ||
+        session.customer.securityVersion !== principal.customer.securityVersion
+      )
+        unauthorized();
+      if (activity) {
+        const now = new Date();
+        await tx.customerSession.update({
+          where: { id: session!.id },
+          data: { lastUserActivityAt: now },
+        });
+        session!.lastUserActivityAt = now;
+      }
+      return this.timing(session!);
+    });
   }
   async requireCustomer(header?: string) {
     this.assertEnabled();
@@ -1151,7 +1211,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       !session ||
       session.customerId !== claims!.sub ||
       session.revokedAt ||
-      session.expiresAt <= new Date() ||
+      this.sessionExpired(session) ||
       session.customer.status !== "ACTIVE" ||
       session.customer.securityVersion !== claims!.ver
     )
@@ -1382,7 +1442,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         if (
           !session ||
           session.revokedAt ||
-          session.expiresAt <= new Date() ||
+          this.sessionExpired(session) ||
           session.customer.status !== "ACTIVE" ||
           session.customer.securityVersion !==
             principal.customer.securityVersion

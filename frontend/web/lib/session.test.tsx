@@ -214,6 +214,36 @@ describe("SessionProvider", () => {
     vi.restoreAllMocks();
   });
 
+  it("waits for the cross-tab lock before rotating the refresh cookie", async () => {
+    useProductionApiProxy();
+    const gate = createDeferred<void>();
+    const requestLock = vi.fn(
+      async (_name: string, run: () => Promise<unknown>) => {
+        await gate.promise;
+        return run();
+      },
+    );
+    vi.stubGlobal("navigator", { locks: { request: requestLock } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(authResponse("access-token-locked"));
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <SessionProvider>
+        <StatusProbe />
+      </SessionProvider>,
+    );
+    expect(requestLock).toHaveBeenCalledOnce();
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => gate.resolve());
+    await waitFor(() =>
+      expect(screen.getByTestId("session-status").textContent).toBe(
+        "authenticated",
+      ),
+    );
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("restores an existing valid refresh session with one request", async () => {
     useProductionApiProxy();
     const fetchMock = vi.fn().mockResolvedValue(authResponse("access-token-1"));

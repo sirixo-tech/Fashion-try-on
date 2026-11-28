@@ -6,6 +6,70 @@ import 'fakes.dart';
 
 void main() {
   test(
+    'reports user activity separately and automatically clears an expired session',
+    () async {
+      final api = FakeCustomerApi(),
+          store = MemorySessionStore(token: 'old-refresh');
+      var expiry = DateTime.now().add(const Duration(hours: 1));
+      Map<String, dynamic> timing() => {
+        'serverTime': DateTime.now().toIso8601String(),
+        'reauthDueAt': DateTime.now()
+            .subtract(const Duration(hours: 1))
+            .toIso8601String(),
+        'hardExpiresAt': DateTime.now()
+            .add(const Duration(hours: 5))
+            .toIso8601String(),
+        'expiresAt': expiry.toIso8601String(),
+        'idleTimeoutSeconds': 900,
+      };
+      var expired = false;
+      api.handler = (path, method, body) async {
+        if (path == '/auth/capabilities') {
+          return {
+            'enabled': true,
+            'providers': {},
+            'termsVersion': '2026-10-25',
+          };
+        }
+        if (expired) {
+          throw const CustomerApiException(
+            'CUSTOMER_UNAUTHORIZED',
+            'Please sign in again.',
+            401,
+          );
+        }
+        if (path == '/auth/refresh') {
+          return {...api.bundle(), 'session': timing()};
+        }
+        if (path == '/me') return api.profile;
+        return timing();
+      };
+      final controller = CustomerController(
+        api: api,
+        store: store,
+        identity: FakeIdentity(),
+      );
+      addTearDown(controller.dispose);
+      await controller.initialize();
+      expect(controller.stage, CustomerStage.ready);
+      expect(api.calls.where((call) => call.path == '/auth/activity'), isEmpty);
+      controller.recordUserActivity();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(
+        api.calls.where((call) => call.path == '/auth/activity'),
+        hasLength(1),
+      );
+      expiry = DateTime.now().add(const Duration(milliseconds: 30));
+      await controller.checkSession();
+      expired = true;
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      expect(controller.stage, CustomerStage.authentication);
+      expect(controller.profile, isNull);
+      expect(store.token, isNull);
+    },
+  );
+
+  test(
     'restores customer sessions using only securely persisted refresh tokens',
     () async {
       final api = FakeCustomerApi(),

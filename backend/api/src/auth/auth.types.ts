@@ -28,6 +28,7 @@ export interface AuthSessionRecord {
   userId: string;
   credentialsVersion?: number;
   refreshTokenHash: string;
+  lastUserActivityAt?: Date | null;
   expiresAt: Date;
   revokedAt: Date | null;
   lastUsedAt: Date | null;
@@ -60,6 +61,7 @@ export interface AuthResult {
   refreshToken: string;
   refreshTokenExpiresAt: Date;
   user: AuthUserResponse;
+  session?: ReturnType<typeof import("./session-policy.js").sessionTiming>;
 }
 
 export interface SignupInput {
@@ -95,6 +97,11 @@ export interface AuthRepositoryPort {
     deviceLabel?: string;
     userAgentJson?: Record<string, unknown>;
   }): Promise<AuthSessionRecord>;
+  recordSessionActivity(
+    session: AuthSessionRecord,
+    now: Date,
+    policy: import("./session-policy.js").SessionPolicy,
+  ): Promise<boolean>;
   findSessionWithUser(
     sessionId: string,
   ): Promise<AuthSessionWithUserRecord | null>;

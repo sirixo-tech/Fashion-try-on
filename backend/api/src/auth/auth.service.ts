@@ -1,3 +1,4 @@
+import { loadSessionPolicy, sessionTiming } from "./session-policy.js";
 import {
   createHash,
   createHmac,
@@ -52,6 +53,7 @@ const signupChallengeTtlSeconds = 10 * 60;
 
 @Injectable()
 export class AuthService {
+  private readonly sessionPolicy = loadSessionPolicy();
   private readonly dummyPasswordHash: Promise<string>;
 
   constructor(
@@ -188,7 +190,7 @@ export class AuthService {
     if (
       !session ||
       session.revokedAt ||
-      session.expiresAt <= new Date() ||
+      this.sessionExpired(session) ||
       (session.credentialsVersion ?? 0) !==
         (session.user.credentialsVersion ?? 0)
     ) {
@@ -296,8 +298,23 @@ export class AuthService {
     userId: string,
     ttlSeconds?: number,
   ): Promise<string> {
+    const sessionId = createSelfxId();
+    const now = new Date();
+    await this.repository.createUserSession({
+      id: sessionId,
+      userId,
+      refreshTokenHash: "test-only",
+      expiresAt: new Date(
+        now.getTime() + this.sessionPolicy.hardMaxSeconds * 1000,
+      ),
+      lastUsedAt: now,
+    });
     return this.jwt.signAsync(
-      { sub: userId, typ: "access" } satisfies AccessTokenPayload,
+      {
+        sub: userId,
+        sid: sessionId,
+        typ: "access",
+      } satisfies AccessTokenPayload,
       {
         secret: this.config.jwtAccessSecret,
         expiresIn: ttlSeconds ?? this.config.accessTokenTtlSeconds,
@@ -326,7 +343,18 @@ export class AuthService {
       throwInvalidAccessToken();
     }
 
-    const user = await this.repository.findUserById(payload.sub);
+    const session = payload.sid
+      ? await this.repository.findSessionWithUser(payload.sid)
+      : null;
+    if (
+      !session ||
+      session.userId !== payload.sub ||
+      session.revokedAt ||
+      this.sessionExpired(session)
+    ) {
+      throwInvalidAccessToken();
+    }
+    const user = session.user;
     if (!user) {
       throwInvalidAccessToken();
     }
@@ -376,7 +404,12 @@ export class AuthService {
     const refreshToken = this.refreshTokens.create(sessionId);
     const now = new Date();
     const refreshTokenExpiresAt = new Date(
-      now.getTime() + this.config.refreshSessionTtlSeconds * 1000,
+      now.getTime() +
+        Math.min(
+          this.config.refreshSessionTtlSeconds,
+          this.sessionPolicy.hardMaxSeconds,
+        ) *
+          1000,
     );
 
     await this.repository.createUserSession({
@@ -403,6 +436,9 @@ export class AuthService {
     refreshTokenExpiresAt: Date,
     sessionId: string,
   ): Promise<AuthResult> {
+    const session = await this.repository.findSessionWithUser(sessionId);
+    if (!session || session.revokedAt || this.sessionExpired(session))
+      throwInvalidRefreshToken();
     const accessToken = await this.jwt.signAsync(
       {
         sub: user.id,
@@ -424,8 +460,45 @@ export class AuthService {
       accessTokenExpiresAt,
       refreshToken,
       refreshTokenExpiresAt,
+      session: this.timing(session!),
       user: sanitizeUser(user),
     };
+  }
+
+  private timing(session: import("./auth.types.js").AuthSessionRecord) {
+    return {
+      ...sessionTiming(
+        this.sessionPolicy,
+        session.createdAt,
+        session.lastUserActivityAt,
+        session.expiresAt,
+      ),
+      sessionId: session.id,
+    };
+  }
+
+  private sessionExpired(session: import("./auth.types.js").AuthSessionRecord) {
+    return new Date(this.timing(session).expiresAt) <= new Date();
+  }
+
+  async sessionStatus(header: string | undefined, activity = false) {
+    const user = await this.requireAccessUser(header);
+    let session = await this.repository.findSessionWithUser(
+      user.authSessionId!,
+    );
+    if (!session || session.revokedAt || this.sessionExpired(session))
+      throwInvalidAccessToken();
+    if (activity) {
+      await this.repository.recordSessionActivity(
+        session!,
+        new Date(),
+        this.sessionPolicy,
+      );
+      session = await this.repository.findSessionWithUser(user.authSessionId!);
+      if (!session || session.revokedAt || this.sessionExpired(session))
+        throwInvalidAccessToken();
+    }
+    return this.timing(session!);
   }
 
   private async auditLoginFailure(

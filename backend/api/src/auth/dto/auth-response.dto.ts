@@ -18,6 +18,9 @@ export class AuthUserDto {
 }
 
 export class AuthTokenResponseDto {
+  @ApiProperty({ required: false })
+  session?: ReturnType<typeof import("../session-policy.js").sessionTiming>;
+
   @ApiProperty()
   accessToken!: string;
 

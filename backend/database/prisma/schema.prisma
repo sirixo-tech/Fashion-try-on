@@ -194,18 +194,19 @@ model CustomerIdentity {
 }
 
 model CustomerSession {
-  pushDevices     CustomerPushDevice[]
-  id              String               @id @db.Uuid
-  customerId      String               @map("customer_id") @db.Uuid
-  familyId        String               @map("family_id") @db.Uuid
-  tokenHash       String               @unique @map("token_hash") @db.Char(64)
-  expiresAt       DateTime             @map("expires_at") @db.Timestamptz(3)
-  revokedAt       DateTime?            @map("revoked_at") @db.Timestamptz(3)
-  lastUsedAt      DateTime?            @map("last_used_at") @db.Timestamptz(3)
-  deviceName      String?              @map("device_name") @db.VarChar(100)
-  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  authenticatedAt DateTime             @default(now()) @map("authenticated_at") @db.Timestamptz(3)
-  customer        Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  lastUserActivityAt DateTime?            @map("last_user_activity_at") @db.Timestamptz(3)
+  pushDevices        CustomerPushDevice[]
+  id                 String               @id @db.Uuid
+  customerId         String               @map("customer_id") @db.Uuid
+  familyId           String               @map("family_id") @db.Uuid
+  tokenHash          String               @unique @map("token_hash") @db.Char(64)
+  expiresAt          DateTime             @map("expires_at") @db.Timestamptz(3)
+  revokedAt          DateTime?            @map("revoked_at") @db.Timestamptz(3)
+  lastUsedAt         DateTime?            @map("last_used_at") @db.Timestamptz(3)
+  deviceName         String?              @map("device_name") @db.VarChar(100)
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  authenticatedAt    DateTime             @default(now()) @map("authenticated_at") @db.Timestamptz(3)
+  customer           Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId, revokedAt])
   @@index([familyId])
@@ -694,6 +695,7 @@ model UserOAuthRequest {
 }
 
 model UserSession {
+  lastUserActivityAt    DateTime?              @map("last_user_activity_at") @db.Timestamptz(3)
   id                    String                 @id @db.Uuid
   userId                String                 @map("user_id") @db.Uuid
   credentialsVersion    Int                    @default(0) @map("credentials_version")

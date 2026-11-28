@@ -147,6 +147,16 @@ export class CustomerAuthController {
     );
   }
   @Header("Cache-Control", "no-store")
+  @Get("auth/session")
+  sessionStatus(@Req() request: FastifyRequest) {
+    return this.auth.sessionStatus(request.headers.authorization);
+  }
+  @Header("Cache-Control", "no-store")
+  @Post("auth/activity")
+  activity(@Req() request: FastifyRequest) {
+    return this.auth.sessionStatus(request.headers.authorization, true);
+  }
+  @Header("Cache-Control", "no-store")
   @Post("auth/refresh")
   refresh(@Body() dto: CustomerRefreshDto, @Req() request: FastifyRequest) {
     return this.auth.refresh(dto.refreshToken, request.ip);

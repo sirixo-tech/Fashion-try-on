@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -30,7 +31,15 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
     super.initState();
     wasReady = controller.stage == CustomerStage.ready;
     controller.addListener(syncRoutes);
+    HardwareKeyboard.instance.addHandler(onKeyActivity);
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  bool onKeyActivity(KeyEvent event) {
+    if (event is KeyDownEvent && !event.synthesized) {
+      controller.recordUserActivity();
+    }
+    return false;
   }
 
   void syncRoutes() {
@@ -58,12 +67,20 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed &&
         controller.stage == CustomerStage.ready) {
-      controller.loadProfile().catchError((_) {});
+      controller
+          .checkSession()
+          .then((_) {
+            if (controller.stage == CustomerStage.ready) {
+              return controller.loadProfile();
+            }
+          })
+          .catchError((_) {});
     }
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(onKeyActivity);
     controller.removeListener(syncRoutes);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -87,16 +104,21 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
         CustomerCopy.delegate,
         ...GlobalMaterialLocalizations.delegates,
       ],
-      builder: (context, child) => DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            stops: [0, .55, 1],
-            colors: [Color(0xFFFFF8EF), Color(0xFFFAF7F2), Color(0xFFF4E4D6)],
+      builder: (context, child) => Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => controller.recordUserActivity(),
+        onPointerSignal: (_) => controller.recordUserActivity(),
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: [0, .55, 1],
+              colors: [Color(0xFFFFF8EF), Color(0xFFFAF7F2), Color(0xFFF4E4D6)],
+            ),
           ),
+          child: child,
         ),
-        child: child,
       ),
       home: ListenableBuilder(
         listenable: controller,

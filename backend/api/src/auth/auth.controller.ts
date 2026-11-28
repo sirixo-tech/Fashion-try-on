@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Header,
   HttpStatus,
   Inject,
   Post,
@@ -71,6 +72,7 @@ export class AuthController {
       accessToken: result.accessToken,
       accessTokenExpiresAt: result.accessTokenExpiresAt,
       user: result.user,
+      session: result.session,
     };
   }
 
@@ -117,6 +119,7 @@ export class AuthController {
       accessToken: result.accessToken,
       accessTokenExpiresAt: result.accessTokenExpiresAt,
       user: result.user,
+      session: result.session,
     };
   }
 
@@ -148,6 +151,7 @@ export class AuthController {
       accessToken: result.accessToken,
       accessTokenExpiresAt: result.accessTokenExpiresAt,
       user: result.user,
+      session: result.session,
     };
   }
 
@@ -191,6 +195,22 @@ export class AuthController {
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   async me(@Req() request: FastifyRequest): Promise<MeResponseDto> {
     return { user: await this.auth.me(request.headers.authorization) };
+  }
+
+  @Header("Cache-Control", "no-store")
+  @Get("session")
+  @ApiBearerAuth()
+  sessionStatus(@Req() request: FastifyRequest) {
+    return this.auth.sessionStatus(request.headers.authorization);
+  }
+
+  @Header("Cache-Control", "no-store")
+  @Post("activity")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  activity(@Req() request: FastifyRequest) {
+    this.browserSecurity.assertTrustedOrigin(request);
+    return this.auth.sessionStatus(request.headers.authorization, true);
   }
 
   private getRefreshCookie(request: FastifyRequest): string | undefined {

@@ -175,6 +175,63 @@ describe("AuthService", () => {
     );
   });
 
+  it("enforces idle expiry on access and refresh while refresh preserves activity", async () => {
+    const user = await createUser(repository, passwords);
+    const login = await auth.login(
+      user.email,
+      "CorrectPassword123!",
+      requestMetadata(),
+    );
+    const session = repository.sessions[0]!;
+    session.createdAt = new Date(Date.now() - 24 * 3600000);
+    session.expiresAt = new Date(Date.now() + 6 * 3600000);
+    session.lastUserActivityAt = new Date();
+    const originalActivity = session.lastUserActivityAt;
+    const refreshed = await auth.refresh(login.refreshToken, requestMetadata());
+    expect(session.lastUserActivityAt).toEqual(originalActivity);
+    expect(await auth.me(`Bearer ${refreshed.accessToken}`)).toMatchObject({
+      id: user.id,
+    });
+    await auth.sessionStatus(`Bearer ${refreshed.accessToken}`, true);
+    expect(session.createdAt.getTime()).toBeLessThan(Date.now() - 23 * 3600000);
+    session.lastUserActivityAt = new Date(Date.now() - 15 * 60000);
+    await expectAuthCode(
+      auth.me(`Bearer ${refreshed.accessToken}`),
+      AUTH_ERROR_CODES.accessTokenInvalid,
+    );
+    await expectAuthCode(
+      auth.refresh(refreshed.refreshToken, requestMetadata()),
+      AUTH_ERROR_CODES.refreshTokenInvalid,
+    );
+    await expectAuthCode(
+      auth.sessionStatus(`Bearer ${refreshed.accessToken}`, true),
+      AUTH_ERROR_CODES.accessTokenInvalid,
+    );
+  });
+
+  it("rejects active sessions at the 30-hour hard deadline and revokes access on logout", async () => {
+    const user = await createUser(repository, passwords);
+    const login = await auth.login(
+      user.email,
+      "CorrectPassword123!",
+      requestMetadata(),
+    );
+    const session = repository.sessions[0]!;
+    session.createdAt = new Date(Date.now() - 30 * 3600000);
+    session.lastUserActivityAt = new Date();
+    session.expiresAt = new Date(Date.now() + 3600000);
+    await expectAuthCode(
+      auth.me(`Bearer ${login.accessToken}`),
+      AUTH_ERROR_CODES.accessTokenInvalid,
+    );
+    session.createdAt = new Date();
+    await auth.logout(login.refreshToken);
+    await expectAuthCode(
+      auth.me(`Bearer ${login.accessToken}`),
+      AUTH_ERROR_CODES.accessTokenInvalid,
+    );
+  });
+
   it("rejects malformed, revoked, and expired refresh sessions", async () => {
     const user = await createUser(repository, passwords);
     const login = await auth.login(
@@ -493,6 +550,7 @@ class FakeAuthRepository implements AuthRepositoryPort {
       expiresAt: input.expiresAt,
       revokedAt: null,
       lastUsedAt: input.lastUsedAt,
+      lastUserActivityAt: input.lastUsedAt,
       deviceLabel: input.deviceLabel ?? null,
       userAgentJson: input.userAgentJson,
       createdAt: new Date(),
@@ -501,6 +559,12 @@ class FakeAuthRepository implements AuthRepositoryPort {
     return session;
   }
 
+  async recordSessionActivity(session: AuthSessionRecord, now: Date) {
+    const current = this.sessions.find((item) => item.id === session.id);
+    if (!current || current.revokedAt) return false;
+    current.lastUserActivityAt = now;
+    return true;
+  }
   async findSessionWithUser(
     sessionId: string,
   ): Promise<AuthSessionWithUserRecord | null> {

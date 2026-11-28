@@ -1,5 +1,7 @@
 "use client";
 
+import { watchSessionActivity, type SessionTiming } from "./session-activity";
+
 import {
   createContext,
   useCallback,
@@ -25,6 +27,7 @@ export type StaffUser = {
 export type AuthTokenResponse = {
   accessToken: string;
   accessTokenExpiresAt: string;
+  session?: SessionTiming;
   user: StaffUser;
 };
 
@@ -69,6 +72,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState>(emptySession);
   const sessionRef = useRef<SessionState>(emptySession);
   const operationVersionRef = useRef(0);
+  const timingRef = useRef<SessionTiming | undefined>(undefined);
+  const activityRef = useRef<ReturnType<typeof watchSessionActivity> | null>(
+    null,
+  );
   const refreshInFlightRef = useRef<Promise<string | null> | null>(null);
 
   const setSessionState = useCallback((nextSession: SessionState) => {
@@ -80,6 +87,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const applyTokenResponse = useCallback(
     (response: AuthTokenResponse) => {
+      timingRef.current = response.session;
+      if (response.session) activityRef.current?.update(response.session);
       setSessionState({
         status: "authenticated",
         user: response.user,
@@ -96,9 +105,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     const refreshVersion = operationVersionRef.current;
 
-    const refreshPromise = selfxApi<AuthTokenResponse>("/api/v1/auth/refresh", {
-      method: "POST",
-    })
+    const requestRefresh = () =>
+      selfxApi<AuthTokenResponse>("/api/v1/auth/refresh", {
+        method: "POST",
+      });
+    // Serialize rotating-cookie refresh across tabs when Web Locks is available.
+    const lockedRefresh = async (): Promise<AuthTokenResponse> => {
+      if (navigator.locks) {
+        return await navigator.locks.request(
+          "selfx-auth-refresh",
+          requestRefresh,
+        );
+      }
+      return requestRefresh();
+    };
+    const refreshPromise = lockedRefresh()
       .then((response) => {
         if (operationVersionRef.current === refreshVersion) {
           applyTokenResponse(response);
@@ -286,6 +307,36 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     return () => setAuthSessionHooks(null);
   }, [handleTerminalAuthFailure, refreshAccessToken]);
+
+  useEffect(() => {
+    if (session.status !== "authenticated" || !timingRef.current) return;
+    const watcher = watchSessionActivity(
+      timingRef.current,
+      (activity) =>
+        selfxApi<SessionTiming>(
+          activity ? "/api/v1/auth/activity" : "/api/v1/auth/session",
+          {
+            method: activity ? "POST" : "GET",
+            cache: "no-store",
+            signal: AbortSignal.timeout(5000),
+            accessToken: sessionRef.current.accessToken,
+          },
+        ),
+      () => {
+        operationVersionRef.current++;
+        setSessionState({
+          status: "unauthenticated",
+          user: null,
+          accessToken: null,
+        });
+      },
+    );
+    activityRef.current = watcher;
+    return () => {
+      watcher.stop();
+      activityRef.current = null;
+    };
+  }, [session.status, session.user?.id, setSessionState]);
 
   const value = useMemo<SessionContextValue>(
     () => ({
