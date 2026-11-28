@@ -17,9 +17,29 @@ export class AuthUserDto {
   hasPlatformAccess!: boolean;
 }
 
+export class AuthSessionResponseDto {
+  @ApiProperty({ type: String, format: "date-time" })
+  serverTime!: string;
+
+  @ApiProperty({ type: String, format: "date-time" })
+  reauthDueAt!: string;
+
+  @ApiProperty({ type: String, format: "date-time" })
+  hardExpiresAt!: string;
+
+  @ApiProperty({ type: String, format: "date-time" })
+  expiresAt!: string;
+
+  @ApiProperty({ type: "integer", minimum: 1 })
+  idleTimeoutSeconds!: number;
+
+  @ApiProperty({ type: String, required: false })
+  sessionId?: string;
+}
+
 export class AuthTokenResponseDto {
-  @ApiProperty({ required: false })
-  session?: ReturnType<typeof import("../session-policy.js").sessionTiming>;
+  @ApiProperty({ type: () => AuthSessionResponseDto, required: false })
+  session?: AuthSessionResponseDto;
 
   @ApiProperty()
   accessToken!: string;
